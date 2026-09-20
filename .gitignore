@@ -1,0 +1,9 @@
+node_modules
+dist
+.impeccable/config.local.json
+.impeccable/serve.out
+tsconfig.tsbuildinfo
+.impeccable/review/
+.impeccable/questions/
+.impeccable/direction-payload*.json
+.impeccable/brief-body.md

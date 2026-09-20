@@ -1,0 +1,69 @@
+import { useState } from 'react'
+import { isoDate, type State } from '../store'
+import type { ViewProps } from '../App'
+
+export function Data({ state, api }: ViewProps) {
+  const [msg, setMsg] = useState<{ text: string; red?: boolean } | null>(null)
+  const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length
+
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify({ ...state, apiKey: '' }, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `soubi-${isoDate(new Date())}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    setMsg({ text: 'Exported. The API key is never included.' })
+  }
+  const importJson = async (f: File | undefined) => {
+    if (!f) return
+    try {
+      const s = JSON.parse(await f.text()) as Partial<State>
+      if (!Array.isArray(s.items) || !Array.isArray(s.bags) || !Array.isArray(s.trips)) throw new Error()
+      api.replace({ items: s.items, bags: s.bags, trips: s.trips, apiKey: state.apiKey, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null })
+      setMsg({ text: `Imported ${s.items.length} items, ${s.bags.length} bags, ${s.trips.length} trips.` })
+    } catch {
+      setMsg({ text: 'That file is not a Soubi export.', red: true })
+    }
+  }
+  const removeSample = () => {
+    const trips = state.trips.filter((t) => !t.sample)
+    api.replace({ ...state, items: state.items.filter((i) => !i.sample), bags: state.bags.filter((b) => !b.sample), trips, activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : trips[0]?.id ?? null })
+    setMsg({ text: 'Sample data removed.' })
+  }
+  const reset = () => {
+    if (!confirm('Delete everything Soubi stores in this browser? Export first if you want to keep it.')) return
+    localStorage.removeItem('soubi.v1')
+    location.reload()
+  }
+
+  return (
+    <section className="page">
+      <div className="page-head"><h1>Data</h1><p className="muted">Everything lives in this browser. Nothing is sent anywhere unless you add a key below.</p></div>
+      <div className="data">
+        <section>
+          <h2>Backup</h2>
+          <div className="tools">
+            <button className="btn" onClick={exportJson}>Export JSON</button>
+            <label className="btn">Import JSON<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={(e) => importJson(e.target.files?.[0])} /></label>
+            {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
+          </div>
+          <p className="hint">Import replaces the current inventory, bags, and trips.</p>
+        </section>
+        <section>
+          <h2>Claude API key</h2>
+          <label className="field"><span className="label">Key</span><input type="password" value={state.apiKey} onChange={(e) => api.set({ apiKey: e.target.value.trim() })} placeholder="sk-ant-…" autoComplete="off" /></label>
+          <p className="hint">Optional. Enables “Ask Claude for extras” on a trip. The key stays in this browser's storage and requests go straight from your browser to Anthropic, billed to your account. Rule-based suggestions work without it.</p>
+        </section>
+        <section>
+          <h2>Sample data</h2>
+          <div className="tools"><button className="btn" onClick={removeSample} disabled={!sampleCount}>Remove sample data</button><span className="hint">{sampleCount ? `${sampleCount} sample records` : 'None left'}</span></div>
+        </section>
+        <section>
+          <h2>Start over</h2>
+          <div className="tools"><button className="btn danger" onClick={reset}>Delete all local data</button></div>
+        </section>
+      </div>
+    </section>
+  )
+}
