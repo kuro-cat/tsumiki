@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { Placed } from '../lib/pack'
@@ -8,17 +8,25 @@ type Ctx = {
   renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.OrthographicCamera; controls: OrbitControls
   group: THREE.Group; radius: number; bagKey: string; render: () => void; fit: () => void
 }
-export type SceneItem = { id: string; box: Placed; selected: boolean }
+export type SceneItem = { id: string; box: Placed; selected: boolean; color?: string }
 export type SceneComp = { c: Compartment; boxes: SceneItem[]; fill: { height: number; over: boolean } }
 export type CamView = 'iso' | 'top' | 'front' | 'side'
 export const CAM_VIEWS: CamView[] = ['iso', 'top', 'front', 'side']
 const DIRS: Record<CamView, [number, number, number]> = { iso: [1, 0.85, 1], top: [0, 1, 0.001], front: [0, 0.001, 1], side: [1, 0.001, 0] }
 const eps = 1e-6
+/** Theme tokens as THREE colors, read from the document so the scene follows data-theme. */
+const tok = (name: string) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim())
 
 /** Axonometric line drawing of the assembled bag: white faces, graphite edges, dashed above the section cut, translucent soft fill. Renders on demand only. */
 export function Scene3D({ comps, cut, cam }: { comps: SceneComp[]; cut: number; cam: { view: CamView; n: number } }) {
   const host = useRef<HTMLDivElement>(null)
   const ctx = useRef<Ctx | null>(null)
+  const [themeN, setThemeN] = useState(0)
+  useEffect(() => {
+    const mo = new MutationObserver(() => setThemeN((n) => n + 1))
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => mo.disconnect()
+  }, [])
 
   useEffect(() => {
     const el = host.current!
@@ -65,12 +73,13 @@ export function Scene3D({ comps, cut, cam }: { comps: SceneComp[]; cut: number; 
       mat?.dispose?.()
     })
     c.group.clear()
-    const ink = 0x2b2b2b
+    const ink = tok('--ink'), paper = tok('--paper'), blue = tok('--blue'), red = tok('--red'), ink3 = tok('--ink-3')
+    const tint = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tint')) / 100 || 0.28
     const EL = Math.max(1, ...comps.map(({ c }) => c.x + c.l)), EW = Math.max(1, ...comps.map(({ c }) => c.y + c.w)), EH = Math.max(1, ...comps.map(({ c }) => c.z + c.h))
     // Plan x → X, plan y → Z, height z → Y, centred on the assembled bag.
     const at = (x: number, z: number, y: number) => new THREE.Vector3(x - EL / 2, z - EH / 2, y - EW / 2)
     const size = Math.ceil(Math.max(EL, EW) / 10) * 10 + 20
-    const grid = new THREE.GridHelper(size, size, 0xd8dade, 0xecedef)
+    const grid = new THREE.GridHelper(size, size, tok('--grid-major'), tok('--grid'))
     grid.position.y = -EH / 2 - 0.05
     c.group.add(grid)
     for (const { c: comp, boxes, fill } of comps) {
@@ -80,18 +89,18 @@ export function Scene3D({ comps, cut, cam }: { comps: SceneComp[]; cut: number; 
       c.group.add(edges)
       g.dispose()
       const cutLocal = cut - comp.z
-      for (const { box, selected } of boxes) {
+      for (const { box, selected, color } of boxes) {
         const above = box.z >= cutLocal - eps
         const bg = new THREE.BoxGeometry(box.l, box.h, box.w)
         const pos = at(comp.x + box.x + box.l / 2, comp.z + box.z + box.h / 2, comp.y + box.y + box.w / 2)
         if (!above) {
-          const mesh = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ color: 0xfcfcfb, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }))
+          const mesh = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ color: color ? new THREE.Color(color).lerp(paper, 1 - tint) : paper, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }))
           mesh.position.copy(pos)
           c.group.add(mesh)
         }
         const lines = new THREE.LineSegments(
           new THREE.EdgesGeometry(bg),
-          above ? new THREE.LineDashedMaterial({ color: 0x9a9ea5, dashSize: 1.2, gapSize: 0.8 }) : new THREE.LineBasicMaterial({ color: selected ? 0x2f6fd0 : ink }),
+          above ? new THREE.LineDashedMaterial({ color: ink3, dashSize: 1.2, gapSize: 0.8 }) : new THREE.LineBasicMaterial({ color: selected ? blue : ink }),
         )
         if (above) lines.computeLineDistances()
         lines.position.copy(pos)
@@ -100,7 +109,7 @@ export function Scene3D({ comps, cut, cam }: { comps: SceneComp[]; cut: number; 
       const fh = Math.min(fill.height, Math.max(0, cutLocal))
       if (fh > eps) {
         const fg = new THREE.BoxGeometry(comp.l - 0.2, fh, comp.w - 0.2)
-        const mesh = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: fill.over ? 0xc2311e : 0x6f737b, transparent: true, opacity: 0.16, depthWrite: false }))
+        const mesh = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: fill.over ? red : ink3, transparent: true, opacity: 0.16, depthWrite: false }))
         mesh.position.copy(at(comp.x + comp.l / 2, comp.z + fh / 2, comp.y + comp.w / 2))
         c.group.add(mesh)
       }
@@ -112,7 +121,7 @@ export function Scene3D({ comps, cut, cam }: { comps: SceneComp[]; cut: number; 
       c.camera.zoom = 1
       c.fit()
     } else c.render()
-  }, [comps, cut])
+  }, [comps, cut, themeN])
 
   useEffect(() => {
     const c = ctx.current

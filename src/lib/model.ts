@@ -3,7 +3,8 @@ import { autoPackBins, fillHeight, freeVolume, oriented, volume, type Box, type 
 export type Category = 'clothing' | 'footwear' | 'toiletries' | 'electronics' | 'documents' | 'gear' | 'misc'
 export const CATEGORIES: Category[] = ['clothing', 'footwear', 'toiletries', 'electronics', 'documents', 'gear', 'misc']
 export type Kind = 'rigid' | 'soft'
-type ItemBase = { id: string; name: string; category: Category; weight: number; qty: number; sample?: boolean }
+/** color is an optional hex; undefined draws the item in paper. */
+type ItemBase = { id: string; name: string; category: Category; weight: number; qty: number; color?: string; sample?: boolean }
 /** Keeps its shape: a box that occupies exactly its L × W × H. */
 export type RigidItem = ItemBase & { kind: 'rigid'; l: number; w: number; h: number }
 /** No fixed shape: a measured volume in litres that packs to a percentage of itself. It has a home, never a position. */
@@ -29,6 +30,8 @@ export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: s
 
 export const DEFAULT_PACKS_TO: Record<Category, number> = { clothing: 60, footwear: 100, toiletries: 90, electronics: 100, documents: 100, gear: 100, misc: 100 }
 export const defaultKind = (c: Category): Kind => (c === 'clothing' ? 'soft' : 'rigid')
+/** Colored-pencil set for items: hues kept clear of the provisional and wrong inks on both themes. */
+export const SWATCHES = ['#c8714a', '#d0a33a', '#7d9b3f', '#3a9b8c', '#8a6bb8', '#b25e8f', '#8c6a4a', '#d98a9a']
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10)

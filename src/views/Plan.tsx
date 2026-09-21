@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
 import { bagHeight, bagVolume, fillOf, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, roomiest, uid, type Compartment, type Item, type Loose, type Placement, type RigidItem } from '../store'
 import { autoPackBins, dropZ, fits, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
@@ -19,6 +19,8 @@ const GAP = 64
 const eps = 1e-6
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
 const asBox = (c: Compartment): Placed => ({ x: c.x, y: c.y, z: c.z, l: c.l, w: c.w, h: c.h })
+export const AUTOPACK_ANIM_KEY = 'bin-pack.autopack-anim'
+export const autopackAnimates = () => { try { return localStorage.getItem(AUTOPACK_ANIM_KEY) !== 'off' } catch { return true } }
 
 export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const { items, bags } = state
@@ -81,6 +83,15 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const [selected, setSelected] = useState<string | null>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   const [flash, setFlash] = useState<Ghost | null>(null)
+  // Footprints placed in the last moment, with their order in the batch. A single drop fades its wash in; an autopack batch arrives one item at a time.
+  const [fresh, setFresh] = useState<{ ids: Record<string, number>; from: Record<string, [number, number]> }>({ ids: {}, from: {} })
+  const freshT = useRef(0)
+  const settle = (ids: string[], from?: Record<string, [number, number]>) => {
+    const step = from ? 90 : 20
+    setFresh({ ids: Object.fromEntries(ids.map((id, i) => [id, i * step])), from: from ?? {} })
+    window.clearTimeout(freshT.current)
+    freshT.current = window.setTimeout(() => setFresh({ ids: {}, from: {} }), ids.length * step + 600)
+  }
   const [note, setNote] = useState<{ text: string; red?: boolean } | null>(null)
   const noteT = useRef(0)
   const say = (text: string, red = false) => {
@@ -195,6 +206,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         const pl: Placement = { id: d.placementId ?? uid(), itemId: d.itemId, compartmentId: sn.compId, x: sn.x, y: sn.y, z: sn.z, rot: d.rot }
         api.patchTrip(tripId, (t) => ({ placements: [...t.placements.filter((p) => p.id !== pl.id), pl] }))
         setSelected(pl.id)
+        settle([pl.id])
       } else if (sn && g) {
         setFlash(g)
         window.setTimeout(() => setFlash(null), 280)
@@ -250,6 +262,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     const pl: Placement = { id: uid(), itemId: it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, rot }
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
     setSelected(pl.id)
+    settle([pl.id])
   }
   const autoPackAll = () => {
     if (!trip || !bag) return
@@ -268,6 +281,16 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
       return [{ id: uid(), itemId: it.id, compartmentId: home.id }]
     })
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, ...add], loose: [...t.loose, ...loose] }))
+    if (autopackAnimates() && layout) {
+      // Each footprint leaves from its own schedule row: row position minus where it lands, in sheet pixels.
+      const sr = sheetRef.current!.getBoundingClientRect()
+      const from = Object.fromEntries(add.flatMap((p): [string, [number, number]][] => {
+        const row = document.querySelector(`[data-item="${p.itemId}"]`)?.getBoundingClientRect()
+        const cl = layout.comps.find((c) => c.c.id === p.compartmentId)
+        return row && cl ? [[p.id, [row.left + 8 - sr.left - (cl.ox + p.x * layout.s), row.top + 8 - sr.top - (cl.oy + p.y * layout.s)]]] : []
+      }))
+      settle(add.map((p) => p.id), from)
+    }
     const parts = [add.length ? `${add.length} placed` : '', loose.length ? `${loose.length} loose` : '', res.unplaced.length ? `${res.unplaced.length} won't fit` : ''].filter(Boolean)
     say(parts.join(', '), res.unplaced.length > 0)
   }
@@ -281,7 +304,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   }
 
   const scene = useMemo<SceneComp[]>(
-    () => (bag ? bag.compartments.map((c) => ({ c, boxes: placedList.filter((pl) => pl.p.compartmentId === c.id).map((pl) => ({ id: pl.p.id, box: pl.box, selected: pl.p.id === selected })), fill: fills[c.id] })) : []),
+    () => (bag ? bag.compartments.map((c) => ({ c, boxes: placedList.filter((pl) => pl.p.compartmentId === c.id).map((pl) => ({ id: pl.p.id, box: pl.box, selected: pl.p.id === selected, color: pl.it.color })), fill: fills[c.id] })) : []),
     [bag, placedList, selected, fills],
   )
 
@@ -309,11 +332,12 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const Row = (r: (typeof rows)[number]) => (
     <div
       key={r.it.id}
+      data-item={r.it.id}
       className={'row' + (r.remaining ? ' drag' : ' spent') + (drag && drag.itemId === r.it.id && !drag.placementId ? ' dragging' : '')}
       onPointerDown={r.remaining && mode === 'pack' ? (e) => startDrag(e, { itemId: r.it.id, rot: false }) : undefined}
     >
       <span className="grip">{r.remaining ? <Icon name="grip" /> : <Icon name="check" />}</span>
-      <span className="name"><span>{r.it.name}</span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}</span></span>
+      <span className="name"><span>{r.it.color && <i className="sw" style={{ '--sw': r.it.color } as CSSProperties} />}<span>{r.it.name}</span></span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}</span></span>
       <span className="w num">{fmtW(r.it.weight)}</span>
       {r.it.qty > 8 ? <span className="num dim">{r.placedN} / {r.it.qty}</span> : (
         <span className="marks" role="img" aria-label={`${r.placedN} of ${r.it.qty} packed`}>{Array.from({ length: r.it.qty }, (_, i) => <i key={i} className={i < r.placedN ? 'on' : ''} />)}</span>
@@ -375,7 +399,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
                   )}
                   <g style={{ pointerEvents: assembling ? 'none' : undefined }}>
                     {inComp.map((pl) => (
-                      <ItemRect key={pl.p.id} pl={pl} s={s} ox={ox} oy={oy} above={pl.box.z >= cutLocal - eps} selected={pl.p.id === selected} onDown={(e) => startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, rot: pl.p.rot })} />
+                      <ItemRect key={pl.p.id} pl={pl} s={s} ox={ox} oy={oy} above={pl.box.z >= cutLocal - eps} selected={pl.p.id === selected} delay={fresh.ids[pl.p.id]} from={fresh.from[pl.p.id]} onDown={(e) => startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, rot: pl.p.rot })} />
                     ))}
                   </g>
                   {assembling && (
@@ -535,16 +559,20 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   )
 }
 
-function ItemRect({ pl, s, ox, oy, above, selected, onDown }: { pl: PL; s: number; ox: number; oy: number; above: boolean; selected: boolean; onDown: (e: RPointerEvent) => void }) {
+function ItemRect({ pl, s, ox, oy, above, selected, delay, from, onDown }: { pl: PL; s: number; ox: number; oy: number; above: boolean; selected: boolean; delay?: number; from?: [number, number]; onDown: (e: RPointerEvent) => void }) {
   const w = pl.box.l * s, h = pl.box.w * s
   const stroke = selected ? 'var(--blue)' : above ? 'var(--ink-3)' : 'var(--ink)'
+  const tint = !above && pl.it.color ? `color-mix(in srgb, ${pl.it.color} var(--tint), var(--paper))` : null
   const chars = Math.floor((w - 12) / 6.8)
   const name = pl.it.name.length > chars ? pl.it.name.slice(0, Math.max(0, chars - 1)) + '…' : pl.it.name
   return (
-    <g className="it" style={{ transform: `translate(${ox + pl.box.x * s}px, ${oy + pl.box.y * s}px)` }}>
+    <g className={'it' + (delay == null ? '' : from ? ' arrive' : ' settle')} style={{ transform: `translate(${ox + pl.box.x * s}px, ${oy + pl.box.y * s}px)`, '--d': `${delay ?? 0}ms` } as CSSProperties}>
+      <g className="body" style={from && ({ '--from': `translate(${from[0]}px, ${from[1]}px)` } as CSSProperties)}>
       <rect width={w} height={h} fill={above ? 'none' : 'var(--paper)'} stroke={stroke} strokeWidth={selected ? 1.5 : 1} strokeDasharray={above ? '4 3' : undefined} onPointerDown={onDown} />
+      {tint && <rect className="ink" x={0.5} y={0.5} width={Math.max(0, w - 1)} height={Math.max(0, h - 1)} fill={tint} pointerEvents="none" />}
       {w > 40 && h > 18 && <text x={6} y={14} fontSize={12} fill={above ? 'var(--ink-2)' : 'var(--ink)'}>{name}</text>}
       {w > 70 && h > 34 && <text x={6} y={27} fontSize={10} fill="var(--ink-2)" style={{ fontStretch: '80%', letterSpacing: '0.03em' }}>{pl.box.l} × {pl.box.w} × {pl.box.h}</text>}
+      </g>
     </g>
   )
 }

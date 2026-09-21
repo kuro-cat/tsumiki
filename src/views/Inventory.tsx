@@ -1,14 +1,14 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { CATEGORIES, defaultKind, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
+import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from 'react'
+import { CATEGORIES, SWATCHES, defaultKind, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
-type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number }
+type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string }
 const COLS = { gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) 70px 170px 80px 44px' }
 
 export function Inventory({ state, api }: ViewProps) {
-  const blank = (): Form => ({ id: uid(), name: '', category: 'clothing', kind: 'soft', l: 20, w: 15, h: 5, volume: 2, packsTo: state.packsTo.clothing, weight: 200, qty: 1 })
-  const toForm = (it: Item): Form => ({ ...blank(), id: it.id, name: it.name, category: it.category, kind: it.kind, weight: it.weight, qty: it.qty, ...(it.kind === 'rigid' ? { l: it.l, w: it.w, h: it.h } : { volume: it.volume, packsTo: it.packsTo }) })
+  const blank = (): Form => ({ id: uid(), name: '', category: 'clothing', kind: 'soft', l: 20, w: 15, h: 5, volume: 2, packsTo: state.packsTo.clothing, weight: 200, qty: 1, color: '' })
+  const toForm = (it: Item): Form => ({ ...blank(), id: it.id, name: it.name, category: it.category, kind: it.kind, weight: it.weight, qty: it.qty, color: it.color ?? '', ...(it.kind === 'rigid' ? { l: it.l, w: it.w, h: it.h } : { volume: it.volume, packsTo: it.packsTo }) })
   const [form, setForm] = useState<Form>(blank)
   const [editing, setEditing] = useState(false)
   const [q, setQ] = useState('')
@@ -19,7 +19,7 @@ export function Inventory({ state, api }: ViewProps) {
   const save = (e: FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return
-    const base = { id: form.id, name: form.name.trim(), category: form.category, weight: form.weight, qty: form.qty }
+    const base = { id: form.id, name: form.name.trim(), category: form.category, weight: form.weight, qty: form.qty, ...(form.color ? { color: form.color } : {}) }
     api.upsertItem(form.kind === 'rigid' ? { ...base, kind: 'rigid', l: form.l, w: form.w, h: form.h } : { ...base, kind: 'soft', volume: form.volume, packsTo: form.packsTo })
     cancel()
   }
@@ -58,6 +58,15 @@ export function Inventory({ state, api }: ViewProps) {
             <label className="field s3"><span className="label">Packs to</span><span className="unit"><input type="number" min={5} max={100} step={5} value={form.packsTo} onChange={num('packsTo')} required /><span className="dim">%</span></span></label>
           </>
         )}
+        <div className="field s12"><span className="label">Colour</span>
+          <div className="radios" role="radiogroup" aria-label="Item colour">
+            <label className="chip"><input type="radio" name="color" checked={!form.color} onChange={() => set('color', '')} />none</label>
+            {SWATCHES.map((c) => (
+              <label key={c} className="chip sw-chip" title={c}><input type="radio" name="color" checked={form.color === c} onChange={() => set('color', c)} aria-label={`Colour ${c}`} /><i className="sw" style={{ '--sw': c } as CSSProperties} /></label>
+            ))}
+            <label className={'chip' + (form.color && !SWATCHES.includes(form.color) ? ' on' : '')}><input type="color" value={form.color || '#888888'} onChange={(e) => set('color', e.target.value)} aria-label="Custom colour" />custom</label>
+          </div>
+        </div>
         <div className="form-actions">
           <button className="btn" type="submit">{editing ? 'Save changes' : 'Add item'}</button>
           {editing && <button className="btn quiet" type="button" onClick={cancel}>Cancel</button>}
@@ -74,7 +83,7 @@ export function Inventory({ state, api }: ViewProps) {
           <div className="trow head" style={COLS}><span className="label">Name</span><span className="label">Category</span><span className="label">Kind</span><span className="label num">Size</span><span className="label num">Weight</span><span className="label num">Qty</span></div>
           {list.map((it) => (
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => { setForm(toForm(it)); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-              <span className="name"><span>{it.name}</span>{it.sample && <span className="tag">sample</span>}</span>
+              <span className="name"><span>{it.color && <i className="sw" style={{ '--sw': it.color } as CSSProperties} />}<span>{it.name}</span></span>{it.sample && <span className="tag">sample</span>}</span>
               <span className="dim">{it.category}</span>
               <span className="dim">{it.kind}</span>
               <span className="num">{fmtSize(it)}</span>

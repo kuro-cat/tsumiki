@@ -13,8 +13,10 @@ export function newTrip(bagId: string | null): Trip {
 
 function sampleState(): State {
   const S = true
-  const rigid = (name: string, category: Category, l: number, w: number, h: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'rigid', l, w, h, weight, qty, sample: S })
-  const soft = (name: string, category: Category, volume: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'soft', volume, packsTo: DEFAULT_PACKS_TO[category], weight, qty, sample: S })
+  // Sample items are coloured by category so the swatches and fills are visible on first run.
+  const tint: Record<Category, string> = { clothing: '#d0a33a', footwear: '#8c6a4a', toiletries: '#c8714a', electronics: '#8a6bb8', documents: '#d98a9a', gear: '#3a9b8c', misc: '#7d9b3f' }
+  const rigid = (name: string, category: Category, l: number, w: number, h: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'rigid', l, w, h, weight, qty, color: tint[category], sample: S })
+  const soft = (name: string, category: Category, volume: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'soft', volume, packsTo: DEFAULT_PACKS_TO[category], weight, qty, color: tint[category], sample: S })
   const items: Item[] = [
     soft('T-shirt', 'clothing', 1.7, 150, 4),
     soft('Jeans', 'clothing', 4, 600),

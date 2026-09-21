@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, type State } from '../store'
 import type { ViewProps } from '../App'
+import { AUTOPACK_ANIM_KEY, autopackAnimates } from './Plan'
 
 export function Data({ state, api }: ViewProps) {
   const [msg, setMsg] = useState<{ text: string; red?: boolean } | null>(null)
+  const [anim, setAnim] = useState(autopackAnimates)
+  const toggleAnim = (on: boolean) => { setAnim(on); try { localStorage.setItem(AUTOPACK_ANIM_KEY, on ? 'on' : 'off') } catch { /* session-only */ } }
   const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length
 
   const exportJson = () => {
@@ -63,6 +66,11 @@ export function Data({ state, api }: ViewProps) {
             ))}
           </div>
           <p className="hint">How much of its measured volume a soft item takes once stuffed into a bag. Prefills new soft items by category; each item can override it.</p>
+        </section>
+        <section>
+          <h2>Auto-pack</h2>
+          <label className="chip" style={{ justifySelf: 'start' }}><input type="checkbox" checked={anim} onChange={(e) => toggleAnim(e.target.checked)} style={{ position: 'static', opacity: 1, width: 14, height: 14 }} />Animate items into the bag one by one</label>
+          <p className="hint">Off places the whole batch at once. Follows your system's reduced-motion setting either way.</p>
         </section>
         <section>
           <h2>Sample data</h2>
