@@ -26,7 +26,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <span className="wordmark">SOUBI</span>
+        <span className="wordmark">BIN-PACK</span>
         <nav className="tabs" aria-label="Sections">
           {TABS.map((t) => (
             <button key={t} className="tab" aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t}</button>

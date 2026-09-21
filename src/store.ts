@@ -92,11 +92,12 @@ function sampleState(): State {
   return { items, bags, trips: [trip], activeTripId: trip.id, apiKey: '' }
 }
 
-const KEY = 'soubi.v1'
+export const KEY = 'bin-pack.v1'
+const OLD_KEY = 'soubi.v1'
 function load(): State {
   try {
-    const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as State
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(OLD_KEY)
+    if (raw) { localStorage.removeItem(OLD_KEY); return JSON.parse(raw) as State }
   } catch { /* fall through to sample */ }
   return sampleState()
 }

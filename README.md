@@ -1,4 +1,4 @@
-# Soubi
+# Bin-pack
 
 Packing planner. Enter your bags (interior L × W × H, empty weight, limit) and items (dimensions, weight), draw a trip's packing as an architect's plan, and see fill, weight, and margin before you leave.
 
