@@ -20,7 +20,7 @@ export default function App() {
   const changeBag = (bagId: string) => {
     if (!trip) return
     const bag = state.bags.find((b) => b.id === bagId)
-    api.patchTrip(trip.id, (t) => ({ bagId: bag?.id ?? null, placements: bag ? repack(bag, t, state.items) : [] }))
+    api.patchTrip(trip.id, (t) => ({ bagId: bag?.id ?? null, ...(bag ? repack(bag, t, state.items) : { placements: [], loose: [] }) }))
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { isoDate, KEY, type State } from '../store'
+import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, type State } from '../store'
 import type { ViewProps } from '../App'
 
 export function Data({ state, api }: ViewProps) {
@@ -20,7 +20,7 @@ export function Data({ state, api }: ViewProps) {
     try {
       const s = JSON.parse(await f.text()) as Partial<State>
       if (!Array.isArray(s.items) || !Array.isArray(s.bags) || !Array.isArray(s.trips)) throw new Error()
-      api.replace({ items: s.items, bags: s.bags, trips: s.trips, apiKey: state.apiKey, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null })
+      api.replace({ items: s.items, bags: s.bags, trips: s.trips, apiKey: state.apiKey, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null, packsTo: { ...DEFAULT_PACKS_TO, ...s.packsTo } })
       setMsg({ text: `Imported ${s.items.length} items, ${s.bags.length} bags, ${s.trips.length} trips.` })
     } catch {
       setMsg({ text: 'That file is not a Bin-pack export.', red: true })
@@ -54,6 +54,15 @@ export function Data({ state, api }: ViewProps) {
           <h2>Claude API key</h2>
           <label className="field"><span className="label">Key</span><input type="password" value={state.apiKey} onChange={(e) => api.set({ apiKey: e.target.value.trim() })} placeholder="sk-ant-…" autoComplete="off" /></label>
           <p className="hint">Optional. Enables “Ask Claude for extras” on a trip. The key stays in this browser's storage and requests go straight from your browser to Anthropic, billed to your account. Rule-based suggestions work without it.</p>
+        </section>
+        <section>
+          <h2>Packs-to defaults</h2>
+          <div className="packs">
+            {CATEGORIES.map((c) => (
+              <label key={c} className="field"><span className="label">{c}</span><span className="unit"><input type="number" min={5} max={100} step={5} value={state.packsTo[c]} onChange={(e) => api.set({ packsTo: { ...state.packsTo, [c]: Number(e.target.value) } })} /><span className="dim">%</span></span></label>
+            ))}
+          </div>
+          <p className="hint">How much of its measured volume a soft item takes once stuffed into a bag. Prefills new soft items by category; each item can override it.</p>
         </section>
         <section>
           <h2>Sample data</h2>

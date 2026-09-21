@@ -322,3 +322,23 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* Packing fidelity: compartments, soft fill, assemble mode */
+.mode, .cams { position: absolute; right: 12px; top: 12px; background: var(--paper); }
+.sheet .comp rect.frame.grab { cursor: grab; }
+.sheet .comp text.cname { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--ink-2); }
+.tb .gauges { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 18px; padding: 5px 10px 6px; border-top: 1px solid var(--rule); }
+.tb .gauge { display: grid; grid-template-columns: auto 56px auto; gap: 8px; align-items: center; }
+.tb .gauge .v { font-size: 12px; }
+.tb .gauge .bar { display: block; width: 56px; height: 3px; background: var(--rule-2); }
+.tb .gauge .bar b { display: block; height: 100%; background: var(--ink); transform-origin: left; transition: transform var(--t) var(--ease); }
+.tb .gauge.over .bar b { background: var(--red); }
+.tb .v.red, .tb .gauge.over .v { color: var(--red); }
+.ghost.soft { border-style: dashed; background-image: repeating-linear-gradient(45deg, transparent 0 4px, var(--rule) 4px 5px); }
+.ghost.soft.over { border-color: var(--red); color: var(--red); background-color: var(--red-soft); }
+.row .acts { display: flex; gap: 2px; }
+.comps .trow { gap: 6px; padding: 4px 8px; }
+.comps input { font: inherit; padding: 3px 6px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); min-width: 0; }
+.comps input[type='number'] { text-align: right; }
+.comps input:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
+.packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 720px; }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { CLIMATES, KINDS, fmtDate, isPacked, matchItem, newTrip, nights, uid, type Trip } from '../store'
+import { CLIMATES, KINDS, fmtDate, isPacked, matchItem, newTrip, nights, repack, uid, type Trip } from '../store'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
@@ -96,7 +96,7 @@ export function Trips({ state, api, go }: ViewProps) {
               <label className="field s3"><span className="label">Leave</span><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></label>
               <label className="field s3"><span className="label">Return</span><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></label>
               <label className="field s6"><span className="label">Bag</span>
-                <select value={trip.bagId ?? ''} onChange={(e) => patch({ bagId: e.target.value || null, placements: [] })}>
+                <select value={trip.bagId ?? ''} onChange={(e) => { const bag = state.bags.find((b) => b.id === e.target.value); api.patchTrip(trip.id, (t) => ({ bagId: bag?.id ?? null, ...(bag ? repack(bag, t, state.items) : { placements: [], loose: [] }) })) }}>
                   <option value="">No bag yet</option>
                   {state.bags.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>

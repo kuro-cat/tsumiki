@@ -1,23 +1,31 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { fmtDate, fmtDim, fmtW, isPacked, matchItem, newTrip, nights, uid, type Item, type Placement } from '../store'
-import { autoPack, dropZ, fits, oriented, volume, type Placed } from '../lib/pack'
+import { bagHeight, bagVolume, fillOf, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, roomiest, uid, type Compartment, type Item, type Loose, type Placement, type RigidItem } from '../store'
+import { autoPackBins, dropZ, fits, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
+import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { Icon } from '../Icon'
 
-type Drag = { itemId: string; placementId?: string; rot: boolean; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
-type Snap = { x: number; y: number; z: number; ok: boolean }
-type PL = { p: Placement; it: Item; box: Placed }
+type Mode = 'pack' | 'assemble'
+type Drag = { itemId?: string; placementId?: string; compId?: string; rot: boolean; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
+type Snap = { compId: string; x: number; y: number; z: number; ok: boolean; soft: boolean; over: boolean }
+type PL = { p: Placement; it: RigidItem; box: Placed }
+type CL = { c: Compartment; ox: number; oy: number }
 type Ghost = { left: number; top: number; w: number; h: number }
 
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
 
-const PAD = { l: 88, r: 84, t: 76 }
+const PAD = { l: 88, r: 84, t: 84 }
+const GAP = 64
+const eps = 1e-6
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
+const asBox = (c: Compartment): Placed => ({ x: c.x, y: c.y, z: c.z, l: c.l, w: c.w, h: c.h })
 
 export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const { items, bags } = state
   const trip = state.trips.find((t) => t.id === state.activeTripId) ?? null
   const bag = trip ? bags.find((b) => b.id === trip.bagId) ?? null : null
+  const [mode, setMode] = useState<Mode>('pack')
+  const [cam, setCam] = useState<{ view: CamView; n: number }>({ view: 'iso', n: 0 })
 
   const sheetRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ W: 0, H: 0 })
@@ -30,13 +38,26 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   }, [trip !== null])
   const padB = size.W < 700 ? 132 : 108
 
+  // Pack mode is a schedule of rooms: compartments side by side at one scale. Assemble mode draws them where the traveler put them.
   const layout = useMemo(() => {
-    if (!bag || !size.W || !size.H) return null
+    if (!bag || !size.W || !size.H || !bag.compartments.length) return null
     const aw = size.W - PAD.l - PAD.r, ah = size.H - PAD.t - padB
-    const s = Math.min(aw / bag.l, ah / bag.w)
+    const cs = bag.compartments
+    if (mode === 'pack') {
+      const sumL = cs.reduce((a, c) => a + c.l, 0), maxW = Math.max(...cs.map((c) => c.w))
+      const s = Math.min((aw - GAP * (cs.length - 1)) / sumL, ah / maxW)
+      if (!(s > 0)) return null
+      let x = PAD.l + (aw - (sumL * s + GAP * (cs.length - 1))) / 2
+      const comps: CL[] = cs.map((c) => { const cl = { c, ox: x, oy: PAD.t + (ah - c.w * s) / 2 }; x += c.l * s + GAP; return cl })
+      return { s, comps, ext: null }
+    }
+    const EL = Math.max(...cs.map((c) => c.x + c.l)), EW = Math.max(...cs.map((c) => c.y + c.w))
+    const CL = EL + Math.max(...cs.map((c) => c.l)) * 0.5, CW = EW + Math.max(...cs.map((c) => c.w)) * 0.5
+    const s = Math.min(aw / CL, ah / CW)
     if (!(s > 0)) return null
-    return { s, ox: PAD.l + (aw - bag.l * s) / 2, oy: PAD.t + (ah - bag.w * s) / 2 }
-  }, [bag, size, padB])
+    const ox = PAD.l + (aw - CL * s) / 2, oy = PAD.t + (ah - CW * s) / 2
+    return { s, comps: cs.map((c) => ({ c, ox: ox + c.x * s, oy: oy + c.y * s })), ext: { ox, oy, EL, EW, CL, CW } }
+  }, [bag, size, padB, mode])
 
   const placedList = useMemo<PL[]>(
     () =>
@@ -44,15 +65,19 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         ? []
         : trip.placements.flatMap((p) => {
             const it = items.find((i) => i.id === p.itemId)
-            if (!it) return []
-            const o = oriented(it, p.rot)
-            return [{ p, it, box: { ...o, x: p.x, y: p.y, z: p.z } }]
+            if (!it || it.kind !== 'rigid') return []
+            return [{ p, it, box: { ...oriented(it, p.rot), x: p.x, y: p.y, z: p.z } }]
           }),
     [trip, items],
   )
+  const boxesBy = useMemo(() => (trip ? placedBoxes(trip, items) : {}), [trip, items])
+  const looseBy = useMemo(() => (trip ? looseVolumes(trip, items) : {}), [trip, items])
+  const fills = useMemo(() => Object.fromEntries((bag?.compartments ?? []).map((c) => [c.id, fillOf(c, boxesBy[c.id] ?? [], looseBy[c.id] ?? 0)])), [bag, boxesBy, looseBy])
+  const looseList = useMemo(() => (trip ? trip.loose.flatMap((l) => { const it = items.find((i) => i.id === l.itemId); return it?.kind === 'soft' ? [{ l, it }] : [] }) : []), [trip, items])
 
+  const H = bag ? bagHeight(bag) : 0
   const [cutRaw, setCutRaw] = useState<number | null>(null)
-  const cut = bag ? Math.min(cutRaw ?? bag.h, bag.h) : 0
+  const cut = Math.min(cutRaw ?? H, H)
   const [selected, setSelected] = useState<string | null>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   const [flash, setFlash] = useState<Ghost | null>(null)
@@ -64,16 +89,20 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     noteT.current = window.setTimeout(() => setNote(null), 2800)
   }
 
-  const itemsW = placedList.reduce((a, pl) => a + pl.it.weight, 0)
+  const itemsW = placedList.reduce((a, pl) => a + pl.it.weight, 0) + looseList.reduce((a, x) => a + x.it.weight, 0)
   const total = (bag?.empty ?? 0) + itemsW
   const limit = bag?.limit ?? null
   const margin = limit == null ? null : limit - total
   const ratio = limit ? total / limit : 0
   const wState = limit == null ? 'no limit' : ratio > 1 ? 'over' : ratio > 0.85 ? 'near limit' : ratio >= 0.5 ? 'balanced' : 'light'
-  const fill = bag ? placedList.reduce((a, pl) => a + volume(pl.box), 0) / volume(bag) : 0
+  const rigidVol = placedList.reduce((a, pl) => a + volume(pl.box), 0)
+  const looseVol = looseList.reduce((a, x) => a + packedVolume(x.it), 0)
+  const fill = bag ? (rigidVol + looseVol) / bagVolume(bag) : 0
+  const anyOver = Object.values(fills).some((f) => f.over)
+  const packedN = placedList.length + looseList.length
   const done = trip ? trip.checklist.filter((c) => isPacked(c, trip, items)).length : 0
   const totalChecks = trip?.checklist.length ?? 0
-  const complete = !!trip && totalChecks > 0 && done === totalChecks && placedList.length > 0 && (limit == null || total <= limit)
+  const complete = !!trip && totalChecks > 0 && done === totalChecks && packedN > 0 && (limit == null || total <= limit) && !anyOver
 
   const matchedIds = useMemo(
     () => new Set(trip ? trip.checklist.map((c) => matchItem(c, items)?.id).filter((x): x is string => !!x) : []),
@@ -83,7 +112,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     () =>
       items
         .map((it) => {
-          const placedN = trip ? trip.placements.filter((p) => p.itemId === it.id).length : 0
+          const placedN = trip ? packedCount(trip, it.id) : 0
           return { it, placedN, remaining: Math.max(0, it.qty - placedN), onList: matchedIds.has(it.id) }
         })
         .sort((a, b) => Number(b.onList) - Number(a.onList) || a.it.name.localeCompare(b.it.name)),
@@ -91,45 +120,60 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   )
   const unmatched = trip ? trip.checklist.filter((c) => !matchItem(c, items)) : []
 
-  // Drag: the footprint appears at true scale the instant the drag starts and snaps to the 1 cm grid over the bag.
-  const dragItem = drag ? items.find((i) => i.id === drag.itemId) ?? null : null
-  const dragBox = drag && dragItem ? oriented(dragItem, drag.rot) : null
+  // Drag: the footprint appears at true scale the instant the drag starts and snaps to the 1 cm grid over a compartment.
+  const dragItem = drag?.itemId ? items.find((i) => i.id === drag.itemId) ?? null : null
+  const dragComp = drag?.compId && bag ? bag.compartments.find((c) => c.id === drag.compId) ?? null : null
+  const dragBox = drag && dragItem?.kind === 'rigid' ? oriented(dragItem, drag.rot) : drag && dragComp ? oriented(dragComp, drag.rot) : null
+  const softSide = dragItem?.kind === 'soft' ? Math.cbrt(packedVolume(dragItem)) : 0
   let snap: Snap | null = null
-  if (drag && dragBox && bag && layout && view === 'plan') {
-    const { s, ox, oy } = layout
-    const halo = 24
-    const over = drag.sx >= ox - halo && drag.sx <= ox + bag.l * s + halo && drag.sy >= oy - halo && drag.sy <= oy + bag.w * s + halo
-    if (over) {
-      const others = placedList.filter((pl) => pl.p.id !== drag.placementId).map((pl) => pl.box)
-      const x = clamp(Math.round((drag.sx - ox) / s - dragBox.l / 2), 0, Math.max(0, bag.l - dragBox.l))
-      const y = clamp(Math.round((drag.sy - oy) / s - dragBox.w / 2), 0, Math.max(0, bag.w - dragBox.w))
-      const z = dropZ(others, { x, y, l: dragBox.l, w: dragBox.w })
-      snap = { x, y, z, ok: fits(bag, others, { ...dragBox, x, y, z }) }
+  if (drag && bag && layout && view === 'plan') {
+    const { s } = layout
+    if (dragComp && dragBox && layout.ext) {
+      const { ox, oy, CL, CW } = layout.ext
+      const others = bag.compartments.filter((c) => c.id !== dragComp.id).map(asBox)
+      const x = clamp(Math.round((drag.sx - ox) / s - dragBox.l / 2), 0, Math.max(0, CL - dragBox.l))
+      const y = clamp(Math.round((drag.sy - oy) / s - dragBox.w / 2), 0, Math.max(0, CW - dragBox.w))
+      snap = { compId: dragComp.id, x, y, z: dropZ(others, { x, y, l: dragBox.l, w: dragBox.w }), ok: true, soft: false, over: false }
+    } else if (dragItem && mode === 'pack') {
+      const halo = 24
+      const cl = layout.comps.find(({ c, ox, oy }) => drag.sx >= ox - halo && drag.sx <= ox + c.l * s + halo && drag.sy >= oy - halo && drag.sy <= oy + c.w * s + halo)
+      if (cl && dragBox) {
+        const others = placedList.filter((pl) => pl.p.compartmentId === cl.c.id && pl.p.id !== drag.placementId).map((pl) => pl.box)
+        const x = clamp(Math.round((drag.sx - cl.ox) / s - dragBox.l / 2), 0, Math.max(0, cl.c.l - dragBox.l))
+        const y = clamp(Math.round((drag.sy - cl.oy) / s - dragBox.w / 2), 0, Math.max(0, cl.c.w - dragBox.w))
+        const z = dropZ(others, { x, y, l: dragBox.l, w: dragBox.w })
+        snap = { compId: cl.c.id, x, y, z, ok: fits(cl.c, others, { ...dragBox, x, y, z }), soft: false, over: false }
+      } else if (cl && dragItem.kind === 'soft') {
+        snap = { compId: cl.c.id, x: 0, y: 0, z: 0, ok: true, soft: true, over: (looseBy[cl.c.id] ?? 0) + packedVolume(dragItem) > fills[cl.c.id].free + eps }
+      }
     }
   }
   const gs = layout?.s ?? 4
+  const ghostOrigin = snap && layout ? (dragComp && layout.ext ? { ox: layout.ext.ox, oy: layout.ext.oy } : layout.comps.find((cl) => cl.c.id === snap!.compId)) : null
   const ghost: Ghost | null =
     drag && dragBox
-      ? snap && layout
-        ? { left: drag.rl + layout.ox + snap.x * layout.s, top: drag.rt + layout.oy + snap.y * layout.s, w: dragBox.l * gs, h: dragBox.w * gs }
+      ? snap && !snap.soft && ghostOrigin && layout
+        ? { left: drag.rl + ghostOrigin.ox + snap.x * layout.s, top: drag.rt + ghostOrigin.oy + snap.y * layout.s, w: dragBox.l * gs, h: dragBox.w * gs }
         : { left: drag.px - (dragBox.l * gs) / 2, top: drag.py - (dragBox.w * gs) / 2, w: dragBox.l * gs, h: dragBox.w * gs }
-      : null
+      : drag && softSide
+        ? { left: drag.px - (softSide * gs) / 2, top: drag.py - (softSide * gs) / 2, w: softSide * gs, h: softSide * gs }
+        : null
   const dragRef = useRef(drag); dragRef.current = drag
   const snapRef = useRef(snap); snapRef.current = snap
   const ghostRef = useRef(ghost); ghostRef.current = ghost
 
-  const startDrag = (e: RPointerEvent, itemId: string, placementId?: string, rot = false) => {
+  const startDrag = (e: RPointerEvent, d: Pick<Drag, 'itemId' | 'placementId' | 'compId' | 'rot'>) => {
     if (e.button !== 0 || !trip) return
     e.preventDefault()
     const r = sheetRef.current!.getBoundingClientRect()
-    setSelected(placementId ?? null)
-    setDrag({ itemId, placementId, rot, px: e.clientX, py: e.clientY, sx: e.clientX - r.left, sy: e.clientY - r.top, rl: r.left, rt: r.top })
+    setSelected(d.placementId ?? d.compId ?? null)
+    setDrag({ ...d, px: e.clientX, py: e.clientY, sx: e.clientX - r.left, sy: e.clientY - r.top, rl: r.left, rt: r.top })
   }
   const dragging = drag !== null
   useEffect(() => {
     if (!dragging || !trip) return
     document.body.classList.add('dragging')
-    const tripId = trip.id
+    const tripId = trip.id, bagId = bag?.id
     const mv = (e: PointerEvent) => {
       const r = sheetRef.current?.getBoundingClientRect()
       if (!r) return
@@ -139,8 +183,16 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
       const d = dragRef.current, sn = snapRef.current, g = ghostRef.current
       setDrag(null)
       if (!d) return
-      if (sn?.ok) {
-        const pl: Placement = { id: d.placementId ?? uid(), itemId: d.itemId, x: sn.x, y: sn.y, z: sn.z, rot: d.rot }
+      if (d.compId && bagId) {
+        if (!sn) return
+        if (d.rot) api.rotateCompartment(bagId, d.compId)
+        api.patchCompartment(bagId, d.compId, { x: sn.x, y: sn.y, z: sn.z })
+      } else if (d.itemId && sn?.ok && sn.soft) {
+        const l: Loose = { id: uid(), itemId: d.itemId, compartmentId: sn.compId }
+        api.patchTrip(tripId, (t) => ({ loose: [...t.loose, l] }))
+        if (sn.over) say('Over volume: more soft than the room left', true)
+      } else if (d.itemId && sn?.ok) {
+        const pl: Placement = { id: d.placementId ?? uid(), itemId: d.itemId, compartmentId: sn.compId, x: sn.x, y: sn.y, z: sn.z, rot: d.rot }
         api.patchTrip(tripId, (t) => ({ placements: [...t.placements.filter((p) => p.id !== pl.id), pl] }))
         setSelected(pl.id)
       } else if (sn && g) {
@@ -168,46 +220,70 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     }
   }, [dragging]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const compOf = (id: string) => bag?.compartments.find((c) => c.id === id) ?? null
   const removePl = (id: string) => trip && api.patchTrip(trip.id, (t) => ({ placements: t.placements.filter((p) => p.id !== id) }))
+  const removeLoose = (itemId: string) => trip && api.patchTrip(trip.id, (t) => { const last = [...t.loose].reverse().find((l) => l.itemId === itemId); return { loose: t.loose.filter((l) => l !== last) } })
   const rotatePl = (id: string) => {
     if (!trip || !bag) return
     const pl = placedList.find((x) => x.p.id === id)
-    if (!pl) return
+    const c = pl && compOf(pl.p.compartmentId)
+    if (!pl || !c) return
     const o = oriented(pl.it, !pl.p.rot)
-    const oth = placedList.filter((x) => x.p.id !== id).map((x) => x.box)
-    const x = Math.min(pl.p.x, Math.max(0, bag.l - o.l)), y = Math.min(pl.p.y, Math.max(0, bag.w - o.w))
+    const oth = placedList.filter((x) => x.p.id !== id && x.p.compartmentId === c.id).map((x) => x.box)
+    const x = Math.min(pl.p.x, Math.max(0, c.l - o.l)), y = Math.min(pl.p.y, Math.max(0, c.w - o.w))
     const z = dropZ(oth, { x, y, l: o.l, w: o.w })
-    if (!fits(bag, oth, { ...o, x, y, z })) return say(`${pl.it.name} can't rotate here`, true)
+    if (!fits(c, oth, { ...o, x, y, z })) return say(`${pl.it.name} can't rotate here`, true)
     api.patchTrip(trip.id, (t) => ({ placements: t.placements.map((p) => (p.id === id ? { ...p, x, y, z, rot: !p.rot } : p)) }))
   }
   const placeOne = (it: Item) => {
     if (!trip || !bag) return
-    const r = autoPack(bag, [{ key: it.id, box: it }], placedList.map((pl) => pl.box))
+    if (it.kind === 'soft') {
+      const home = roomiest(bag, boxesBy, looseBy)
+      const l: Loose = { id: uid(), itemId: it.id, compartmentId: home.id }
+      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, l] }))
+      if ((looseBy[home.id] ?? 0) + packedVolume(it) > fills[home.id].free + eps) say(`${home.name} is over volume`, true)
+      return
+    }
+    const r = autoPackBins(bag.compartments, [{ key: it.id, box: it }], boxesBy)
     if (!r.placed.length) return say(`${it.name} doesn't fit anywhere`, true)
-    const { p, rot } = r.placed[0]
-    const pl: Placement = { id: uid(), itemId: it.id, x: p.x, y: p.y, z: p.z, rot }
+    const { p, rot, binId } = r.placed[0]
+    const pl: Placement = { id: uid(), itemId: it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, rot }
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
     setSelected(pl.id)
   }
   const autoPackAll = () => {
     if (!trip || !bag) return
     const targets = rows.filter((r) => r.remaining > 0 && (matchedIds.size === 0 || r.onList))
-    const boxes = targets.flatMap((r) => Array.from({ length: r.remaining }, (_, i) => ({ key: `${r.it.id}:${i}`, box: r.it })))
-    if (!boxes.length) return say(matchedIds.size ? 'Every checklist item is already in the bag' : 'Nothing left to pack')
-    const res = autoPack(bag, boxes, placedList.map((pl) => pl.box))
-    const add: Placement[] = res.placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], x: x.p.x, y: x.p.y, z: x.p.z, rot: x.rot }))
-    api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, ...add] }))
-    say(res.unplaced.length ? `${add.length} placed, ${res.unplaced.length} won't fit` : `${add.length} placed`, res.unplaced.length > 0)
+    const units = targets.flatMap((r) => Array.from({ length: r.remaining }, () => r.it))
+    if (!units.length) return say(matchedIds.size ? 'Every checklist item is already in the bag' : 'Nothing left to pack')
+    const boxes = units.flatMap((it, i) => (it.kind === 'rigid' ? [{ key: `${it.id}:${i}`, box: it }] : []))
+    const res = autoPackBins(bag.compartments, boxes, boxesBy)
+    const add: Placement[] = res.placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, rot: x.rot }))
+    const after = placedBoxes({ ...trip, placements: [...trip.placements, ...add] }, items)
+    const vols = { ...looseBy }
+    const loose: Loose[] = units.flatMap((it) => {
+      if (it.kind !== 'soft') return []
+      const home = roomiest(bag, after, vols)
+      vols[home.id] = (vols[home.id] ?? 0) + packedVolume(it)
+      return [{ id: uid(), itemId: it.id, compartmentId: home.id }]
+    })
+    api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, ...add], loose: [...t.loose, ...loose] }))
+    const parts = [add.length ? `${add.length} placed` : '', loose.length ? `${loose.length} loose` : '', res.unplaced.length ? `${res.unplaced.length} won't fit` : ''].filter(Boolean)
+    say(parts.join(', '), res.unplaced.length > 0)
   }
-  const clearAll = () => { if (trip) { api.patchTrip(trip.id, { placements: [] }); setSelected(null) } }
+  const clearAll = () => { if (trip) { api.patchTrip(trip.id, { placements: [], loose: [] }); setSelected(null) } }
   const onKey = (e: KeyboardEvent) => {
     if (!selected || drag) return
-    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removePl(selected); setSelected(null) }
-    if (e.key === 'r' || e.key === 'R') rotatePl(selected)
+    const isComp = !!compOf(selected)
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !isComp) { e.preventDefault(); removePl(selected); setSelected(null) }
+    if (e.key === 'r' || e.key === 'R') { if (isComp && bag) api.rotateCompartment(bag.id, selected); else rotatePl(selected) }
     if (e.key === 'Escape') setSelected(null)
   }
 
-  const scene = useMemo(() => placedList.map((pl) => ({ id: pl.p.id, box: pl.box, selected: pl.p.id === selected })), [placedList, selected])
+  const scene = useMemo<SceneComp[]>(
+    () => (bag ? bag.compartments.map((c) => ({ c, boxes: placedList.filter((pl) => pl.p.compartmentId === c.id).map((pl) => ({ id: pl.p.id, box: pl.box, selected: pl.p.id === selected })), fill: fills[c.id] })) : []),
+    [bag, placedList, selected, fills],
+  )
 
   if (!trip) {
     return (
@@ -224,24 +300,28 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     )
   }
 
-  const s = layout?.s ?? 0, ox = layout?.ox ?? 0, oy = layout?.oy ?? 0
-  const sorted = [...placedList].sort((a, b) => a.box.z - b.box.z)
+  const s = layout?.s ?? 0
   const selPl = placedList.find((pl) => pl.p.id === selected) ?? null
+  const selComp = selected ? compOf(selected) : null
   const onList = rows.filter((r) => r.onList), others = rows.filter((r) => !r.onList)
+  const compsByZ = layout ? [...layout.comps].sort((a, b) => a.c.z - b.c.z) : []
 
   const Row = (r: (typeof rows)[number]) => (
     <div
       key={r.it.id}
       className={'row' + (r.remaining ? ' drag' : ' spent') + (drag && drag.itemId === r.it.id && !drag.placementId ? ' dragging' : '')}
-      onPointerDown={r.remaining ? (e) => startDrag(e, r.it.id) : undefined}
+      onPointerDown={r.remaining && mode === 'pack' ? (e) => startDrag(e, { itemId: r.it.id, rot: false }) : undefined}
     >
       <span className="grip">{r.remaining ? <Icon name="grip" /> : <Icon name="check" />}</span>
-      <span className="name"><span>{r.it.name}</span><span className="dim">{fmtDim(r.it)} cm</span></span>
+      <span className="name"><span>{r.it.name}</span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}</span></span>
       <span className="w num">{fmtW(r.it.weight)}</span>
       {r.it.qty > 8 ? <span className="num dim">{r.placedN} / {r.it.qty}</span> : (
-        <span className="marks" role="img" aria-label={`${r.placedN} of ${r.it.qty} placed`}>{Array.from({ length: r.it.qty }, (_, i) => <i key={i} className={i < r.placedN ? 'on' : ''} />)}</span>
+        <span className="marks" role="img" aria-label={`${r.placedN} of ${r.it.qty} packed`}>{Array.from({ length: r.it.qty }, (_, i) => <i key={i} className={i < r.placedN ? 'on' : ''} />)}</span>
       )}
-      <button className="btn quiet" onClick={() => placeOne(r.it)} disabled={!r.remaining || !bag} aria-label={`Place ${r.it.name}`} title="Place at the best free spot" onPointerDown={(e) => e.stopPropagation()}><Icon name="plus" /></button>
+      <span className="acts" onPointerDown={(e) => e.stopPropagation()}>
+        {r.it.kind === 'soft' && <button className="btn quiet" onClick={() => removeLoose(r.it.id)} disabled={!r.placedN} aria-label={`Take one ${r.it.name} out`} title="Take one out"><Icon name="minus" /></button>}
+        <button className="btn quiet" onClick={() => placeOne(r.it)} disabled={!r.remaining || !bag} aria-label={`Pack ${r.it.name}`} title={r.it.kind === 'soft' ? 'Add to the roomiest compartment' : 'Place at the best free spot'}><Icon name="plus" /></button>
+      </span>
     </div>
   )
 
@@ -249,59 +329,134 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     <div className="plan">
       <div className="sheet" ref={sheetRef} tabIndex={0} onKeyDown={onKey} aria-label="Packing plan">
         {bag && layout && view === 'plan' && (
-          <svg className="draw" width={size.W} height={size.H} role="img" aria-label={`${bag.name} in plan, ${placedList.length} items placed`}>
+          <svg className="draw" width={size.W} height={size.H} role="img" aria-label={`${bag.name} in ${mode === 'pack' ? 'plan' : 'assembly'}, ${packedN} items packed`}>
             <defs>
-              <pattern id="g1" width={s} height={s} patternUnits="userSpaceOnUse" x={ox} y={oy}><path d={`M ${s} 0 H 0 V ${s}`} fill="none" stroke="var(--grid)" /></pattern>
-              <pattern id="g10" width={s * 10} height={s * 10} patternUnits="userSpaceOnUse" x={ox} y={oy}>
+              <pattern id="g1" width={s} height={s} patternUnits="userSpaceOnUse" x={layout.ext?.ox ?? layout.comps[0].ox} y={layout.ext?.oy ?? layout.comps[0].oy}><path d={`M ${s} 0 H 0 V ${s}`} fill="none" stroke="var(--grid)" /></pattern>
+              <pattern id="g10" width={s * 10} height={s * 10} patternUnits="userSpaceOnUse" x={layout.ext?.ox ?? layout.comps[0].ox} y={layout.ext?.oy ?? layout.comps[0].oy}>
                 <rect width={s * 10} height={s * 10} fill="url(#g1)" />
                 <path d={`M ${s * 10} 0 H 0 V ${s * 10}`} fill="none" stroke="var(--grid-major)" />
               </pattern>
+              <pattern id="hatch" width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={6} stroke="var(--ink-3)" strokeWidth={0.75} /></pattern>
+              <pattern id="hatch-red" width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={6} stroke="var(--red)" strokeWidth={0.9} /></pattern>
             </defs>
             <rect width={size.W} height={size.H} fill="url(#g10)" onPointerDown={() => setSelected(null)} />
-            <rect x={ox} y={oy} width={bag.l * s} height={bag.w * s} fill="none" stroke="var(--ink)" strokeWidth={2} onPointerDown={() => setSelected(null)} />
-            <Dim x1={ox} y1={oy - 40} x2={ox + bag.l * s} y2={oy - 40} edge={oy} label={`${bag.l} cm`} />
-            <Dim x1={ox + bag.l * s + 44} y1={oy} x2={ox + bag.l * s + 44} y2={oy + bag.w * s} edge={ox + bag.l * s} label={`${bag.w} cm`} />
-            {sorted.map((pl) =>
-              pl.p.id === drag?.placementId ? null : (
-                <ItemRect key={pl.p.id} pl={pl} s={s} ox={ox} oy={oy} above={pl.box.z >= cut - 1e-6} selected={pl.p.id === selected} onDown={(e) => startDrag(e, pl.it.id, pl.p.id, pl.p.rot)} />
-              ),
-            )}
-            {selPl && !drag && (
+            {layout.ext && (
               <>
-                <Dim x1={ox + selPl.box.x * s} y1={oy + (selPl.box.y + selPl.box.w) * s + 22} x2={ox + (selPl.box.x + selPl.box.l) * s} y2={oy + (selPl.box.y + selPl.box.w) * s + 22} edge={oy + (selPl.box.y + selPl.box.w) * s} label={`${selPl.box.l}`} color="var(--blue)" />
-                <Dim x1={ox + selPl.box.x * s - 22} y1={oy + selPl.box.y * s} x2={ox + selPl.box.x * s - 22} y2={oy + (selPl.box.y + selPl.box.w) * s} edge={ox + selPl.box.x * s} label={`${selPl.box.w}`} color="var(--blue)" />
+                <Dim x1={layout.ext.ox} y1={layout.ext.oy - 40} x2={layout.ext.ox + layout.ext.EL * s} y2={layout.ext.oy - 40} edge={layout.ext.oy} label={`${layout.ext.EL} cm`} />
+                <Dim x1={layout.ext.ox + layout.ext.CL * s + 44} y1={layout.ext.oy} x2={layout.ext.ox + layout.ext.CL * s + 44} y2={layout.ext.oy + layout.ext.EW * s} edge={layout.ext.ox + layout.ext.CL * s} label={`${layout.ext.EW} cm`} />
               </>
             )}
+            {compsByZ.map(({ c, ox, oy }) => {
+              const cutLocal = cut - c.z
+              const inComp = placedList.filter((pl) => pl.p.compartmentId === c.id && pl.p.id !== drag?.placementId).sort((a, b) => a.box.z - b.box.z)
+              const f = fills[c.id]
+              const assembling = mode === 'assemble'
+              const hidden = assembling && drag?.compId === c.id
+              const selC = selected === c.id
+              return (
+                <g key={c.id} className="comp" style={{ opacity: hidden ? 0.25 : 1 }}>
+                  <rect className={'frame' + (assembling ? ' grab' : '')} x={ox} y={oy} width={c.l * s} height={c.w * s} fill={assembling ? 'var(--paper)' : 'none'} stroke={selC ? 'var(--blue)' : 'var(--ink)'} strokeWidth={2}
+                    onPointerDown={assembling ? (e) => startDrag(e, { compId: c.id, rot: false }) : () => setSelected(null)} />
+                  {!assembling && (
+                    <>
+                      <text className="cname" x={ox} y={oy - 60}>{c.name}</text>
+                      <Dim x1={ox} y1={oy - 40} x2={ox + c.l * s} y2={oy - 40} edge={oy} label={`${c.l} cm`} />
+                      <Dim x1={ox + c.l * s + 44} y1={oy} x2={ox + c.l * s + 44} y2={oy + c.w * s} edge={ox + c.l * s} label={`${c.w} cm`} />
+                    </>
+                  )}
+                  {(looseBy[c.id] ?? 0) > 0 && (
+                    <>
+                      <mask id={`m-${c.id}`}>
+                        <rect x={ox} y={oy} width={c.l * s} height={c.w * s} fill="#fff" />
+                        {inComp.filter((pl) => pl.box.z < cutLocal - eps).map((pl) => <rect key={pl.p.id} x={ox + pl.box.x * s} y={oy + pl.box.y * s} width={pl.box.l * s} height={pl.box.w * s} fill="#000" />)}
+                      </mask>
+                      <rect x={ox} y={oy} width={c.l * s} height={c.w * s} fill={`url(#${f.over ? 'hatch-red' : 'hatch'})`} mask={`url(#m-${c.id})`} opacity={0.35 + 0.65 * Math.min(1, f.ratio)} pointerEvents="none" />
+                    </>
+                  )}
+                  <g style={{ pointerEvents: assembling ? 'none' : undefined }}>
+                    {inComp.map((pl) => (
+                      <ItemRect key={pl.p.id} pl={pl} s={s} ox={ox} oy={oy} above={pl.box.z >= cutLocal - eps} selected={pl.p.id === selected} onDown={(e) => startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, rot: pl.p.rot })} />
+                    ))}
+                  </g>
+                  {assembling && (
+                    <text className="cname" x={ox} y={oy - 8} style={{ pointerEvents: 'none' }}>{c.name} · {fmtDim(c)} · z {c.z}</text>
+                  )}
+                </g>
+              )
+            })}
+            {mode === 'assemble' && compsByZ.slice(0, -1).map(({ c, ox, oy }) => (
+              <rect key={`o-${c.id}`} x={ox} y={oy} width={c.l * s} height={c.w * s} fill="none" stroke="var(--ink-3)" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />
+            ))}
+            {selPl && !drag && layout.comps.find((cl) => cl.c.id === selPl.p.compartmentId) && (() => {
+              const { ox, oy } = layout.comps.find((cl) => cl.c.id === selPl.p.compartmentId)!
+              return (
+                <>
+                  <Dim x1={ox + selPl.box.x * s} y1={oy + (selPl.box.y + selPl.box.w) * s + 22} x2={ox + (selPl.box.x + selPl.box.l) * s} y2={oy + (selPl.box.y + selPl.box.w) * s + 22} edge={oy + (selPl.box.y + selPl.box.w) * s} label={`${selPl.box.l}`} color="var(--blue)" />
+                  <Dim x1={ox + selPl.box.x * s - 22} y1={oy + selPl.box.y * s} x2={ox + selPl.box.x * s - 22} y2={oy + (selPl.box.y + selPl.box.w) * s} edge={ox + selPl.box.x * s} label={`${selPl.box.w}`} color="var(--blue)" />
+                </>
+              )
+            })()}
           </svg>
         )}
-        {bag && view === '3d' && <Suspense fallback={<div className="sheet-empty"><p>Loading the 3D view…</p></div>}><Scene3D bag={bag} placed={scene} cut={cut} /></Suspense>}
+        {bag && view === '3d' && <Suspense fallback={<div className="sheet-empty"><p>Loading the 3D view…</p></div>}><Scene3D comps={scene} cut={cut} cam={cam} /></Suspense>}
+        {bag && view === 'plan' && (
+          <div className="mode seg" role="group" aria-label="Sheet mode">
+            <button aria-pressed={mode === 'pack'} onClick={() => { setMode('pack'); setSelected(null) }}>Pack</button>
+            <button aria-pressed={mode === 'assemble'} onClick={() => { setMode('assemble'); setSelected(null) }}>Assemble</button>
+          </div>
+        )}
+        {bag && view === '3d' && (
+          <div className="cams seg" role="group" aria-label="Camera">
+            {CAM_VIEWS.map((v) => <button key={v} aria-pressed={cam.view === v} onClick={() => setCam((c) => ({ view: v, n: c.n + 1 }))}>{v}</button>)}
+          </div>
+        )}
         {bag && (
           <div className="cut">
             <span className="label">Cut</span>
-            <input type="range" min={0} max={bag.h} step={1} value={cut} onChange={(e) => setCutRaw(Number(e.target.value))} aria-label="Section cut height" />
+            <input type="range" min={0} max={H} step={1} value={cut} onChange={(e) => setCutRaw(Number(e.target.value))} aria-label="Section cut height" />
             <span className="num">{cut} cm</span>
           </div>
         )}
         {selPl && !drag && (
           <div className="sel">
             <span>{selPl.it.name}</span>
-            <span className="dim">{fmtDim(selPl.box)} · {fmtW(selPl.it.weight)} · base {selPl.box.z} cm</span>
+            <span className="dim">{fmtDim(selPl.box)} · {fmtW(selPl.it.weight)} · {compOf(selPl.p.compartmentId)?.name} · base {selPl.box.z} cm</span>
             <button className="btn quiet" onClick={() => rotatePl(selPl.p.id)} title="Rotate (R)"><Icon name="rotate" />Rotate</button>
             <button className="btn quiet" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Remove (Delete)"><Icon name="x" />Remove</button>
+          </div>
+        )}
+        {selComp && !drag && mode === 'assemble' && bag && (
+          <div className="sel">
+            <span>{selComp.name}</span>
+            <span className="dim">{fmtDim(selComp)} cm · at {selComp.x}, {selComp.y}, z {selComp.z}</span>
+            <button className="btn quiet" onClick={() => api.rotateCompartment(bag.id, selComp.id)} title="Rotate (R)"><Icon name="rotate" />Rotate</button>
           </div>
         )}
         {note && <div className={'note' + (note.red ? ' red' : '')} role="status">{note.text}</div>}
         {bag ? (
           <div className="tb" aria-label="Title block">
             <div className="cell wide"><span className="label">Trip</span><span className="v">{trip.name}</span><span className="sub">{trip.destination ? `${trip.destination} · ` : ''}{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights</span></div>
-            <div className="cell wide bag-w"><span className="label">Bag</span><span className="v">{bag.name}</span><span className="sub">{fmtDim(bag)} cm · {fmtW(bag.empty)} empty</span></div>
+            <div className="cell wide bag-w"><span className="label">Bag</span><span className="v">{bag.name}</span><span className="sub">{fmtDim(mainOf(bag))} cm{bag.compartments.length > 1 ? ` · ${bag.compartments.length} compartments` : ''} · {fmtW(bag.empty)} empty</span></div>
             <div className="cell scale"><span className="label">Scale</span>{layout && <ScaleBar s={layout.s} />}</div>
-            <div className="cell rule items"><span className="label">Items · {placedList.length}</span><span className="v num">{fmtW(itemsW)}</span></div>
+            <div className="cell rule items"><span className="label">Items · {packedN}</span><span className="v num">{fmtW(itemsW)}</span></div>
             <div className="cell total"><span className="label">Total</span><span className="v num">{fmtW(total)}</span></div>
             <div className="cell"><span className="label">Limit</span><span className="v num">{limit == null ? '—' : fmtW(limit)}</span></div>
             <div className="cell"><span className="label">Margin</span><span className={'v num' + (margin != null && margin < 0 ? ' red' : '')}>{margin == null ? '—' : (margin < 0 ? '−' : '') + fmtW(Math.abs(margin))}</span></div>
-            <div className="cell"><span className="label">Fill</span><span className="v num">{Math.round(fill * 100)} %</span></div>
+            <div className="cell"><span className="label">Fill</span><span className={'v num' + (anyOver ? ' red' : '')}>{Math.round(fill * 100)} %</span></div>
             <div className="cell"><span className="label">Weight</span><span className="v state"><StateMark s={wState} />{wState}</span></div>
+            <div className="gauges" role="group" aria-label="Fill by compartment">
+              {bag.compartments.map((c) => {
+                const f = fills[c.id]
+                const pct = ((volume(c) - f.free) + (looseBy[c.id] ?? 0)) / volume(c)
+                return (
+                  <div key={c.id} className={'gauge' + (f.over ? ' over' : '')}>
+                    <span className="label">{c.name}</span>
+                    <i className="bar"><b style={{ transform: `scaleX(${Math.min(1, pct)})` }} /></i>
+                    <span className="v num">{Math.round(pct * 100)} %</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         ) : (
           <div className="sheet-empty">
@@ -310,7 +465,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
             {bags.length ? (
               <select aria-label="Bag" value="" onChange={(e) => api.patchTrip(trip.id, { bagId: e.target.value || null })}>
                 <option value="">Select a bag</option>
-                {bags.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtDim(b)}</option>)}
+                {bags.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtDim(mainOf(b))}</option>)}
               </select>
             ) : (
               <button className="btn" onClick={() => go('Bags')}>Add a bag <Icon name="arrow" /></button>
@@ -325,8 +480,8 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
           <h2>Schedule</h2>
           <span className="dim">{trip.name}</span>
           <div className="right">
-            <button className="btn" onClick={autoPackAll} disabled={!bag} title="Place the remaining checklist items">Auto-pack</button>
-            <button className="btn quiet" onClick={clearAll} disabled={!placedList.length}>Clear</button>
+            <button className="btn" onClick={autoPackAll} disabled={!bag} title="Pack the remaining checklist items">Auto-pack</button>
+            <button className="btn quiet" onClick={clearAll} disabled={!packedN}>Clear</button>
           </div>
         </div>
         <div className="prog">
@@ -337,7 +492,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         <div className="sch-list">
           {rows.length === 0 && (
             <div className="sch-empty">
-              <p>Inventory is empty. Items need dimensions and a weight before they can be drawn.</p>
+              <p>Inventory is empty. Items need a size and a weight before they can be packed.</p>
               <button className="btn" onClick={() => go('Inventory')}>Add items <Icon name="arrow" /></button>
             </div>
           )}
@@ -347,6 +502,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
               <button className="btn quiet" onClick={() => go('Trips')}>Open trip <Icon name="arrow" /></button>
             </div>
           )}
+          {mode === 'assemble' && view === 'plan' && <div className="sch-empty"><p>Assemble mode: drag compartments into place on the sheet. Switch back to Pack to place items.</p></div>}
           {onList.length > 0 && <div className="grp label">On the checklist</div>}
           {onList.map(Row)}
           {others.length > 0 && (onList.length > 0 || unmatched.length > 0) && <div className="grp label">Other inventory</div>}
@@ -364,10 +520,14 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         </div>
       </aside>
 
-      {ghost && dragBox && dragItem && (
-        <div className={'ghost' + (snap && !snap.ok ? ' bad' : '')} style={{ left: ghost.left, top: ghost.top, width: ghost.w, height: ghost.h }} aria-hidden="true">
-          <span>{dragItem.name}</span><br />
-          <span className="dim">{dragBox.l} × {dragBox.w} · {snap ? (snap.ok ? `base ${snap.z} cm` : "doesn't fit") : 'R rotates'}</span>
+      {ghost && drag && (dragItem || dragComp) && (
+        <div className={'ghost' + (snap && !snap.ok ? ' bad' : '') + (dragItem?.kind === 'soft' ? ' soft' : '') + (snap?.over ? ' over' : '')} style={{ left: ghost.left, top: ghost.top, width: ghost.w, height: ghost.h }} aria-hidden="true">
+          <span>{dragItem?.name ?? dragComp?.name}</span><br />
+          <span className="dim">
+            {dragItem?.kind === 'soft'
+              ? snap ? (snap.over ? 'over volume' : `loose in ${compOf(snap.compId)?.name}`) : `${fmtVol(packedVolume(dragItem))} packed`
+              : dragBox ? `${dragBox.l} × ${dragBox.w} · ${snap ? (snap.ok ? `base ${snap.z} cm` : "doesn't fit") : 'R rotates'}` : ''}
+          </span>
         </div>
       )}
       {flash && <div className="ghost bad flash" style={{ left: flash.left, top: flash.top, width: flash.w, height: flash.h }} aria-hidden="true" />}

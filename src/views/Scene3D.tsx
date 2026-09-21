@@ -1,16 +1,22 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { Box, Placed } from '../lib/pack'
+import type { Placed } from '../lib/pack'
+import type { Compartment } from '../store'
 
 type Ctx = {
   renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.OrthographicCamera; controls: OrbitControls
   group: THREE.Group; radius: number; bagKey: string; render: () => void; fit: () => void
 }
 export type SceneItem = { id: string; box: Placed; selected: boolean }
+export type SceneComp = { c: Compartment; boxes: SceneItem[]; fill: { height: number; over: boolean } }
+export type CamView = 'iso' | 'top' | 'front' | 'side'
+export const CAM_VIEWS: CamView[] = ['iso', 'top', 'front', 'side']
+const DIRS: Record<CamView, [number, number, number]> = { iso: [1, 0.85, 1], top: [0, 1, 0.001], front: [0, 0.001, 1], side: [1, 0.001, 0] }
+const eps = 1e-6
 
-/** Axonometric line drawing of the bag: white faces, graphite edges, dashed above the section cut. Renders on demand only. */
-export function Scene3D({ bag, placed, cut }: { bag: Box; placed: SceneItem[]; cut: number }) {
+/** Axonometric line drawing of the assembled bag: white faces, graphite edges, dashed above the section cut, translucent soft fill. Renders on demand only. */
+export function Scene3D({ comps, cut, cam }: { comps: SceneComp[]; cut: number; cam: { view: CamView; n: number } }) {
   const host = useRef<HTMLDivElement>(null)
   const ctx = useRef<Ctx | null>(null)
 
@@ -21,7 +27,7 @@ export function Scene3D({ bag, placed, cut }: { bag: Box; placed: SceneItem[]; c
     el.appendChild(renderer.domElement)
     const scene = new THREE.Scene()
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 5000)
-    camera.position.set(1, 0.85, 1).normalize().multiplyScalar(1000)
+    camera.position.set(...DIRS.iso).normalize().multiplyScalar(1000)
     camera.lookAt(0, 0, 0)
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enablePan = false
@@ -60,38 +66,63 @@ export function Scene3D({ bag, placed, cut }: { bag: Box; placed: SceneItem[]; c
     })
     c.group.clear()
     const ink = 0x2b2b2b
-    const bagGeo = new THREE.BoxGeometry(bag.l, bag.h, bag.w)
-    c.group.add(new THREE.LineSegments(new THREE.EdgesGeometry(bagGeo), new THREE.LineBasicMaterial({ color: ink })))
-    bagGeo.dispose()
-    const size = Math.ceil(Math.max(bag.l, bag.w) / 10) * 10 + 20
+    const EL = Math.max(1, ...comps.map(({ c }) => c.x + c.l)), EW = Math.max(1, ...comps.map(({ c }) => c.y + c.w)), EH = Math.max(1, ...comps.map(({ c }) => c.z + c.h))
+    // Plan x → X, plan y → Z, height z → Y, centred on the assembled bag.
+    const at = (x: number, z: number, y: number) => new THREE.Vector3(x - EL / 2, z - EH / 2, y - EW / 2)
+    const size = Math.ceil(Math.max(EL, EW) / 10) * 10 + 20
     const grid = new THREE.GridHelper(size, size, 0xd8dade, 0xecedef)
-    grid.position.y = -bag.h / 2 - 0.05
+    grid.position.y = -EH / 2 - 0.05
     c.group.add(grid)
-    for (const { box, selected } of placed) {
-      const above = box.z >= cut - 1e-6
-      const g = new THREE.BoxGeometry(box.l, box.h, box.w)
-      const pos = new THREE.Vector3(box.x + box.l / 2 - bag.l / 2, box.z + box.h / 2 - bag.h / 2, box.y + box.w / 2 - bag.w / 2)
-      if (!above) {
-        const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xfcfcfb, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }))
-        mesh.position.copy(pos)
+    for (const { c: comp, boxes, fill } of comps) {
+      const g = new THREE.BoxGeometry(comp.l, comp.h, comp.w)
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: ink }))
+      edges.position.copy(at(comp.x + comp.l / 2, comp.z + comp.h / 2, comp.y + comp.w / 2))
+      c.group.add(edges)
+      g.dispose()
+      const cutLocal = cut - comp.z
+      for (const { box, selected } of boxes) {
+        const above = box.z >= cutLocal - eps
+        const bg = new THREE.BoxGeometry(box.l, box.h, box.w)
+        const pos = at(comp.x + box.x + box.l / 2, comp.z + box.z + box.h / 2, comp.y + box.y + box.w / 2)
+        if (!above) {
+          const mesh = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ color: 0xfcfcfb, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }))
+          mesh.position.copy(pos)
+          c.group.add(mesh)
+        }
+        const lines = new THREE.LineSegments(
+          new THREE.EdgesGeometry(bg),
+          above ? new THREE.LineDashedMaterial({ color: 0x9a9ea5, dashSize: 1.2, gapSize: 0.8 }) : new THREE.LineBasicMaterial({ color: selected ? 0x2f6fd0 : ink }),
+        )
+        if (above) lines.computeLineDistances()
+        lines.position.copy(pos)
+        c.group.add(lines)
+      }
+      const fh = Math.min(fill.height, Math.max(0, cutLocal))
+      if (fh > eps) {
+        const fg = new THREE.BoxGeometry(comp.l - 0.2, fh, comp.w - 0.2)
+        const mesh = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: fill.over ? 0xc2311e : 0x6f737b, transparent: true, opacity: 0.16, depthWrite: false }))
+        mesh.position.copy(at(comp.x + comp.l / 2, comp.z + fh / 2, comp.y + comp.w / 2))
         c.group.add(mesh)
       }
-      const lines = new THREE.LineSegments(
-        new THREE.EdgesGeometry(g),
-        above ? new THREE.LineDashedMaterial({ color: 0x9a9ea5, dashSize: 1.2, gapSize: 0.8 }) : new THREE.LineBasicMaterial({ color: selected ? 0x2f6fd0 : ink }),
-      )
-      if (above) lines.computeLineDistances()
-      lines.position.copy(pos)
-      c.group.add(lines)
     }
-    const key = `${bag.l}x${bag.w}x${bag.h}`
+    const key = `${EL}x${EW}x${EH}`
     if (key !== c.bagKey) {
       c.bagKey = key
-      c.radius = Math.hypot(bag.l, bag.w, bag.h) * 0.62
+      c.radius = Math.hypot(EL, EW, EH) * 0.62
       c.camera.zoom = 1
       c.fit()
     } else c.render()
-  }, [bag.l, bag.w, bag.h, placed, cut])
+  }, [comps, cut])
 
-  return <div className="scene" ref={host} role="img" aria-label="Three-dimensional view of the packed bag. The plan view carries the same information." />
+  useEffect(() => {
+    const c = ctx.current
+    if (!c) return
+    c.camera.position.set(...DIRS[cam.view]).normalize().multiplyScalar(1000)
+    c.camera.zoom = 1
+    c.camera.lookAt(0, 0, 0)
+    c.controls.update()
+    c.fit()
+  }, [cam.view, cam.n])
+
+  return <div className="scene" ref={host} role="img" aria-label="Three-dimensional view of the assembled bag. The plan view carries the same information." />
 }
