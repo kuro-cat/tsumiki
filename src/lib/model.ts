@@ -28,7 +28,8 @@ export type Climate = 'hot' | 'mild' | 'cold' | 'mixed'
 export const CLIMATES: Climate[] = ['hot', 'mild', 'cold', 'mixed']
 export type TripKind = 'city' | 'beach' | 'outdoor' | 'business'
 export const KINDS: TripKind[] = ['city', 'beach', 'outdoor', 'business']
-export type CheckItem = { id: string; label: string; category: Category; qty: number; match: string[]; packed: boolean; source: 'rule' | 'ai' | 'manual'; note?: string }
+/** itemIds is the Link: absent means unpinned (keywords guess live), present means pinned, [] means not in inventory. */
+export type CheckItem = { id: string; label: string; category: Category; qty: number; match: string[]; itemIds?: string[]; packed: boolean; source: 'rule' | 'ai' | 'manual'; note?: string }
 export type Trip = {
   id: string; name: string; destination: string; start: string; end: string
   climate: Climate; kind: TripKind; activities: string[]
@@ -46,16 +47,18 @@ export const SWATCHES = ['#c8714a', '#d0a33a', '#7d9b3f', '#3a9b8c', '#8a6bb8', 
 export const uid = () => Math.random().toString(36).slice(2, 10)
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 export const nights = (t: { start: string; end: string }) => Math.max(1, Math.round((Date.parse(t.end) - Date.parse(t.start)) / 86400000))
-export const matchItem = (c: CheckItem, items: Item[]) => items.find((i) => c.match.some((k) => i.name.toLowerCase().includes(k)))
-/** Units of an item in the bag on this trip: rigid placements plus loose entries. */
+const keywordItems = (c: Pick<CheckItem, 'match'>, items: Item[]) => items.filter((i) => c.match.some((k) => i.name.toLowerCase().includes(k)))
+/** The items a checklist entry stands for: its pinned Link, else every item a keyword matches. */
+export const linkedItems = (c: CheckItem, items: Item[]) => (c.itemIds ? items.filter((i) => c.itemIds!.includes(i.id)) : keywordItems(c, items))
+/** Pins the keyword guess at creation when it finds anything; otherwise the entry stays unpinned and keeps guessing. */
+export const withLink = <C extends Omit<CheckItem, 'id' | 'packed'>>(c: C, items: Item[]): C => { const g = keywordItems(c, items); return g.length ? { ...c, itemIds: g.map((i) => i.id) } : c }
 export const wornCount = (trip: Trip, itemId: string) => trip.worn.filter((w) => w.itemId === itemId).length
+/** Units of an item in the bag on this trip: rigid placements plus loose entries plus worn. */
 export const packedCount = (trip: Trip, itemId: string) => trip.placements.filter((p) => p.itemId === itemId).length + trip.loose.filter((l) => l.itemId === itemId).length + wornCount(trip, itemId)
 export const wornWeight = (trip: Trip, items: Item[]) => trip.worn.reduce((a, w) => a + (items.find((i) => i.id === w.itemId)?.weight ?? 0), 0)
-export const isPacked = (c: CheckItem, trip: Trip, items: Item[]) => {
-  if (c.packed) return true
-  const m = matchItem(c, items)
-  return !!m && packedCount(trip, m.id) > 0
-}
+/** Packed units across an entry's linked items. */
+export const entryUnits = (c: CheckItem, trip: Trip, items: Item[]) => linkedItems(c, items).reduce((a, i) => a + packedCount(trip, i.id), 0)
+export const isPacked = (c: CheckItem, trip: Trip, items: Item[]) => c.packed || (linkedItems(c, items).length > 0 && entryUnits(c, trip, items) >= c.qty)
 export const fmtW = (g: number) => (Math.abs(g) >= 1000 ? (g / 1000).toFixed(2) + ' kg' : Math.round(g) + ' g')
 export const fmtDim = (b: { l: number; w: number; h: number }) => `${b.l} × ${b.w} × ${b.h}`
 export const fmtVol = (cm3: number) => (cm3 / 1000).toFixed(1) + ' L'

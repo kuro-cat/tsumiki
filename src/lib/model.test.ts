@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bagTotals, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { bagTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -80,4 +80,24 @@ test('worn units count as packed and weigh nothing in any bag', () => {
   assert.equal(wornWeight(trip, [hat]), 110)
   assert.equal(bagTotals(bag, trip, [hat]).total, 500)
   assert.equal(tripReady(trip, [bag], [hat]), true)
+})
+
+test('checklist entries link by keyword until pinned, and pack by quantity', () => {
+  const socks: Item = { id: 's', name: 'Socks, pair', category: 'clothing', kind: 'soft', volume: 0.3, packsTo: 60, weight: 60, qty: 6 }
+  const shoes: Item = { id: 'k', name: 'Sneakers, pair', category: 'footwear', kind: 'rigid', l: 30, w: 20, h: 12, up: false, weight: 700, qty: 1 }
+  const items = [socks, shoes]
+  const raw = { label: 'Socks', category: 'clothing' as const, qty: 4, match: ['sock'], source: 'rule' as const }
+  const c = { ...withLink(raw, items), id: 'c', packed: false }
+  assert.deepEqual(c.itemIds, ['s'])
+  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: [], checklist: [c],
+    placements: [], loose: [1, 2, 3].map((n) => ({ id: `l${n}`, itemId: 's', home: 'x' })), worn: [] }
+  assert.equal(entryUnits(c, trip, items), 3)
+  assert.equal(isPacked(c, trip, items), false)
+  assert.equal(isPacked(c, { ...trip, worn: [{ id: 'w', itemId: 's' }] }, items), true)
+  // an unpinned entry with no keyword hit keeps guessing: a later item with a matching name links itself
+  const pair = { ...withLink({ label: 'Pair of anything', category: 'misc' as const, qty: 1, match: ['pair'], source: 'manual' as const }, []), id: 'p', packed: false }
+  assert.equal(pair.itemIds, undefined)
+  assert.deepEqual(linkedItems(pair, items).map((i) => i.id), ['s', 'k'])
+  // pinned to none is not in inventory even though keywords would match
+  assert.deepEqual(linkedItems({ ...pair, itemIds: [] }, items), [])
 })

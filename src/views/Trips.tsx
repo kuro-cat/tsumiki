@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { CLIMATES, KINDS, dropBag, fmtDate, inBag, isPacked, matchItem, newTrip, nights, repack, tripBags, uid, type Trip } from '../store'
+import { CLIMATES, KINDS, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Trip } from '../store'
+import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
@@ -27,7 +28,7 @@ export function Trips({ state, api, go }: ViewProps) {
       .filter((r) => !keep.some((k) => k.label.toLowerCase() === r.label.toLowerCase()))
       .map((r) => {
         const prev = trip.checklist.find((c) => c.label === r.label)
-        return { ...r, id: prev?.id ?? uid(), packed: prev?.packed ?? false }
+        return { ...withLink(r, state.items), ...(prev?.itemIds ? { itemIds: prev.itemIds } : {}), id: prev?.id ?? uid(), packed: prev?.packed ?? false }
       })
     patch({ checklist: [...rules, ...keep] })
     setMsg({ text: `${rules.length} items for ${nights(trip)} nights, ${trip.climate} weather, ${trip.kind}${trip.activities.length ? ', ' + trip.activities.join(', ') : ''}.` })
@@ -41,7 +42,7 @@ export function Trips({ state, api, go }: ViewProps) {
       const { name, destination, start, end, climate, kind, activities } = trip
       const { aiExtras } = await import('../lib/ai')
       const extras = await aiExtras(state.apiKey, { name, destination, start, end, climate, kind, activities }, trip.checklist.map((c) => c.label))
-      const fresh = extras.filter((e) => !trip.checklist.some((c) => c.label.toLowerCase() === e.label.toLowerCase())).map((e) => ({ ...e, id: uid(), packed: false }))
+      const fresh = extras.filter((e) => !trip.checklist.some((c) => c.label.toLowerCase() === e.label.toLowerCase())).map((e) => ({ ...withLink(e, state.items), id: uid(), packed: false }))
       api.patchTrip(trip.id, (t) => ({ checklist: [...t.checklist, ...fresh] }))
       setMsg({ text: fresh.length ? `${fresh.length} destination extras added.` : 'Claude had nothing to add.' })
     } catch (err) {
@@ -54,7 +55,7 @@ export function Trips({ state, api, go }: ViewProps) {
     e.preventDefault()
     const label = manual.trim()
     if (!trip || !label) return
-    api.patchTrip(trip.id, (t) => ({ checklist: [...t.checklist, { id: uid(), label, category: 'misc', qty: 1, match: [label.toLowerCase()], packed: false, source: 'manual' }] }))
+    api.patchTrip(trip.id, (t) => ({ checklist: [...t.checklist, { ...withLink({ label, category: 'misc' as const, qty: 1, match: [label.toLowerCase()], source: 'manual' as const }, state.items), id: uid(), packed: false }] }))
     setManual('')
   }
   const toggleAct = (a: string) => trip && patch({ activities: trip.activities.includes(a) ? trip.activities.filter((x) => x !== a) : [...trip.activities, a] })
@@ -147,14 +148,18 @@ export function Trips({ state, api, go }: ViewProps) {
               </div>
               <div className="check-list">
                 {trip.checklist.map((c) => {
-                  const m = matchItem(c, state.items)
+                  const linked = linkedItems(c, state.items)
+                  const units = entryUnits(c, trip, state.items)
                   const packed = isPacked(c, trip, state.items)
+                  const mark = packed ? ' on' : units > 0 ? ' half' : linked.length ? '' : ' miss'
+                  const setLink = (itemIds: string[]) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, itemIds } : x)) }))
                   return (
                     <div key={c.id} className={'check-row' + (packed ? ' done' : '')}>
-                      <span className={'mark' + (packed ? ' on' : m ? '' : ' miss')} aria-label={packed ? 'packed' : m ? 'in inventory' : 'not in inventory'} />
+                      <span className={'mark' + mark} aria-label={packed ? 'packed' : units > 0 ? 'partly packed' : linked.length ? 'in inventory' : 'not in inventory'} />
                       <span className="lbl">
-                        <span>{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span>
-                        <small>{m ? `${m.name} · ${m.qty} in inventory` : c.note ?? 'not in inventory'}</small>
+                        <span>{c.label}</span>
+                        <small>{c.packed && !linked.length ? 'ticked' : linked.length ? `${units} / ${c.qty}` : c.note ?? 'not in inventory'}{c.itemIds ? '' : linked.length ? ' · guessed' : ''}</small>
+                        <LinkPicker entry={c} items={state.items} onChange={setLink} />
                       </span>
                       <span className={'tag' + (c.source === 'ai' ? ' blue' : '')}>{c.source}</span>
                       <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) }))} aria-label={`Remove ${c.label}`}><Icon name="x" /></button>

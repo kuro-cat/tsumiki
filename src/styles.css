@@ -318,6 +318,14 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .mark { width: 10px; height: 10px; border: 1px solid var(--ink); display: block; }
 .mark.on { background: var(--ink); }
 .mark.miss { border-color: var(--red); border-style: dashed; }
+.mark.half { background: linear-gradient(to right, var(--ink) 50%, transparent 50%); }
+.links { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+.links .chip { padding: 1px 4px 1px 8px; font-size: 12px; cursor: default; gap: 2px; }
+.links.guess .chip { border-style: dashed; }
+.links .chip button { display: flex; border: 0; background: none; color: var(--ink-3); padding: 2px; cursor: pointer; }
+.links .chip button:hover { color: var(--ink); }
+.links select { font-size: 12px; padding: 1px 18px 1px 4px; min-width: 0; width: auto; }
+.row.check .acts select { max-width: 110px; }
 .add-row { display: flex; gap: 8px; align-items: flex-end; padding-top: 8px; }
 .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .msg { font-size: 13px; color: var(--ink-2); }

@@ -1,9 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, wornCount, wornWeight, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
+import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, wornCount, wornWeight, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, linkedItems, looseVolumes, mainOf, newTrip, entryUnits, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
 import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { Icon } from '../Icon'
+import { LinkPicker } from './LinkPicker'
 
 type Mode = 'pack' | 'assemble'
 type Drag = { itemId?: string; placementId?: string; compId?: string; o: number; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
@@ -109,7 +110,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
   const complete = !!trip && tripReady(trip, bags, items)
 
   const matchedIds = useMemo(
-    () => new Set(trip ? trip.checklist.map((c) => matchItem(c, items)?.id).filter((x): x is string => !!x) : []),
+    () => new Set(trip ? trip.checklist.flatMap((c) => linkedItems(c, items).map((i) => i.id)) : []),
     [trip, items],
   )
   const rows = useMemo(
@@ -122,7 +123,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
         .sort((a, b) => Number(b.onList) - Number(a.onList) || a.it.name.localeCompare(b.it.name)),
     [items, trip, matchedIds],
   )
-  const unmatched = trip ? trip.checklist.filter((c) => !matchItem(c, items)) : []
+  const unmatched = trip ? trip.checklist.filter((c) => !linkedItems(c, items).length) : []
 
   // Drag: the footprint appears at true scale the instant the drag starts and snaps to the 1 cm grid over a compartment.
   const dragItem = drag?.itemId ? items.find((i) => i.id === drag.itemId) ?? null : null
@@ -290,8 +291,14 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
   }
   const autoPackAll = () => {
     if (!trip || !bag) return
-    const targets = rows.filter((r) => r.remaining > 0 && (matchedIds.size === 0 || r.onList))
-    const units = targets.flatMap((r) => Array.from({ length: r.remaining }, () => r.it))
+    // What the list asks for: each unpacked entry's shortfall, taken from its linked items in link order, never beyond what is owned.
+    const left: Record<string, number> = Object.fromEntries(rows.map((r) => [r.it.id, r.remaining]))
+    const units: Item[] = matchedIds.size
+      ? trip.checklist.flatMap((c) => {
+          let need = Math.max(0, c.qty - entryUnits(c, trip, items))
+          return linkedItems(c, items).flatMap((it) => { const n = Math.min(need, left[it.id] ?? 0); need -= n; left[it.id] -= n; return Array.from({ length: n }, () => it) })
+        })
+      : rows.flatMap((r) => Array.from({ length: r.remaining }, () => r.it))
     if (!units.length) return say(matchedIds.size ? 'Every checklist item is already in the bag' : 'Nothing left to pack')
     const boxes = units.flatMap((it, i) => (isBoxed(it) ? [{ key: `${it.id}:${i}`, box: it, os: orientationsOf(it) }] : []))
     const res = autoPackBins(bag.compartments, boxes, boxesBy)
@@ -602,9 +609,12 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
             <div key={c.id} className="row check">
               <label>
                 <input type="checkbox" checked={c.packed} onChange={(e) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, packed: e.target.checked } : x)) }))} />
-                <span className="name"><span>{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span><span className="dim">{c.note ?? 'Tick when packed, or add it to inventory to draw it'}</span></span>
+                <span className="name"><span>{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span><span className="dim">{c.note ?? 'Tick when packed, link it, or add it to inventory'}</span></span>
               </label>
-              <button className="btn quiet" onClick={() => go('Inventory')} aria-label={`Add ${c.label} to inventory`} title="Add to inventory"><Icon name="plus" /></button>
+              <span className="acts" onPointerDown={(e) => e.stopPropagation()}>
+                <LinkPicker entry={c} items={items} compact onChange={(itemIds) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, itemIds } : x)) }))} />
+                <button className="btn quiet" onClick={() => go('Inventory')} aria-label={`Add ${c.label} to inventory`} title="Add to inventory"><Icon name="plus" /></button>
+              </span>
             </div>
           ))}
         </div>
