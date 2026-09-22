@@ -1,19 +1,20 @@
-import { autoPackBins, fillHeight, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
+import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, fillHeight, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
 
 export type Category = 'clothing' | 'footwear' | 'toiletries' | 'electronics' | 'documents' | 'gear' | 'misc'
 export const CATEGORIES: Category[] = ['clothing', 'footwear', 'toiletries', 'electronics', 'documents', 'gear', 'misc']
 export type Kind = 'rigid' | 'soft'
 /** color is an optional hex; undefined draws the item in paper. */
 type ItemBase = { id: string; name: string; category: Category; weight: number; qty: number; color?: string; sample?: boolean }
-/** Keeps its shape: a box that occupies exactly its L × W × H. */
-export type RigidItem = ItemBase & { kind: 'rigid'; l: number; w: number; h: number }
+/** Keeps its shape: a box that occupies exactly its L × W × H. up is This Side Up: only the two plan turns of the measured orientation are allowed. */
+export type RigidItem = ItemBase & { kind: 'rigid'; l: number; w: number; h: number; up: boolean }
 /** No fixed shape: a measured volume in litres that packs to a percentage of itself. It has a home, never a position. */
 export type SoftItem = ItemBase & { kind: 'soft'; volume: number; packsTo: number }
 export type Item = RigidItem | SoftItem
 /** One box-shaped space inside a bag. x, y, z is where the traveler assembled it relative to the bag; Main is first. */
 export type Compartment = { id: string; name: string; l: number; w: number; h: number; x: number; y: number; z: number }
 export type Bag = { id: string; name: string; empty: number; limit: number | null; compartments: Compartment[]; sample?: boolean }
-export type Placement = { id: string; itemId: string; compartmentId: string; x: number; y: number; z: number; rot: boolean }
+/** o is the orientation index, see pack.ts. */
+export type Placement = { id: string; itemId: string; compartmentId: string; x: number; y: number; z: number; o: number }
 /** A soft item's home on a trip: one entry per unit, no position. */
 export type Loose = { id: string; itemId: string; compartmentId: string }
 export type Climate = 'hot' | 'mild' | 'cold' | 'mixed'
@@ -30,6 +31,8 @@ export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: s
 
 export const DEFAULT_PACKS_TO: Record<Category, number> = { clothing: 60, footwear: 100, toiletries: 90, electronics: 100, documents: 100, gear: 100, misc: 100 }
 export const defaultKind = (c: Category): Kind => (c === 'clothing' ? 'soft' : 'rigid')
+export const defaultUp = (c: Category) => c === 'electronics' || c === 'toiletries'
+export const orientationsOf = (it: RigidItem) => (it.up ? UPRIGHT : ALL_ORIENTATIONS)
 /** Colored-pencil set for items: hues kept clear of the provisional and wrong inks on both themes. */
 export const SWATCHES = ['#c8714a', '#d0a33a', '#7d9b3f', '#3a9b8c', '#8a6bb8', '#b25e8f', '#8c6a4a', '#d98a9a']
 
@@ -65,7 +68,7 @@ export function placedBoxes(trip: Trip, items: Item[]): Record<string, Placed[]>
   for (const p of trip.placements) {
     const it = items.find((i) => i.id === p.itemId)
     if (!it || it.kind !== 'rigid') continue
-    ;(out[p.compartmentId] ??= []).push({ ...oriented(it, p.rot), x: p.x, y: p.y, z: p.z })
+    ;(out[p.compartmentId] ??= []).push({ ...oriented(it, p.o), x: p.x, y: p.y, z: p.z })
   }
   return out
 }
@@ -92,9 +95,9 @@ export function roomiest(bag: Bag, boxes: Record<string, Placed[]>, loose: Recor
 export function repack(bag: Bag, trip: Trip, items: Item[]): Pick<Trip, 'placements' | 'loose'> {
   const boxes = trip.placements.flatMap((p) => {
     const it = items.find((i) => i.id === p.itemId)
-    return it?.kind === 'rigid' ? [{ key: p, box: it }] : []
+    return it?.kind === 'rigid' ? [{ key: p, box: it, os: orientationsOf(it) }] : []
   })
-  const placements = autoPackBins(bag.compartments, boxes).placed.map((x) => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, rot: x.rot }))
+  const placements = autoPackBins(bag.compartments, boxes).placed.map((x) => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
   const placed = placedBoxes({ ...trip, placements }, items)
   const vols: Record<string, number> = {}
   const loose = trip.loose.map((l) => {
@@ -119,8 +122,8 @@ export function rotateCompartment(bag: Bag, compId: string, trips: Trip[], items
         placements: t.placements.map((p) => {
           const it = items.find((i) => i.id === p.itemId)
           if (p.compartmentId !== compId || it?.kind !== 'rigid') return p
-          const o = oriented(it, p.rot)
-          return { ...p, x: c.w - p.y - o.w, y: p.x, rot: !p.rot }
+          const d = oriented(it, p.o)
+          return { ...p, x: c.w - p.y - d.w, y: p.x, o: p.o ^ 1 }
         }),
       },
     ),

@@ -1,26 +1,26 @@
 import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from 'react'
-import { CATEGORIES, SWATCHES, defaultKind, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
+import { CATEGORIES, SWATCHES, defaultKind, defaultUp, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
-type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string }
+type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean }
 const COLS = { gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) 70px 170px 80px 44px' }
 
 export function Inventory({ state, api }: ViewProps) {
-  const blank = (): Form => ({ id: uid(), name: '', category: 'clothing', kind: 'soft', l: 20, w: 15, h: 5, volume: 2, packsTo: state.packsTo.clothing, weight: 200, qty: 1, color: '' })
-  const toForm = (it: Item): Form => ({ ...blank(), id: it.id, name: it.name, category: it.category, kind: it.kind, weight: it.weight, qty: it.qty, color: it.color ?? '', ...(it.kind === 'rigid' ? { l: it.l, w: it.w, h: it.h } : { volume: it.volume, packsTo: it.packsTo }) })
+  const blank = (): Form => ({ id: uid(), name: '', category: 'clothing', kind: 'soft', l: 20, w: 15, h: 5, volume: 2, packsTo: state.packsTo.clothing, weight: 200, qty: 1, color: '', up: false })
+  const toForm = (it: Item): Form => ({ ...blank(), id: it.id, name: it.name, category: it.category, kind: it.kind, weight: it.weight, qty: it.qty, color: it.color ?? '', ...(it.kind === 'rigid' ? { l: it.l, w: it.w, h: it.h, up: it.up } : { volume: it.volume, packsTo: it.packsTo }) })
   const [form, setForm] = useState<Form>(blank)
   const [editing, setEditing] = useState(false)
   const [q, setQ] = useState('')
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
   const num = (k: 'l' | 'w' | 'h' | 'volume' | 'packsTo' | 'weight' | 'qty') => (e: ChangeEvent<HTMLInputElement>) => set(k, Number(e.target.value))
-  const setCategory = (c: Category) => setForm((f) => ({ ...f, category: c, kind: defaultKind(c), packsTo: state.packsTo[c] }))
+  const setCategory = (c: Category) => setForm((f) => ({ ...f, category: c, kind: defaultKind(c), packsTo: state.packsTo[c], up: defaultUp(c) }))
   const cancel = () => { setForm(blank()); setEditing(false) }
   const save = (e: FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return
     const base = { id: form.id, name: form.name.trim(), category: form.category, weight: form.weight, qty: form.qty, ...(form.color ? { color: form.color } : {}) }
-    api.upsertItem(form.kind === 'rigid' ? { ...base, kind: 'rigid', l: form.l, w: form.w, h: form.h } : { ...base, kind: 'soft', volume: form.volume, packsTo: form.packsTo })
+    api.upsertItem(form.kind === 'rigid' ? { ...base, kind: 'rigid', l: form.l, w: form.w, h: form.h, up: form.up } : { ...base, kind: 'soft', volume: form.volume, packsTo: form.packsTo })
     cancel()
   }
   const list = state.items
@@ -51,6 +51,7 @@ export function Inventory({ state, api }: ViewProps) {
             <label className="field s2"><span className="label">Length</span><span className="unit"><input type="number" min={0.5} step={0.5} value={form.l} onChange={num('l')} required /><span className="dim">cm</span></span></label>
             <label className="field s2"><span className="label">Width</span><span className="unit"><input type="number" min={0.5} step={0.5} value={form.w} onChange={num('w')} required /><span className="dim">cm</span></span></label>
             <label className="field s2"><span className="label">Height</span><span className="unit"><input type="number" min={0.5} step={0.5} value={form.h} onChange={num('h')} required /><span className="dim">cm</span></span></label>
+            <div className="field s2"><span className="label">Orientation</span><label className="chip"><input type="checkbox" checked={form.up} onChange={(e) => set('up', e.target.checked)} />this side up</label></div>
           </>
         ) : (
           <>
@@ -85,7 +86,7 @@ export function Inventory({ state, api }: ViewProps) {
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => { setForm(toForm(it)); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
               <span className="name"><span>{it.color && <i className="sw" style={{ '--sw': it.color } as CSSProperties} />}<span>{it.name}</span></span>{it.sample && <span className="tag">sample</span>}</span>
               <span className="dim">{it.category}</span>
-              <span className="dim">{it.kind}</span>
+              <span className="dim">{it.kind}{it.kind === 'rigid' && it.up ? ' ↑' : ''}</span>
               <span className="num">{fmtSize(it)}</span>
               <span className="num">{fmtW(it.weight)}</span>
               <span className="num">{it.qty}</span>

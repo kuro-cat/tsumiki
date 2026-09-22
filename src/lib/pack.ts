@@ -1,11 +1,21 @@
 // Axis convention: l along x, w along y (plan view), h along z (up).
 export type Box = { l: number; w: number; h: number }
 export type Placed = Box & { x: number; y: number; z: number }
-export type Spot = { p: Placed; rot: boolean }
+/** Orientation index: face = o >> 1 (0 as measured, 1 on end with l vertical, 2 on side with w vertical), turned in plan when o is odd. */
+export type Spot = { p: Placed; o: number }
+export const UPRIGHT = [0, 1]
+export const ALL_ORIENTATIONS = [0, 1, 2, 3, 4, 5]
+/** Next allowed face-down option keeping the plan turn; the same o when only one face is allowed. */
+export const nextFace = (o: number, os: number[]) => { for (let k = 1; k <= 3; k++) { const n = ((o >> 1) + k) % 3 * 2 + (o & 1); if (os.includes(n)) return n } return o }
+export const faceName = (o: number) => ['as measured', 'on end', 'on side'][o >> 1] + (o & 1 ? ' · turned' : '')
 
 const eps = 1e-6
 export const volume = (b: Box) => b.l * b.w * b.h
-export const oriented = (b: Box, rot: boolean): Box => (rot ? { l: b.w, w: b.l, h: b.h } : { l: b.l, w: b.w, h: b.h })
+export function oriented(b: Box, o: number): Box {
+  const f = o >> 1
+  const d = f === 0 ? { l: b.l, w: b.w, h: b.h } : f === 1 ? { l: b.h, w: b.w, h: b.l } : { l: b.l, w: b.h, h: b.w }
+  return o & 1 ? { l: d.w, w: d.l, h: d.h } : d
+}
 
 const footprintOverlaps = (a: { x: number; y: number; l: number; w: number }, b: { x: number; y: number; l: number; w: number }) =>
   a.x + eps < b.x + b.l && b.x + eps < a.x + a.l && a.y + eps < b.y + b.w && b.y + eps < a.y + a.w
@@ -25,36 +35,36 @@ export function fits(bin: Box, placed: Placed[], p: Placed): boolean {
   return !placed.some((q) => overlaps(p, q))
 }
 
-/** Best free spot for one box in one bin: lowest resting height, then nearest the origin. Two plan rotations, upright. */
-export function bestSpot(bin: Box, placed: Placed[], box: Box): Spot | null {
-  let best: Spot | null = null
+/** Best free spot for one box in one bin: lowest resting height, then the earliest allowed orientation (as measured before tipped), then nearest the origin. */
+export function bestSpot(bin: Box, placed: Placed[], box: Box, os: number[] = UPRIGHT): Spot | null {
+  let best: { p: Placed; o: number; i: number } | null = null
   const cands = [{ x: 0, y: 0 }, ...placed.flatMap((p) => [{ x: p.x + p.l, y: p.y }, { x: p.x, y: p.y + p.w }, { x: p.x, y: p.y }])]
-  for (const rot of [false, true]) {
-    const o = oriented(box, rot)
-    if (rot && o.l === o.w) break
+  for (let i = 0; i < os.length; i++) {
+    const o = os[i], d = oriented(box, o)
     for (const c of cands) {
-      const z = dropZ(placed, { ...c, l: o.l, w: o.w })
-      const p: Placed = { ...o, x: c.x, y: c.y, z }
+      const z = dropZ(placed, { ...c, l: d.l, w: d.w })
+      const p: Placed = { ...d, x: c.x, y: c.y, z }
       if (!fits(bin, placed, p)) continue
-      if (!best || z < best.p.z || (z === best.p.z && (p.y < best.p.y || (p.y === best.p.y && p.x < best.p.x)))) best = { p, rot }
+      if (!best || z < best.p.z || (z === best.p.z && (i < best.i || (i === best.i && (p.y < best.p.y || (p.y === best.p.y && p.x < best.p.x)))))) best = { p, o, i }
     }
   }
-  return best
+  return best ? { p: best.p, o: best.o } : null
 }
 
-const byVolume = <K>(boxes: { key: K; box: Box }[]) => [...boxes].sort((a, b) => volume(b.box) - volume(a.box) || b.box.h - a.box.h)
+type Want<K> = { key: K; box: Box; os?: number[] }
+const byVolume = <K>(boxes: Want<K>[]) => [...boxes].sort((a, b) => volume(b.box) - volume(a.box) || b.box.h - a.box.h)
 
 /**
  * Places boxes into one bin around any already-fixed placements.
- * ponytail: extreme-point first-fit, largest volume first, two plan rotations, items kept upright;
+ * ponytail: extreme-point first-fit, largest volume first, orientations as allowed per box;
  * swap for a real 3D bin-packing solver if fill % disappoints.
  */
-export function autoPack<K>(bin: Box, boxes: { key: K; box: Box }[], fixed: Placed[] = []) {
+export function autoPack<K>(bin: Box, boxes: Want<K>[], fixed: Placed[] = []) {
   const placed: Placed[] = [...fixed]
   const out: (Spot & { key: K })[] = []
   const unplaced: K[] = []
-  for (const { key, box } of byVolume(boxes)) {
-    const s = bestSpot(bin, placed, box)
+  for (const { key, box, os } of byVolume(boxes)) {
+    const s = bestSpot(bin, placed, box, os)
     if (s) { placed.push(s.p); out.push({ key, ...s }) } else unplaced.push(key)
   }
   return { placed: out, unplaced }
@@ -63,14 +73,14 @@ export function autoPack<K>(bin: Box, boxes: { key: K; box: Box }[], fixed: Plac
 export const freeVolume = (bin: Box, placed: Placed[]) => volume(bin) - placed.reduce((a, p) => a + volume(p), 0)
 
 /** Places boxes across several bins. Tightest fit wins: lowest resting height, then the bin with the least free volume. */
-export function autoPackBins<K, B extends Box & { id: string }>(bins: B[], boxes: { key: K; box: Box }[], fixed: Record<string, Placed[]> = {}) {
+export function autoPackBins<K, B extends Box & { id: string }>(bins: B[], boxes: Want<K>[], fixed: Record<string, Placed[]> = {}) {
   const placed: Record<string, Placed[]> = Object.fromEntries(bins.map((b) => [b.id, [...(fixed[b.id] ?? [])]]))
   const out: (Spot & { key: K; binId: string })[] = []
   const unplaced: K[] = []
-  for (const { key, box } of byVolume(boxes)) {
+  for (const { key, box, os } of byVolume(boxes)) {
     let best: { bin: B; s: Spot } | null = null
     for (const bin of bins) {
-      const s = bestSpot(bin, placed[bin.id], box)
+      const s = bestSpot(bin, placed[bin.id], box, os)
       if (!s) continue
       if (!best || s.p.z < best.s.p.z || (s.p.z === best.s.p.z && freeVolume(bin, placed[bin.id]) < freeVolume(best.bin, placed[best.bin.id]))) best = { bin, s }
     }

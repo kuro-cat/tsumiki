@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { autoPack, autoPackBins, dropZ, fillHeight, fits, freeVolume, type Placed } from './pack.ts'
+import { ALL_ORIENTATIONS, autoPack, autoPackBins, dropZ, fillHeight, fits, freeVolume, nextFace, oriented, type Placed } from './pack.ts'
 
 const cube = { l: 10, w: 10, h: 10 }
 
@@ -24,7 +24,7 @@ test('fifth cube stacks when there is headroom, else is unplaced', () => {
 test('rotation is tried when the upright orientation does not fit', () => {
   const r = autoPack({ l: 10, w: 30, h: 10 }, [{ key: 'a', box: { l: 30, w: 10, h: 10 } }])
   assert.equal(r.unplaced.length, 0)
-  assert.equal(r.placed[0].rot, true)
+  assert.equal(r.placed[0].o, 1)
 })
 
 test('dropZ settles on the highest overlapping top and fits rejects overlaps', () => {
@@ -61,4 +61,29 @@ test('fillHeight pours around rigid boxes and caps at the lid', () => {
   assert.equal(fillHeight(bin, block, 250), 4.5)
   assert.equal(fillHeight(bin, block, 5000), 10)
   assert.equal(freeVolume(bin, block), 800)
+})
+
+test('oriented covers three faces and two turns', () => {
+  const b = { l: 30, w: 20, h: 10 }
+  assert.deepEqual(oriented(b, 0), { l: 30, w: 20, h: 10 })
+  assert.deepEqual(oriented(b, 1), { l: 20, w: 30, h: 10 })
+  assert.deepEqual(oriented(b, 2), { l: 10, w: 20, h: 30 })
+  assert.deepEqual(oriented(b, 4), { l: 30, w: 10, h: 20 })
+  assert.equal(nextFace(0, ALL_ORIENTATIONS), 2)
+  assert.equal(nextFace(5, ALL_ORIENTATIONS), 1)
+  assert.equal(nextFace(1, [0, 1]), 1)
+})
+
+test('a free item tips to fit a tall narrow bin; a This Side Up item does not', () => {
+  const bin = { l: 10, w: 10, h: 30 }
+  const box = { l: 30, w: 10, h: 10 }
+  assert.deepEqual(autoPack(bin, [{ key: 'up', box }]).unplaced, ['up'])
+  const r = autoPack(bin, [{ key: 'free', box, os: ALL_ORIENTATIONS }])
+  assert.equal(r.unplaced.length, 0)
+  assert.equal(r.placed[0].o >> 1, 1)
+})
+
+test('at equal resting height the as-measured orientation wins', () => {
+  const r = autoPack({ l: 40, w: 40, h: 40 }, [{ key: 1, box: { l: 30, w: 20, h: 10 }, os: ALL_ORIENTATIONS }])
+  assert.equal(r.placed[0].o, 0)
 })

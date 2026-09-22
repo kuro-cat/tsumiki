@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Category, type Compartment, type Item, type RigidItem, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, defaultUp, orientationsOf, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Category, type Compartment, type Item, type RigidItem, type State, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -15,7 +15,7 @@ function sampleState(): State {
   const S = true
   // Sample items are coloured by category so the swatches and fills are visible on first run.
   const tint: Record<Category, string> = { clothing: '#d0a33a', footwear: '#8c6a4a', toiletries: '#c8714a', electronics: '#8a6bb8', documents: '#d98a9a', gear: '#3a9b8c', misc: '#7d9b3f' }
-  const rigid = (name: string, category: Category, l: number, w: number, h: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'rigid', l, w, h, weight, qty, color: tint[category], sample: S })
+  const rigid = (name: string, category: Category, l: number, w: number, h: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'rigid', l, w, h, up: defaultUp(category), weight, qty, color: tint[category], sample: S })
   const soft = (name: string, category: Category, volume: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'soft', volume, packsTo: DEFAULT_PACKS_TO[category], weight, qty, color: tint[category], sample: S })
   const items: Item[] = [
     soft('T-shirt', 'clothing', 1.7, 150, 4),
@@ -54,13 +54,13 @@ function sampleState(): State {
   }
   trip.checklist = suggest({ nights: 5, climate: trip.climate, kind: trip.kind, activities: trip.activities }).map((c) => ({ ...c, id: uid(), packed: false }))
   const byName = (n: string) => items.find((x) => x.name === n)!
-  const pre = ['Laptop 13"', 'Toiletry kit', 'Sneakers, pair', 'Camera'].map((n, i) => ({ key: `${byName(n).id}:${i}`, box: byName(n) as RigidItem }))
-  trip.placements = autoPackBins(backpack.compartments, pre).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, rot: x.rot }))
+  const pre = ['Laptop 13"', 'Toiletry kit', 'Sneakers, pair', 'Camera'].map((n, i) => ({ key: `${byName(n).id}:${i}`, box: byName(n) as RigidItem, os: orientationsOf(byName(n) as RigidItem) }))
+  trip.placements = autoPackBins(backpack.compartments, pre).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
   trip.loose = ['T-shirt', 'T-shirt', 'Jeans', 'Underwear', 'Underwear'].map((n) => ({ id: uid(), itemId: byName(n).id, compartmentId: mainOf(backpack).id }))
   return { items, bags, trips: [trip], activeTripId: trip.id, apiKey: '', packsTo: { ...DEFAULT_PACKS_TO } }
 }
 
-export const KEY = 'bin-pack.v2'
+export const KEY = 'bin-pack.v3'
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
