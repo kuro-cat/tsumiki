@@ -30,7 +30,7 @@ export type CheckItem = { id: string; label: string; category: Category; qty: nu
 export type Trip = {
   id: string; name: string; destination: string; start: string; end: string
   climate: Climate; kind: TripKind; activities: string[]
-  bagId: string | null; checklist: CheckItem[]; placements: Placement[]; loose: Loose[]; sample?: boolean
+  bagIds: string[]; checklist: CheckItem[]; placements: Placement[]; loose: Loose[]; sample?: boolean
 }
 export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
 
@@ -89,9 +89,39 @@ export function looseVolumes(trip: Trip, items: Item[]): Record<string, number> 
   return out
 }
 /** Containers placed on a trip, with what each one holds. */
-export type PlacedContainer = { id: string; it: ContainerItem }
+export type PlacedContainer = { id: string; compartmentId: string; it: ContainerItem }
 export function placedContainers(trip: Trip, items: Item[]): PlacedContainer[] {
-  return trip.placements.flatMap((p) => { const it = items.find((i) => i.id === p.itemId); return it?.kind === 'container' ? [{ id: p.id, it }] : [] })
+  return trip.placements.flatMap((p) => { const it = items.find((i) => i.id === p.itemId); return it?.kind === 'container' ? [{ id: p.id, compartmentId: p.compartmentId, it }] : [] })
+}
+export const tripBags = (trip: Trip, bags: Bag[]) => trip.bagIds.flatMap((id) => bags.filter((b) => b.id === id))
+/** Placements and loose entries that live in one bag of a trip. */
+export function inBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'> {
+  const comps = new Set(bag.compartments.map((c) => c.id))
+  const placements = trip.placements.filter((p) => comps.has(p.compartmentId))
+  const pids = new Set(placements.map((p) => p.id))
+  return { placements, loose: trip.loose.filter((l) => comps.has(l.home) || pids.has(l.home)) }
+}
+export type WeightState = 'no limit' | 'over' | 'near limit' | 'balanced' | 'light'
+export const weightState = (total: number, limit: number | null): WeightState => (limit == null ? 'no limit' : total / limit > 1 ? 'over' : total / limit > 0.85 ? 'near limit' : total / limit >= 0.5 ? 'balanced' : 'light')
+/** What the title block and bag strip report for one bag on a trip. */
+export function bagTotals(bag: Bag, trip: Trip, items: Item[]) {
+  const { placements, loose } = inBag(bag, trip)
+  const find = (id: string) => items.find((i) => i.id === id)
+  const itemsW = placements.reduce((a, p) => a + (find(p.itemId)?.weight ?? 0), 0) + loose.reduce((a, l) => a + (find(l.itemId)?.weight ?? 0), 0)
+  const total = bag.empty + itemsW
+  const boxes = placedBoxes(trip, items), lv = looseVolumes(trip, items)
+  const rigidVol = placements.reduce((a, p) => { const it = find(p.itemId); return a + (it && isBoxed(it) ? volume(it) : 0) }, 0)
+  const looseVol = loose.reduce((a, l) => { const it = find(l.itemId); return a + (it?.kind === 'soft' ? packedVolume(it) : 0) }, 0)
+  const pids = new Set(placements.map((p) => p.id))
+  const over = bag.compartments.some((c) => fillOf(c, boxes[c.id] ?? [], lv[c.id] ?? 0).over) || placedContainers(trip, items).some((c) => pids.has(c.id) && containerFill(c.it, lv[c.id] ?? 0).over)
+  return { count: placements.length + loose.length, itemsW, total, limit: bag.limit, margin: bag.limit == null ? null : bag.limit - total, wState: weightState(total, bag.limit), fill: (rigidVol + looseVol) / bagVolume(bag), over }
+}
+/** The trip is ready to travel: checklist packed, something in the bags, every bag under its limit, nothing over volume. */
+export function tripReady(trip: Trip, bags: Bag[], items: Item[]) {
+  const tb = tripBags(trip, bags)
+  if (!tb.length || !trip.checklist.length || !trip.checklist.every((c) => isPacked(c, trip, items))) return false
+  const totals = tb.map((b) => bagTotals(b, trip, items))
+  return totals.some((t) => t.count > 0) && totals.every((t) => !t.over && (t.limit == null || t.total <= t.limit))
 }
 /** Fill of one container: contents against capacity. */
 export function containerFill(it: ContainerItem, looseVol: number) {
@@ -107,6 +137,12 @@ export function roomiestHome(bag: Bag, containers: PlacedContainer[], boxes: Rec
   }
   return best?.id ?? roomiest(bag, boxes, loose).id
 }
+/** A trip without one bag's packing: its items return to the schedule. */
+export function dropBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'> {
+  const mine = inBag(bag, trip)
+  const r = withoutPlacements(trip, new Set(mine.placements.map((p) => p.id)))
+  return { placements: r.placements, loose: r.loose.filter((l) => !mine.loose.includes(l)) }
+}
 /** Removes placements and, for containers, what they hold. */
 export function withoutPlacements(t: Trip, ids: Set<string>): Pick<Trip, 'placements' | 'loose'> {
   return { placements: t.placements.filter((p) => !ids.has(p.id)), loose: t.loose.filter((l) => !ids.has(l.home)) }
@@ -121,27 +157,30 @@ export function roomiest(bag: Bag, boxes: Record<string, Placed[]>, loose: Recor
   return bag.compartments.reduce((best, c) => (freeVolume(c, boxes[c.id] ?? []) - (loose[c.id] ?? 0) > freeVolume(best, boxes[best.id] ?? []) - (loose[best.id] ?? 0) ? c : best))
 }
 
-/** Re-lays a trip into another bag: boxed items by tightest fit, soft items stay in their container if it made it, else go to the roomiest home. Boxed items that no longer fit return to the schedule with their contents. */
-export function repack(bag: Bag, trip: Trip, items: Item[]): Pick<Trip, 'placements' | 'loose'> {
-  const boxes = trip.placements.flatMap((p) => {
+/** Moves one bag's packing into another: boxed items by tightest fit, soft items stay in their container if it made it, else go to the roomiest home. Boxed items that no longer fit return to the schedule with their contents. Other bags are untouched. */
+export function repack(from: Bag, to: Bag, trip: Trip, items: Item[]): Pick<Trip, 'placements' | 'loose'> {
+  const mine = inBag(from, trip)
+  const rest = withoutPlacements(trip, new Set(mine.placements.map((p) => p.id)))
+  rest.loose = rest.loose.filter((l) => !mine.loose.includes(l))
+  const boxes = mine.placements.flatMap((p) => {
     const it = items.find((i) => i.id === p.itemId)
     return it && isBoxed(it) ? [{ key: p, box: it, os: orientationsOf(it) }] : []
   })
-  const placements = autoPackBins(bag.compartments, boxes).placed.map((x) => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
-  const next = { ...trip, placements }
-  const placed = placedBoxes(next, items), containers = placedContainers(next, items)
+  const placements = autoPackBins(to.compartments, boxes).placed.map((x) => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
+  const next = { ...trip, placements: [...rest.placements, ...placements], loose: rest.loose }
+  const placed = placedBoxes(next, items), containers = placedContainers(next, items).filter((c) => placements.some((p) => p.id === c.id))
   const kept = new Set(containers.map((c) => c.id))
-  const vols: Record<string, number> = {}
-  const loose = trip.loose.flatMap((l) => {
+  const vols = looseVolumes(next, items)
+  const loose = mine.loose.flatMap((l) => {
     const it = items.find((i) => i.id === l.itemId)
     if (it?.kind !== 'soft') return []
-    if (!kept.has(l.home) && trip.placements.some((p) => p.id === l.home)) return [] // its container left the bag
+    if (!kept.has(l.home) && mine.placements.some((p) => p.id === l.home)) return [] // its container left the bag
     const pv = packedVolume(it)
-    const home = kept.has(l.home) ? l.home : roomiestHome(bag, containers, placed, vols, pv)
+    const home = kept.has(l.home) ? l.home : roomiestHome(to, containers, placed, vols, pv)
     vols[home] = (vols[home] ?? 0) + pv
     return [{ ...l, home }]
   })
-  return { placements, loose }
+  return { placements: next.placements, loose: [...rest.loose, ...loose] }
 }
 
 /** Turns a compartment 90° in plan and carries its placements with it. */
@@ -152,7 +191,7 @@ export function rotateCompartment(bag: Bag, compId: string, trips: Trip[], items
   return {
     bag: { ...bag, compartments: bag.compartments.map((x) => (x.id === compId ? rc : x)) },
     trips: trips.map((t) =>
-      t.bagId !== bag.id ? t : {
+      !t.bagIds.includes(bag.id) ? t : {
         ...t,
         placements: t.placements.map((p) => {
           const it = items.find((i) => i.id === p.itemId)

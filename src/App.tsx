@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { repack, useStore, type Api, type State } from './store'
+import { tripBags, useStore, type Api, type State } from './store'
 import { Plan } from './views/Plan'
 import { Inventory } from './views/Inventory'
 import { Bags } from './views/Bags'
@@ -33,12 +33,10 @@ export default function App() {
   const [view, setView] = useState<PlanView>('plan')
   const [theme, setTheme] = useTheme()
   const trip = state.trips.find((t) => t.id === state.activeTripId) ?? null
-
-  const changeBag = (bagId: string) => {
-    if (!trip) return
-    const bag = state.bags.find((b) => b.id === bagId)
-    api.patchTrip(trip.id, (t) => ({ bagId: bag?.id ?? null, ...(bag ? repack(bag, t, state.items) : { placements: [], loose: [] }) }))
-  }
+  // Which of the trip's bags the sheet shows; falls back to the trip's first bag.
+  const [shown, setShown] = useState<string | null>(null)
+  const tb = trip ? tripBags(trip, state.bags) : []
+  const bagId = tb.find((b) => b.id === shown)?.id ?? tb[0]?.id ?? null
 
   const themeSel = (
     <select className="theme" aria-label="Theme" value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
@@ -61,10 +59,11 @@ export default function App() {
             <select aria-label="Trip" value={trip.id} onChange={(e) => api.set({ activeTripId: e.target.value })}>
               {state.trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <select aria-label="Bag" value={trip.bagId ?? ''} onChange={(e) => changeBag(e.target.value)}>
-              <option value="">No bag</option>
-              {state.bags.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            {tb.length > 0 && (
+              <select aria-label="Bag on the sheet" value={bagId ?? ''} onChange={(e) => setShown(e.target.value)}>
+                {tb.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            )}
             <div className="seg" role="group" aria-label="View">
               <button aria-pressed={view === 'plan'} onClick={() => setView('plan')}>Plan</button>
               <button aria-pressed={view === '3d'} onClick={() => setView('3d')}>3D</button>
@@ -74,7 +73,7 @@ export default function App() {
         ) : themeSel}
       </header>
       <main className="main">
-        {tab === 'Plan' && <Plan state={state} api={api} go={setTab} view={view} />}
+        {tab === 'Plan' && <Plan state={state} api={api} go={setTab} view={view} bagId={bagId} show={setShown} />}
         {tab === 'Inventory' && <Inventory state={state} api={api} go={setTab} />}
         {tab === 'Bags' && <Bags state={state} api={api} go={setTab} />}
         {tab === 'Trips' && <Trips state={state} api={api} go={setTab} />}

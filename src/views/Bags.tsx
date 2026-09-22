@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
 import { bagVolume, fmtDim, fmtVol, fmtW, newBag, newCompartment, type Bag, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
@@ -32,7 +32,32 @@ export function Bags({ state, api }: ViewProps) {
     api.upsertBag({ ...rest, name: form.name.trim(), compartments: form.compartments.map((c) => ({ ...c, name: c.name.trim() || 'Compartment' })) })
     cancel()
   }
-  const usedBy = (id: string) => state.trips.filter((t) => t.bagId === id).length
+  const usedBy = (id: string) => state.trips.filter((t) => t.bagIds.includes(id)).length
+
+  // Reorder by dragging the grip: the first bag is what a new trip starts with. Alt+arrows do the same from the keyboard.
+  const listRef = useRef<HTMLDivElement>(null)
+  const [lift, setLift] = useState<{ from: number; to: number } | null>(null)
+  const liftRef = useRef(lift); liftRef.current = lift
+  const grab = (e: RPointerEvent, from: number) => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); setLift({ from, to: from }) }
+  useEffect(() => {
+    if (!lift) return
+    const rows = () => [...(listRef.current?.querySelectorAll<HTMLElement>('.trow.bag') ?? [])]
+    const mv = (e: PointerEvent) => {
+      const mids = rows().map((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 })
+      let to = mids.findIndex((m) => e.clientY < m)
+      if (to < 0) to = mids.length - 1
+      setLift((l) => l && { ...l, to })
+    }
+    const up = () => { const l = liftRef.current; setLift(null); if (l && l.from !== l.to) api.moveBag(l.from, l.to) }
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up)
+    return () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up) }
+  }, [lift !== null]) // eslint-disable-line react-hooks/exhaustive-deps
+  const keyMove = (e: KeyboardEvent, i: number) => {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+    e.preventDefault()
+    const to = e.key === 'ArrowUp' ? i - 1 : i + 1
+    if (to >= 0 && to < state.bags.length) api.moveBag(i, to)
+  }
   const applyPreset = (p: (typeof PRESETS)[number]) =>
     setForm((f) => ({ ...f, empty: p.empty, limit: p.limit, name: f.name || p.name, compartments: [{ ...f.compartments[0], name: 'Main', l: p.l, w: p.w, h: p.h }, ...f.compartments.slice(1)] }))
 
@@ -85,11 +110,11 @@ export function Bags({ state, api }: ViewProps) {
           )}
         </div>
       </form>
-      <div className="table">
+      <div className="table" ref={listRef}>
         <div className="trow head" style={COLS}><span className="label">Name</span><span className="label num">Main L × W × D cm</span><span className="label num">Volume</span><span className="label num">Empty</span><span className="label num">Limit</span><span className="label num">Trips</span></div>
-        {state.bags.map((b) => (
-          <button key={b.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => { setForm(b); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-            <span className="name"><span>{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}{b.sample && <span className="tag">sample</span>}</span>
+        {state.bags.map((b, i) => (
+          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => { setForm(b); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onKeyDown={(e) => keyMove(e, i)} title="Alt+↑/↓ reorders">
+            <span className="name"><span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span><span>{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}{b.sample && <span className="tag">sample</span>}</span>
             <span className="num">{fmtDim(b.compartments[0])}</span>
             <span className="num">{fmtVol(bagVolume(b))}</span>
             <span className="num">{fmtW(b.empty)}</span>
@@ -98,6 +123,7 @@ export function Bags({ state, api }: ViewProps) {
           </button>
         ))}
         {!state.bags.length && <div className="empty"><p>No bags yet. Start from a preset above and correct the numbers.</p></div>}
+        {state.bags.length > 1 && <p className="hint" style={{ padding: '8px 8px 0' }}>Drag the grip to reorder. The first bag is what a new trip starts with.</p>}
       </div>
     </section>
   )

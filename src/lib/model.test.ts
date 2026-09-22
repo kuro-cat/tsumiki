@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultCapacity, defaultKind, fillOf, packedVolume, roomiestHome, rotateCompartment, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { defaultCapacity, defaultKind, dropBag, fillOf, packedVolume, repack, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -15,7 +15,7 @@ test('packed volume is litres × packs-to, in cm³', () => {
 test('rotating a compartment carries its placements round with it', () => {
   const item: Item = { id: 'i', name: 'Box', category: 'gear', kind: 'rigid', l: 10, w: 4, h: 2, up: false, weight: 1, qty: 1 }
   const bag: Bag = { id: 'b', name: 'B', empty: 0, limit: null, compartments: [{ id: 'c', name: 'Main', l: 30, w: 20, h: 10, x: 0, y: 0, z: 0 }] }
-  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagId: 'b', checklist: [], loose: [], placements: [{ id: 'p', itemId: 'i', compartmentId: 'c', x: 20, y: 16, z: 0, o: 0 }] }
+  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['b'], checklist: [], loose: [], placements: [{ id: 'p', itemId: 'i', compartmentId: 'c', x: 20, y: 16, z: 0, o: 0 }] }
   const r = rotateCompartment(bag, 'c', [trip], [item])
   assert.deepEqual([r.bag.compartments[0].l, r.bag.compartments[0].w], [20, 30])
   const p = r.trips[0].placements[0]
@@ -40,7 +40,7 @@ test('roomiestHome fills a container with room before the compartment', () => {
 })
 
 test('removing a container placement removes what it holds', () => {
-  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagId: 'b', checklist: [],
+  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['b'], checklist: [],
     placements: [{ id: 'p1', itemId: 'k', compartmentId: 'c', x: 0, y: 0, z: 0, o: 0 }, { id: 'p2', itemId: 'r', compartmentId: 'c', x: 30, y: 0, z: 0, o: 0 }],
     loose: [{ id: 'l1', itemId: 's', home: 'p1' }, { id: 'l2', itemId: 's', home: 'c' }] }
   const r = withoutPlacements(trip, new Set(['p1']))
@@ -50,4 +50,23 @@ test('removing a container placement removes what it holds', () => {
 
 test('defaultCapacity is 90 % of the outer box in litres', () => {
   assert.equal(defaultCapacity({ l: 30, w: 20, h: 10 }), 5.4)
+})
+
+test('repack moves one bag’s packing into another and leaves other bags alone', () => {
+  const box: Item = { id: 'r', name: 'Box', category: 'gear', kind: 'rigid', l: 10, w: 10, h: 10, up: false, weight: 100, qty: 1 }
+  const shirt: Item = { id: 's', name: 'Shirt', category: 'clothing', kind: 'soft', volume: 1, packsTo: 100, weight: 100, qty: 1 }
+  const a: Bag = { id: 'a', name: 'A', empty: 0, limit: null, compartments: [{ id: 'ca', name: 'Main', l: 20, w: 20, h: 20, x: 0, y: 0, z: 0 }] }
+  const b: Bag = { id: 'b', name: 'B', empty: 0, limit: null, compartments: [{ id: 'cb', name: 'Main', l: 20, w: 20, h: 20, x: 0, y: 0, z: 0 }] }
+  const c: Bag = { id: 'c', name: 'C', empty: 0, limit: null, compartments: [{ id: 'cc', name: 'Main', l: 5, w: 5, h: 5, x: 0, y: 0, z: 0 }] }
+  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['a', 'b'], checklist: [],
+    placements: [{ id: 'p1', itemId: 'r', compartmentId: 'ca', x: 0, y: 0, z: 0, o: 0 }, { id: 'p2', itemId: 'r', compartmentId: 'cb', x: 0, y: 0, z: 0, o: 0 }],
+    loose: [{ id: 'l1', itemId: 's', home: 'ca' }, { id: 'l2', itemId: 's', home: 'cb' }] }
+  const items = [box, shirt]
+  const moved = repack(a, c, trip, items)
+  assert.deepEqual(moved.placements.map((p) => p.compartmentId), ['cb']) // the 10 cm box does not fit a 5 cm bag
+  assert.deepEqual(moved.loose.map((l) => l.home), ['cb', 'cc']) // soft item pours into the new bag, other bag untouched
+  const dropped = dropBag(a, trip)
+  assert.deepEqual(dropped.placements.map((p) => p.id), ['p2'])
+  assert.deepEqual(dropped.loose.map((l) => l.id), ['l2'])
+  assert.equal(tripReady(trip, [a, b], items), false) // empty checklist is never ready
 })

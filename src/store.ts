@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, defaultUp, orientationsOf, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, defaultUp, dropBag, orientationsOf, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
 
 export * from './lib/model'
 
 export function newTrip(bagId: string | null): Trip {
+  const bagIds = bagId ? [bagId] : []
   const start = new Date(); start.setDate(start.getDate() + 7)
   const end = new Date(start); end.setDate(end.getDate() + 3)
-  return { id: uid(), name: 'New trip', destination: '', start: isoDate(start), end: isoDate(end), climate: 'mild', kind: 'city', activities: [], bagId, checklist: [], placements: [], loose: [] }
+  return { id: uid(), name: 'New trip', destination: '', start: isoDate(start), end: isoDate(end), climate: 'mild', kind: 'city', activities: [], bagIds, checklist: [], placements: [], loose: [] }
 }
 
 function sampleState(): State {
@@ -47,17 +48,20 @@ function sampleState(): State {
     id: uid(), name: 'Travel backpack 40 L', empty: 1400, limit: 10000, sample: S,
     compartments: [newCompartment('Main', 50, 32, 20, 0, 0, 3), newCompartment('Laptop sleeve', 36, 26, 3, 7, 3, 0)],
   }
-  const bags: Bag[] = [backpack, { ...newBag('Daypack 18 L', 42, 26, 16, 600, null), sample: S }, { ...newBag('Checked suitcase', 68, 46, 26, 3800, 23000), sample: S }]
+  const daypack: Bag = { ...newBag('Daypack 18 L', 42, 26, 16, 600, null), sample: S }
+  const bags: Bag[] = [backpack, daypack, { ...newBag('Checked suitcase', 68, 46, 26, 3800, 23000), sample: S }]
   const start = new Date(); start.setDate(start.getDate() + 14)
   const end = new Date(start); end.setDate(end.getDate() + 5)
   const trip: Trip = {
     id: uid(), name: 'Lisbon', destination: 'Lisbon, Portugal', start: isoDate(start), end: isoDate(end),
-    climate: 'hot', kind: 'city', activities: ['photography'], bagId: backpack.id, checklist: [], placements: [], loose: [], sample: S,
+    climate: 'hot', kind: 'city', activities: ['photography'], bagIds: [backpack.id, daypack.id], checklist: [], placements: [], loose: [], sample: S,
   }
   trip.checklist = suggest({ nights: 5, climate: trip.climate, kind: trip.kind, activities: trip.activities }).map((c) => ({ ...c, id: uid(), packed: false }))
   const byName = (n: string) => items.find((x) => x.name === n)!
   const pre = ['Laptop 13"', 'Toiletry kit', 'Sneakers, pair', 'Camera', 'Packing cube, M'].map((n, i) => ({ key: `${byName(n).id}:${i}`, box: byName(n) as Boxed, os: orientationsOf(byName(n) as Boxed) }))
   trip.placements = autoPackBins(backpack.compartments, pre).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
+  const day = ['Water bottle', 'Book'].map((n, i) => ({ key: `${byName(n).id}:d${i}`, box: byName(n) as Boxed, os: orientationsOf(byName(n) as Boxed) }))
+  trip.placements.push(...autoPackBins(daypack.compartments, day).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o })))
   const cube = trip.placements.find((p) => p.itemId === byName('Packing cube, M').id)
   trip.loose = [
     ...['T-shirt', 'T-shirt', 'Underwear', 'Underwear'].map((n) => ({ id: uid(), itemId: byName(n).id, home: cube?.id ?? mainOf(backpack).id })),
@@ -66,7 +70,7 @@ function sampleState(): State {
   return { items, bags, trips: [trip], activeTripId: trip.id, apiKey: '', packsTo: { ...DEFAULT_PACKS_TO } }
 }
 
-export const KEY = 'bin-pack.v4'
+export const KEY = 'bin-pack.v5'
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
@@ -91,14 +95,18 @@ export function useStore() {
     upsertBag: (b: Bag) => setState((s) => ({
       ...s, bags: upsert(s.bags, b),
       trips: s.trips.map((t) => {
-        if (t.bagId !== b.id) return t
+        if (!t.bagIds.includes(b.id)) return t
         const gone = new Set(t.placements.filter((p) => !b.compartments.some((c) => c.id === p.compartmentId)).map((p) => p.id))
         const r = withoutPlacements(t, gone)
         const homes = new Set([...b.compartments.map((c) => c.id), ...r.placements.map((p) => p.id)])
         return { ...t, placements: r.placements, loose: r.loose.map((l) => (homes.has(l.home) ? l : { ...l, home: mainOf(b).id })) }
       }),
     })),
-    removeBag: (id: string) => setState((s) => ({ ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (t.bagId === id ? { ...t, bagId: null, placements: [], loose: [] } : t)) })),
+    removeBag: (id: string) => setState((s) => {
+      const bag = s.bags.find((b) => b.id === id)
+      return { ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (bag && t.bagIds.includes(id) ? { ...t, bagIds: t.bagIds.filter((x) => x !== id), ...dropBag(bag, t) } : t)) }
+    }),
+    moveBag: (from: number, to: number) => setState((s) => { const bags = [...s.bags]; const [b] = bags.splice(from, 1); bags.splice(to, 0, b); return { ...s, bags } }),
     patchCompartment: (bagId: string, compId: string, patch: Partial<Compartment>) =>
       setState((s) => ({ ...s, bags: s.bags.map((b) => (b.id !== bagId ? b : { ...b, compartments: b.compartments.map((c) => (c.id === compId ? { ...c, ...patch } : c)) })) })),
     rotateCompartment: (bagId: string, compId: string) => setState((s) => {

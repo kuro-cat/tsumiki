@@ -244,14 +244,11 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 .state svg { display: block; }
 
 .stamp {
-  position: absolute; right: 40px; bottom: 96px;
-  border: 2px double var(--ink); padding: 8px 14px 6px; transform: rotate(-6deg);
-  font-stretch: 75%; letter-spacing: 0.16em; font-weight: 600; font-size: 15px; text-transform: uppercase;
-  color: var(--ink); background: color-mix(in srgb, var(--paper) 85%, transparent);
+  position: absolute; right: 40px; top: 56px; display: block; overflow: visible;
+  color: var(--ink); transform: rotate(-6deg); opacity: 0.85;
   animation: stamp 240ms var(--ease) both;
   pointer-events: none;
 }
-.stamp small { display: block; font-size: 10px; letter-spacing: 0.1em; font-weight: 500; color: var(--ink-2); margin-top: 2px; }
 @keyframes stamp { from { transform: rotate(-6deg) scale(1.35); opacity: 0; } to { transform: rotate(-6deg) scale(1); opacity: 1; } }
 
 .sel { position: absolute; left: 56px; top: 12px; display: flex; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--blue); padding: 4px 6px 4px 10px; color: var(--ink); font-size: 13px; max-width: calc(100% - 72px); }
@@ -348,7 +345,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
   .tb .cell .v { font-size: 13px; }
   .cut { top: 12px; bottom: auto; transform: none; }
   .cut input[type='range'] { height: 90px; }
-  .stamp { right: 20px; bottom: 120px; font-size: 13px; }
+  .stamp { right: 20px; top: 52px; }
   .ctl { margin-left: 0; height: auto; padding-bottom: 8px; width: 100%; gap: 8px; }
   .ctl select { flex: 1 1 0; max-width: none; min-width: 0; }
   .sel { left: 48px; max-width: calc(100% - 60px); flex-wrap: wrap; }
@@ -386,3 +383,19 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .comps input[type='number'] { text-align: right; }
 .comps input:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
 .packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 720px; }
+
+/* Several bags per trip */
+.bagstrip { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.bagtab { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: none; color: var(--ink-2); padding: 3px 8px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color var(--t), color var(--t); }
+.bagtab .name { font-weight: 500; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bagtab:hover { color: var(--ink); }
+.bagtab[aria-selected='true'] { border-color: var(--ink); color: var(--ink); }
+.bagtab.red { color: var(--red); border-color: var(--red); }
+.tripbags { display: grid; gap: 6px; }
+.tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(120px, 180px) auto; gap: 10px; align-items: center; padding: 4px 0 4px 8px; border-left: 2px solid var(--rule); }
+.tripbag .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trow.bag .grip { display: flex; color: var(--ink-3); cursor: grab; touch-action: none; }
+.trow.bag .grip:hover { color: var(--ink); }
+.trow.bag.lift { opacity: 0.45; }
+.trow.bag.drop-before { box-shadow: inset 0 2px 0 var(--blue); }
+.trow.bag.drop-after { box-shadow: inset 0 -2px 0 var(--blue); }

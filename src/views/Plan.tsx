@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagVolume, containerFill, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement } from '../store'
+import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement } from '../store'
 import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
@@ -22,10 +22,11 @@ const asBox = (c: Compartment): Placed => ({ x: c.x, y: c.y, z: c.z, l: c.l, w: 
 export const AUTOPACK_ANIM_KEY = 'bin-pack.autopack-anim'
 export const autopackAnimates = () => { try { return localStorage.getItem(AUTOPACK_ANIM_KEY) !== 'off' } catch { return true } }
 
-export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
+export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: PlanView; bagId: string | null; show: (id: string) => void }) {
   const { items, bags } = state
   const trip = state.trips.find((t) => t.id === state.activeTripId) ?? null
-  const bag = trip ? bags.find((b) => b.id === trip.bagId) ?? null : null
+  const bag = trip && bagId ? bags.find((b) => b.id === bagId) ?? null : null
+  const tb = trip ? tripBags(trip, bags) : []
   const [mode, setMode] = useState<Mode>('pack')
   const [cam, setCam] = useState<{ view: CamView; n: number }>({ view: 'iso', n: 0 })
 
@@ -75,9 +76,8 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const boxesBy = useMemo(() => (trip ? placedBoxes(trip, items) : {}), [trip, items])
   const looseBy = useMemo(() => (trip ? looseVolumes(trip, items) : {}), [trip, items])
   const fills = useMemo(() => Object.fromEntries((bag?.compartments ?? []).map((c) => [c.id, fillOf(c, boxesBy[c.id] ?? [], looseBy[c.id] ?? 0)])), [bag, boxesBy, looseBy])
-  const containers = useMemo(() => (trip ? placedContainers(trip, items) : []), [trip, items])
+  const containers = useMemo(() => (trip && bag ? placedContainers(trip, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId)) : []), [trip, items, bag])
   const cFills = useMemo(() => Object.fromEntries(containers.map((c) => [c.id, { ...containerFill(c.it, looseBy[c.id] ?? 0), n: trip?.loose.filter((l) => l.home === c.id).length ?? 0 }])), [containers, looseBy, trip])
-  const looseList = useMemo(() => (trip ? trip.loose.flatMap((l) => { const it = items.find((i) => i.id === l.itemId); return it?.kind === 'soft' ? [{ l, it }] : [] }) : []), [trip, items])
 
   const H = bag ? bagHeight(bag) : 0
   const [cutRaw, setCutRaw] = useState<number | null>(null)
@@ -102,20 +102,11 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     noteT.current = window.setTimeout(() => setNote(null), 2800)
   }
 
-  const itemsW = placedList.reduce((a, pl) => a + pl.it.weight, 0) + looseList.reduce((a, x) => a + x.it.weight, 0)
-  const total = (bag?.empty ?? 0) + itemsW
-  const limit = bag?.limit ?? null
-  const margin = limit == null ? null : limit - total
-  const ratio = limit ? total / limit : 0
-  const wState = limit == null ? 'no limit' : ratio > 1 ? 'over' : ratio > 0.85 ? 'near limit' : ratio >= 0.5 ? 'balanced' : 'light'
-  const rigidVol = placedList.reduce((a, pl) => a + volume(pl.box), 0)
-  const looseVol = looseList.reduce((a, x) => a + packedVolume(x.it), 0)
-  const fill = bag ? (rigidVol + looseVol) / bagVolume(bag) : 0
-  const anyOver = Object.values(fills).some((f) => f.over) || Object.values(cFills).some((f) => f.over)
-  const packedN = placedList.length + looseList.length
+  const tot = bag && trip ? bagTotals(bag, trip, items) : null
+  const packedN = tot?.count ?? 0
   const done = trip ? trip.checklist.filter((c) => isPacked(c, trip, items)).length : 0
   const totalChecks = trip?.checklist.length ?? 0
-  const complete = !!trip && totalChecks > 0 && done === totalChecks && packedN > 0 && (limit == null || total <= limit) && !anyOver
+  const complete = !!trip && tripReady(trip, bags, items)
 
   const matchedIds = useMemo(
     () => new Set(trip ? trip.checklist.map((c) => matchItem(c, items)?.id).filter((x): x is string => !!x) : []),
@@ -270,7 +261,8 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     if (it.kind === 'soft') {
       const pv = packedVolume(it)
       // Chosen inside the updater so rapid clicks see each other's result.
-      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, { id: uid(), itemId: it.id, home: roomiestHome(bag, placedContainers(t, items), placedBoxes(t, items), looseVolumes(t, items), pv) }] }))
+      const inBagC = (t: typeof trip) => placedContainers(t, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId))
+      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, { id: uid(), itemId: it.id, home: roomiestHome(bag, inBagC(t), placedBoxes(t, items), looseVolumes(t, items), pv) }] }))
       const home = roomiestHome(bag, containers, boxesBy, looseBy, pv), c = compOf(home)
       if (c && (looseBy[home] ?? 0) + pv > fills[home].free + eps) say(`${c.name} is over volume`, true)
       return
@@ -292,7 +284,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     const res = autoPackBins(bag.compartments, boxes, boxesBy)
     const add: Placement[] = res.placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
     const next = { ...trip, placements: [...trip.placements, ...add] }
-    const after = placedBoxes(next, items), cubes = placedContainers(next, items)
+    const after = placedBoxes(next, items), cubes = placedContainers(next, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId))
     const vols = { ...looseBy }
     const loose: Loose[] = units.flatMap((it) => {
       if (it.kind !== 'soft') return []
@@ -315,7 +307,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     const parts = [add.length ? `${add.length} placed` : '', loose.length ? `${loose.length} loose` : '', res.unplaced.length ? `${res.unplaced.length} won't fit` : ''].filter(Boolean)
     say(parts.join(', '), res.unplaced.length > 0)
   }
-  const clearAll = () => { if (trip) { api.patchTrip(trip.id, { placements: [], loose: [] }); setSelected(null) } }
+  const clearAll = () => { if (trip && bag) { api.patchTrip(trip.id, (t) => dropBag(bag, t)); setSelected(null) } }
   const onKey = (e: KeyboardEvent) => {
     if (!selected || drag) return
     const isComp = !!compOf(selected)
@@ -485,12 +477,12 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
             <div className="cell wide"><span className="label">Trip</span><span className="v">{trip.name}</span><span className="sub">{trip.destination ? `${trip.destination} · ` : ''}{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights</span></div>
             <div className="cell wide bag-w"><span className="label">Bag</span><span className="v">{bag.name}</span><span className="sub">{fmtDim(mainOf(bag))} cm{bag.compartments.length > 1 ? ` · ${bag.compartments.length} compartments` : ''} · {fmtW(bag.empty)} empty</span></div>
             <div className="cell scale"><span className="label">Scale</span>{layout && <ScaleBar s={layout.s} />}</div>
-            <div className="cell rule items"><span className="label">Items · {packedN}</span><span className="v num">{fmtW(itemsW)}</span></div>
-            <div className="cell total"><span className="label">Total</span><span className="v num">{fmtW(total)}</span></div>
-            <div className="cell"><span className="label">Limit</span><span className="v num">{limit == null ? '—' : fmtW(limit)}</span></div>
-            <div className="cell"><span className="label">Margin</span><span className={'v num' + (margin != null && margin < 0 ? ' red' : '')}>{margin == null ? '—' : (margin < 0 ? '−' : '') + fmtW(Math.abs(margin))}</span></div>
-            <div className="cell"><span className="label">Fill</span><span className={'v num' + (anyOver ? ' red' : '')}>{Math.round(fill * 100)} %</span></div>
-            <div className="cell"><span className="label">Weight</span><span className="v state"><StateMark s={wState} />{wState}</span></div>
+            <div className="cell rule items"><span className="label">Items · {tot!.count}</span><span className="v num">{fmtW(tot!.itemsW)}</span></div>
+            <div className="cell total"><span className="label">Total</span><span className="v num">{fmtW(tot!.total)}</span></div>
+            <div className="cell"><span className="label">Limit</span><span className="v num">{tot!.limit == null ? '—' : fmtW(tot!.limit)}</span></div>
+            <div className="cell"><span className="label">Margin</span><span className={'v num' + (tot!.margin != null && tot!.margin < 0 ? ' red' : '')}>{tot!.margin == null ? '—' : (tot!.margin < 0 ? '−' : '') + fmtW(Math.abs(tot!.margin))}</span></div>
+            <div className="cell"><span className="label">Fill</span><span className={'v num' + (tot!.over ? ' red' : '')}>{Math.round(tot!.fill * 100)} %</span></div>
+            <div className="cell"><span className="label">Weight</span><span className="v state"><StateMark s={tot!.wState} />{tot!.wState}</span></div>
             <div className="gauges" role="group" aria-label="Fill by compartment">
               {bag.compartments.map((c) => {
                 const f = fills[c.id]
@@ -510,7 +502,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
             <h2>Choose a bag</h2>
             <p>The plan is drawn at the bag's interior dimensions.</p>
             {bags.length ? (
-              <select aria-label="Bag" value="" onChange={(e) => api.patchTrip(trip.id, { bagId: e.target.value || null })}>
+              <select aria-label="Bag" value="" onChange={(e) => { if (e.target.value) { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, e.target.value] })); show(e.target.value) } }}>
                 <option value="">Select a bag</option>
                 {bags.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtDim(mainOf(b))}</option>)}
               </select>
@@ -519,7 +511,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
             )}
           </div>
         )}
-        {complete && <div className="stamp" role="status">Issued for travel<small>{fmtDate(trip.start)} · {fmtW(total)}</small></div>}
+        {complete && <Postmark />}
       </div>
 
       <aside className="schedule" aria-label="Item schedule">
@@ -531,6 +523,21 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
             <button className="btn quiet" onClick={clearAll} disabled={!packedN}>Clear</button>
           </div>
         </div>
+        {tb.length > 0 && (
+          <div className="bagstrip" role="tablist" aria-label="Bags on this trip">
+            {tb.map((b) => {
+              const t = bagTotals(b, trip, items)
+              return (
+                <button key={b.id} role="tab" aria-selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
+                  <span className="name">{b.name}</span>
+                  <span className="num">{fmtW(t.total)}</span>
+                  <StateMark s={t.wState} />
+                  <span className="num dim">{Math.round(t.fill * 100)} %</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="prog">
           <span className="label">Checklist</span>
           <div className={'prog-bar' + (totalChecks && done === totalChecks ? ' done' : '')} role="progressbar" aria-valuemin={0} aria-valuemax={totalChecks} aria-valuenow={done}><i style={{ transform: `scaleX(${totalChecks ? done / totalChecks : 0})` }} /></div>
@@ -601,6 +608,20 @@ function ItemRect({ pl, s, ox, oy, above, selected, delay, from, holds, onDown }
       {pl.it.up && w > 56 && h > 18 && <path d={`M ${w - 16} 13 v-8 m-3 3 l3-3 3 3 M ${w - 8} 13 v-8 m-3 3 l3-3 3 3`} fill="none" stroke={above ? 'var(--ink-3)' : 'var(--ink-2)'} strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" aria-label="This side up" />}
       </g>
     </g>
+  )
+}
+
+/** A postmark with no words: double ring and wavy cancellation bars. The trip is ready to travel. */
+function Postmark() {
+  const wave = (y: number) => `M 62 ${y} c 8 -5 16 -5 24 0 s 16 5 24 0 s 16 -5 24 0 s 16 5 24 0`
+  return (
+    <svg className="stamp" width={168} height={64} viewBox="0 0 168 64" role="status" aria-label="Ready to travel: checklist packed, every bag under its limit">
+      <g fill="none" stroke="currentColor" strokeLinecap="round">
+        <circle cx={30} cy={32} r={26} strokeWidth={2} />
+        <circle cx={30} cy={32} r={21} strokeWidth={1} />
+        {[16, 24, 32, 40, 48].map((y) => <path key={y} d={wave(y)} strokeWidth={1.5} />)}
+      </g>
+    </svg>
   )
 }
 

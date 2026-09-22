@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { CLIMATES, KINDS, fmtDate, isPacked, matchItem, newTrip, nights, repack, uid, type Trip } from '../store'
+import { CLIMATES, KINDS, dropBag, fmtDate, inBag, isPacked, matchItem, newTrip, nights, repack, tripBags, uid, type Trip } from '../store'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
@@ -69,7 +69,7 @@ export function Trips({ state, api, go }: ViewProps) {
     <section className="page">
       <div className="page-head">
         <h1>Trips</h1>
-        <p className="muted">Dates, weather, and activities make the checklist; the bag makes the plan.</p>
+        <p className="muted">Dates, weather, and activities make the checklist; the bags make the plan.</p>
         <button className="btn" style={{ marginLeft: 'auto' }} onClick={startNew}><Icon name="plus" />New trip</button>
       </div>
       <div className="trip-grid">
@@ -95,12 +95,30 @@ export function Trips({ state, api, go }: ViewProps) {
               <label className="field s6"><span className="label">Destination</span><input type="text" value={trip.destination} onChange={(e) => patch({ destination: e.target.value })} placeholder="City, country" /></label>
               <label className="field s3"><span className="label">Leave</span><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></label>
               <label className="field s3"><span className="label">Return</span><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></label>
-              <label className="field s6"><span className="label">Bag</span>
-                <select value={trip.bagId ?? ''} onChange={(e) => { const bag = state.bags.find((b) => b.id === e.target.value); api.patchTrip(trip.id, (t) => ({ bagId: bag?.id ?? null, ...(bag ? repack(bag, t, state.items) : { placements: [], loose: [] }) })) }}>
-                  <option value="">No bag yet</option>
-                  {state.bags.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </label>
+              <div className="field s12"><span className="label">Bags</span>
+                <div className="tripbags">
+                  {tripBags(trip, state.bags).map((b) => {
+                    const others = state.bags.filter((x) => x.id !== b.id && !trip.bagIds.includes(x.id))
+                    return (
+                      <div key={b.id} className="tripbag">
+                        <span className="name">{b.name}</span>
+                        <span className="dim">{inBag(b, trip).placements.length + inBag(b, trip).loose.length} items</span>
+                        <select aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items) })) }}>
+                          <option value="">Swap for…</option>
+                          {others.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                        </select>
+                        <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t) }))} aria-label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule"><Icon name="x" /></button>
+                      </div>
+                    )
+                  })}
+                  {state.bags.some((b) => !trip.bagIds.includes(b.id)) ? (
+                    <select aria-label="Add a bag" value="" onChange={(e) => e.target.value && patch({ bagIds: [...trip.bagIds, e.target.value] })}>
+                      <option value="">Add a bag…</option>
+                      {state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  ) : !trip.bagIds.length && <span className="hint">No bags yet. Add one under Bags.</span>}
+                </div>
+              </div>
               <div className="field s6"><span className="label">Weather</span>
                 <div className="seg" role="group" aria-label="Weather">{CLIMATES.map((c) => <button key={c} type="button" aria-pressed={trip.climate === c} onClick={() => patch({ climate: c })}>{c}</button>)}</div>
               </div>
