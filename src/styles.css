@@ -367,6 +367,23 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
   .sel { left: 48px; max-width: calc(100% - 60px); flex-wrap: wrap; }
   .sheet .it .body { --from: translate(0, 160px); }
 }
+/* Narrow sheet (Plan.tsx NARROW, 600 px): one compartment behind a tab strip, and the title block as a strip that opens on tap. Styled outside the media query so the mode and its controls can never disagree. */
+.ctabs { position: absolute; left: 40px; top: 8px; display: flex; gap: 0; border: 1px solid var(--ink); background: var(--paper); max-width: calc(100% - 200px); overflow-x: auto; scrollbar-width: none; }
+.ctab { background: none; border: 0; border-left: 1px solid var(--ink); padding: 5px 9px; font-size: 12px; font-stretch: 85%; letter-spacing: 0.03em; color: var(--ink-2); white-space: nowrap; }
+.ctab:first-child { border-left: 0; }
+.ctab[aria-selected='true'] { background: var(--ink); color: var(--paper); }
+.ctab.red { color: var(--red); }
+.ctab.red[aria-selected='true'] { background: var(--red); color: var(--paper); }
+.tb.strip { display: flex; align-items: center; gap: 10px; left: 8px; right: 8px; bottom: 8px; max-width: none; padding: 7px 10px; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; }
+.tb.strip .name { flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.tb.strip .num { font-size: 13px; }
+.tb.strip.red .num, .tb.strip.red .name { color: var(--red); }
+.tb.open { left: 8px; right: 8px; top: 44px; bottom: 8px; max-width: none; overflow: auto; align-content: start; cursor: pointer; grid-template-columns: repeat(3, 1fr); font-size: 12px; }
+.tb.open .cell { padding: 4px 8px 5px; }
+.tb.open .cell.wide { grid-column: 1 / -1; border-left: 0; }
+.tb.open .cell.wide .sub { white-space: normal; }
+.tb.open .cell.scale, .tb.open .cell.bag-w, .tb.open .cell.items { display: none; }
+.tb.open .cell.total, .tb.open .cell.margin, .tb.open .cell.fill { border-left: 0; }
 /* Phone: two header rows, one compartment on the sheet, a title strip, tables as cards. */
 .phone-only { display: none; }
 @media (max-width: 600px) {
@@ -387,20 +404,6 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
   .mode button, .cams button { padding: 5px 9px; }
   .stamp { right: 12px; top: 48px; width: 120px; height: 46px; }
   .sel { left: 40px; top: 44px; max-width: calc(100% - 48px); font-size: 12px; }
-  .ctabs { position: absolute; left: 40px; top: 8px; display: flex; gap: 0; border: 1px solid var(--ink); background: var(--paper); max-width: calc(100% - 200px); overflow-x: auto; scrollbar-width: none; }
-  .ctab { background: none; border: 0; border-left: 1px solid var(--ink); padding: 5px 9px; font-size: 12px; font-stretch: 85%; letter-spacing: 0.03em; color: var(--ink-2); white-space: nowrap; }
-  .ctab:first-child { border-left: 0; }
-  .ctab[aria-selected='true'] { background: var(--ink); color: var(--paper); }
-  .ctab.red { color: var(--red); }
-  .ctab.red[aria-selected='true'] { background: var(--red); color: var(--paper); }
-  .tb.strip { display: flex; align-items: center; gap: 10px; left: 8px; right: 8px; bottom: 8px; padding: 7px 10px; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; }
-  .tb.strip .name { flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-  .tb.strip .num { font-size: 13px; }
-  .tb.strip.red .num, .tb.strip.red .name { color: var(--red); }
-  .tb.open { top: 44px; bottom: 8px; overflow: auto; align-content: start; cursor: pointer; }
-  .tb.open { grid-template-columns: repeat(3, 1fr); }
-  .tb.open .cell.margin { border-left: 0; }
-  .tb.open .cell.fill { border-left: 0; }
   .schedule .bagstrip { padding: 6px 12px; gap: 4px; }
   .schedule .bagtab { padding: 4px 8px; }
   .row { grid-template-columns: 24px minmax(0, 1fr) auto auto; padding: 9px 10px 9px 6px; gap: 8px; }

@@ -17,8 +17,8 @@ const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D
 
 const PAD = { l: 88, r: 84, t: 84 }
 const PAD_N = { l: 44, r: 60, t: 128 }
-/** Below this sheet width the pack sheet draws one compartment at a time and the title block collapses to a strip. */
-const NARROW = 640
+/** At or below this sheet width the pack sheet draws one compartment at a time and the title block collapses to a strip. Matches the 600 px phone media query. */
+const NARROW = 600
 const GAP = 64
 const eps = 1e-6
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -43,7 +43,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
     ro.observe(el)
     return () => ro.disconnect()
   }, [trip !== null])
-  const narrow = size.W > 0 && size.W < NARROW
+  const narrow = size.W > 0 && size.W <= NARROW
   const padB = narrow ? 60 : size.W < 700 ? 132 : 108
   const [compIdx, setCompIdx] = useState(0)
   const [tbOpen, setTbOpen] = useState(false)
@@ -663,7 +663,7 @@ function ItemRect({ pl, s, ox, oy, above, selected, delay, from, holds, onDown }
   const w = pl.box.l * s, h = pl.box.w * s
   const stroke = selected ? 'var(--blue)' : above ? 'var(--ink-3)' : 'var(--ink)'
   const tint = !above && pl.it.color ? `color-mix(in srgb, ${pl.it.color} var(--tint), var(--paper))` : null
-  const chars = Math.floor((w - 12) / 6.8)
+  const chars = Math.floor((w - 12 - (pl.it.up ? 22 : 0)) / 6.8)
   const name = pl.it.name.length > chars ? pl.it.name.slice(0, Math.max(0, chars - 1)) + '…' : pl.it.name
   return (
     <g className={'it' + (delay == null ? '' : from ? ' arrive' : ' settle')} style={{ transform: `translate(${ox + pl.box.x * s}px, ${oy + pl.box.y * s}px)`, '--d': `${delay ?? 0}ms` } as CSSProperties}>
