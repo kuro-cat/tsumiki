@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagVolume, fillOf, orientationsOf, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, roomiest, uid, type Compartment, type Item, type Loose, type Placement, type RigidItem } from '../store'
+import { bagHeight, bagVolume, containerFill, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement } from '../store'
 import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
@@ -7,8 +7,8 @@ import { Icon } from '../Icon'
 
 type Mode = 'pack' | 'assemble'
 type Drag = { itemId?: string; placementId?: string; compId?: string; o: number; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
-type Snap = { compId: string; x: number; y: number; z: number; ok: boolean; soft: boolean; over: boolean }
-type PL = { p: Placement; it: RigidItem; box: Placed }
+type Snap = { compId: string; home: string; x: number; y: number; z: number; ok: boolean; soft: boolean; over: boolean }
+type PL = { p: Placement; it: Boxed; box: Placed }
 type CL = { c: Compartment; ox: number; oy: number }
 type Ghost = { left: number; top: number; w: number; h: number }
 
@@ -67,7 +67,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         ? []
         : trip.placements.flatMap((p) => {
             const it = items.find((i) => i.id === p.itemId)
-            if (!it || it.kind !== 'rigid') return []
+            if (!it || !isBoxed(it)) return []
             return [{ p, it, box: { ...oriented(it, p.o), x: p.x, y: p.y, z: p.z } }]
           }),
     [trip, items],
@@ -75,6 +75,8 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const boxesBy = useMemo(() => (trip ? placedBoxes(trip, items) : {}), [trip, items])
   const looseBy = useMemo(() => (trip ? looseVolumes(trip, items) : {}), [trip, items])
   const fills = useMemo(() => Object.fromEntries((bag?.compartments ?? []).map((c) => [c.id, fillOf(c, boxesBy[c.id] ?? [], looseBy[c.id] ?? 0)])), [bag, boxesBy, looseBy])
+  const containers = useMemo(() => (trip ? placedContainers(trip, items) : []), [trip, items])
+  const cFills = useMemo(() => Object.fromEntries(containers.map((c) => [c.id, { ...containerFill(c.it, looseBy[c.id] ?? 0), n: trip?.loose.filter((l) => l.home === c.id).length ?? 0 }])), [containers, looseBy, trip])
   const looseList = useMemo(() => (trip ? trip.loose.flatMap((l) => { const it = items.find((i) => i.id === l.itemId); return it?.kind === 'soft' ? [{ l, it }] : [] }) : []), [trip, items])
 
   const H = bag ? bagHeight(bag) : 0
@@ -109,7 +111,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const rigidVol = placedList.reduce((a, pl) => a + volume(pl.box), 0)
   const looseVol = looseList.reduce((a, x) => a + packedVolume(x.it), 0)
   const fill = bag ? (rigidVol + looseVol) / bagVolume(bag) : 0
-  const anyOver = Object.values(fills).some((f) => f.over)
+  const anyOver = Object.values(fills).some((f) => f.over) || Object.values(cFills).some((f) => f.over)
   const packedN = placedList.length + looseList.length
   const done = trip ? trip.checklist.filter((c) => isPacked(c, trip, items)).length : 0
   const totalChecks = trip?.checklist.length ?? 0
@@ -134,7 +136,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   // Drag: the footprint appears at true scale the instant the drag starts and snaps to the 1 cm grid over a compartment.
   const dragItem = drag?.itemId ? items.find((i) => i.id === drag.itemId) ?? null : null
   const dragComp = drag?.compId && bag ? bag.compartments.find((c) => c.id === drag.compId) ?? null : null
-  const dragBox = drag && dragItem?.kind === 'rigid' ? oriented(dragItem, drag.o) : drag && dragComp ? oriented(dragComp, drag.o) : null
+  const dragBox = drag && dragItem && isBoxed(dragItem) ? oriented(dragItem, drag.o) : drag && dragComp ? oriented(dragComp, drag.o) : null
   const softSide = dragItem?.kind === 'soft' ? Math.cbrt(packedVolume(dragItem)) : 0
   let snap: Snap | null = null
   if (drag && bag && layout && view === 'plan') {
@@ -144,7 +146,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
       const others = bag.compartments.filter((c) => c.id !== dragComp.id).map(asBox)
       const x = clamp(Math.round((drag.sx - ox) / s - dragBox.l / 2), 0, Math.max(0, CL - dragBox.l))
       const y = clamp(Math.round((drag.sy - oy) / s - dragBox.w / 2), 0, Math.max(0, CW - dragBox.w))
-      snap = { compId: dragComp.id, x, y, z: dropZ(others, { x, y, l: dragBox.l, w: dragBox.w }), ok: true, soft: false, over: false }
+      snap = { compId: dragComp.id, home: dragComp.id, x, y, z: dropZ(others, { x, y, l: dragBox.l, w: dragBox.w }), ok: true, soft: false, over: false }
     } else if (dragItem && mode === 'pack') {
       const halo = 24
       const cl = layout.comps.find(({ c, ox, oy }) => drag.sx >= ox - halo && drag.sx <= ox + c.l * s + halo && drag.sy >= oy - halo && drag.sy <= oy + c.w * s + halo)
@@ -153,9 +155,14 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         const x = clamp(Math.round((drag.sx - cl.ox) / s - dragBox.l / 2), 0, Math.max(0, cl.c.l - dragBox.l))
         const y = clamp(Math.round((drag.sy - cl.oy) / s - dragBox.w / 2), 0, Math.max(0, cl.c.w - dragBox.w))
         const z = dropZ(others, { x, y, l: dragBox.l, w: dragBox.w })
-        snap = { compId: cl.c.id, x, y, z, ok: fits(cl.c, others, { ...dragBox, x, y, z }), soft: false, over: false }
+        snap = { compId: cl.c.id, home: cl.c.id, x, y, z, ok: fits(cl.c, others, { ...dragBox, x, y, z }), soft: false, over: false }
       } else if (cl && dragItem.kind === 'soft') {
-        snap = { compId: cl.c.id, x: 0, y: 0, z: 0, ok: true, soft: true, over: (looseBy[cl.c.id] ?? 0) + packedVolume(dragItem) > fills[cl.c.id].free + eps }
+        const pv = packedVolume(dragItem)
+        const px = (drag.sx - cl.ox) / s, py = (drag.sy - cl.oy) / s
+        const cube = placedList.find((pl) => pl.it.kind === 'container' && pl.p.compartmentId === cl.c.id && px >= pl.box.x && px <= pl.box.x + pl.box.l && py >= pl.box.y && py <= pl.box.y + pl.box.w)
+        snap = cube
+          ? { compId: cl.c.id, home: cube.p.id, x: 0, y: 0, z: 0, ok: true, soft: true, over: (looseBy[cube.p.id] ?? 0) + pv > cFills[cube.p.id].cap + eps }
+          : { compId: cl.c.id, home: cl.c.id, x: 0, y: 0, z: 0, ok: true, soft: true, over: (looseBy[cl.c.id] ?? 0) + pv > fills[cl.c.id].free + eps }
       }
     }
   }
@@ -200,7 +207,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         if (d.o & 1) api.rotateCompartment(bagId, d.compId)
         api.patchCompartment(bagId, d.compId, { x: sn.x, y: sn.y, z: sn.z })
       } else if (d.itemId && sn?.ok && sn.soft) {
-        const l: Loose = { id: uid(), itemId: d.itemId, compartmentId: sn.compId }
+        const l: Loose = { id: uid(), itemId: d.itemId, home: sn.home }
         api.patchTrip(tripId, (t) => ({ loose: [...t.loose, l] }))
         if (sn.over) say('Over volume: more soft than the room left', true)
       } else if (d.itemId && sn?.ok) {
@@ -212,13 +219,14 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         setFlash(g)
         window.setTimeout(() => setFlash(null), 280)
       } else if (d.placementId) {
-        api.patchTrip(tripId, (t) => ({ placements: t.placements.filter((p) => p.id !== d.placementId) }))
+        const id = d.placementId
+        api.patchTrip(tripId, (t) => withoutPlacements(t, new Set([id])))
         setSelected(null)
       }
     }
     const key = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'r' || e.key === 'R') setDrag((d) => d && { ...d, o: d.o ^ 1 })
-      if (e.key === 't' || e.key === 'T') setDrag((d) => { const it = d?.itemId ? itemsRef.current.find((i) => i.id === d.itemId) : null; return d && it?.kind === 'rigid' ? { ...d, o: nextFace(d.o, orientationsOf(it)) } : d })
+      if (e.key === 't' || e.key === 'T') setDrag((d) => { const it = d?.itemId ? itemsRef.current.find((i) => i.id === d.itemId) : null; return d && it && isBoxed(it) ? { ...d, o: nextFace(d.o, orientationsOf(it)) } : d })
       if (e.key === 'Escape') setDrag(null)
     }
     window.addEventListener('pointermove', mv)
@@ -235,7 +243,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   }, [dragging]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const compOf = (id: string) => bag?.compartments.find((c) => c.id === id) ?? null
-  const removePl = (id: string) => trip && api.patchTrip(trip.id, (t) => ({ placements: t.placements.filter((p) => p.id !== id) }))
+  const removePl = (id: string) => trip && api.patchTrip(trip.id, (t) => withoutPlacements(t, new Set([id])))
   const removeLoose = (itemId: string) => trip && api.patchTrip(trip.id, (t) => { const last = [...t.loose].reverse().find((l) => l.itemId === itemId); return { loose: t.loose.filter((l) => l !== last) } })
   /** Re-seats a placement in a new orientation at the same corner, settling on whatever is under it. */
   const reorient = (id: string, o: number) => {
@@ -260,10 +268,11 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   const placeOne = (it: Item) => {
     if (!trip || !bag) return
     if (it.kind === 'soft') {
-      const home = roomiest(bag, boxesBy, looseBy)
-      const l: Loose = { id: uid(), itemId: it.id, compartmentId: home.id }
-      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, l] }))
-      if ((looseBy[home.id] ?? 0) + packedVolume(it) > fills[home.id].free + eps) say(`${home.name} is over volume`, true)
+      const pv = packedVolume(it)
+      // Chosen inside the updater so rapid clicks see each other's result.
+      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, { id: uid(), itemId: it.id, home: roomiestHome(bag, placedContainers(t, items), placedBoxes(t, items), looseVolumes(t, items), pv) }] }))
+      const home = roomiestHome(bag, containers, boxesBy, looseBy, pv), c = compOf(home)
+      if (c && (looseBy[home] ?? 0) + pv > fills[home].free + eps) say(`${c.name} is over volume`, true)
       return
     }
     const r = autoPackBins(bag.compartments, [{ key: it.id, box: it, os: orientationsOf(it) }], boxesBy)
@@ -279,16 +288,18 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
     const targets = rows.filter((r) => r.remaining > 0 && (matchedIds.size === 0 || r.onList))
     const units = targets.flatMap((r) => Array.from({ length: r.remaining }, () => r.it))
     if (!units.length) return say(matchedIds.size ? 'Every checklist item is already in the bag' : 'Nothing left to pack')
-    const boxes = units.flatMap((it, i) => (it.kind === 'rigid' ? [{ key: `${it.id}:${i}`, box: it, os: orientationsOf(it) }] : []))
+    const boxes = units.flatMap((it, i) => (isBoxed(it) ? [{ key: `${it.id}:${i}`, box: it, os: orientationsOf(it) }] : []))
     const res = autoPackBins(bag.compartments, boxes, boxesBy)
     const add: Placement[] = res.placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
-    const after = placedBoxes({ ...trip, placements: [...trip.placements, ...add] }, items)
+    const next = { ...trip, placements: [...trip.placements, ...add] }
+    const after = placedBoxes(next, items), cubes = placedContainers(next, items)
     const vols = { ...looseBy }
     const loose: Loose[] = units.flatMap((it) => {
       if (it.kind !== 'soft') return []
-      const home = roomiest(bag, after, vols)
-      vols[home.id] = (vols[home.id] ?? 0) + packedVolume(it)
-      return [{ id: uid(), itemId: it.id, compartmentId: home.id }]
+      const pv = packedVolume(it)
+      const home = roomiestHome(bag, cubes, after, vols, pv)
+      vols[home] = (vols[home] ?? 0) + pv
+      return [{ id: uid(), itemId: it.id, home }]
     })
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, ...add], loose: [...t.loose, ...loose] }))
     if (autopackAnimates() && layout) {
@@ -410,7 +421,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
                   )}
                   <g style={{ pointerEvents: assembling ? 'none' : undefined }}>
                     {inComp.map((pl) => (
-                      <ItemRect key={pl.p.id} pl={pl} s={s} ox={ox} oy={oy} above={pl.box.z >= cutLocal - eps} selected={pl.p.id === selected} delay={fresh.ids[pl.p.id]} from={fresh.from[pl.p.id]} onDown={(e) => startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, o: pl.p.o })} />
+                      <ItemRect key={pl.p.id} pl={pl} s={s} ox={ox} oy={oy} above={pl.box.z >= cutLocal - eps} selected={pl.p.id === selected} delay={fresh.ids[pl.p.id]} from={fresh.from[pl.p.id]} holds={cFills[pl.p.id]} onDown={(e) => startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, o: pl.p.o })} />
                     ))}
                   </g>
                   {assembling && (
@@ -455,7 +466,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
         {selPl && !drag && (
           <div className="sel">
             <span>{selPl.it.name}</span>
-            <span className="dim">{fmtDim(selPl.box)} · {fmtW(selPl.it.weight)} · {compOf(selPl.p.compartmentId)?.name} · base {selPl.box.z} cm · {faceName(selPl.p.o)}</span>
+            <span className="dim">{fmtDim(selPl.box)} · {fmtW(selPl.it.weight)} · {compOf(selPl.p.compartmentId)?.name} · base {selPl.box.z} cm · {faceName(selPl.p.o)}{cFills[selPl.p.id] ? ` · holds ${cFills[selPl.p.id].n}, ${Math.round(cFills[selPl.p.id].ratio * 100)} %` : ''}</span>
             <button className="btn quiet" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn</button>
             <button className="btn quiet" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip</button>
             <button className="btn quiet" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Remove (Delete)"><Icon name="x" />Remove</button>
@@ -561,7 +572,7 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
           <span>{dragItem?.name ?? dragComp?.name}</span><br />
           <span className="dim">
             {dragItem?.kind === 'soft'
-              ? snap ? (snap.over ? 'over volume' : `loose in ${compOf(snap.compId)?.name}`) : `${fmtVol(packedVolume(dragItem))} packed`
+              ? snap ? (snap.over ? 'over volume' : snap.home !== snap.compId ? `into ${placedList.find((pl) => pl.p.id === snap!.home)?.it.name}` : `loose in ${compOf(snap.compId)?.name}`) : `${fmtVol(packedVolume(dragItem))} packed`
               : dragBox ? `${dragBox.l} × ${dragBox.w} · ${snap ? (snap.ok ? `base ${snap.z} cm` : "doesn't fit") : dragItem?.kind === 'rigid' && !dragItem.up ? 'R turns · T tips' : 'R turns'}` : ''}
           </span>
         </div>
@@ -571,7 +582,8 @@ export function Plan({ state, api, go, view }: ViewProps & { view: PlanView }) {
   )
 }
 
-function ItemRect({ pl, s, ox, oy, above, selected, delay, from, onDown }: { pl: PL; s: number; ox: number; oy: number; above: boolean; selected: boolean; delay?: number; from?: [number, number]; onDown: (e: RPointerEvent) => void }) {
+type Holds = { n: number; ratio: number; over: boolean }
+function ItemRect({ pl, s, ox, oy, above, selected, delay, from, holds, onDown }: { pl: PL; s: number; ox: number; oy: number; above: boolean; selected: boolean; delay?: number; from?: [number, number]; holds?: Holds; onDown: (e: RPointerEvent) => void }) {
   const w = pl.box.l * s, h = pl.box.w * s
   const stroke = selected ? 'var(--blue)' : above ? 'var(--ink-3)' : 'var(--ink)'
   const tint = !above && pl.it.color ? `color-mix(in srgb, ${pl.it.color} var(--tint), var(--paper))` : null
@@ -582,6 +594,8 @@ function ItemRect({ pl, s, ox, oy, above, selected, delay, from, onDown }: { pl:
       <g className="body" style={from && ({ '--from': `translate(${from[0]}px, ${from[1]}px)` } as CSSProperties)}>
       <rect width={w} height={h} fill={above ? 'none' : 'var(--paper)'} stroke={stroke} strokeWidth={selected ? 1.5 : 1} strokeDasharray={above ? '4 3' : undefined} onPointerDown={onDown} />
       {tint && <rect className="ink" x={0.5} y={0.5} width={Math.max(0, w - 1)} height={Math.max(0, h - 1)} fill={tint} pointerEvents="none" />}
+      {holds && holds.n > 0 && !above && <rect x={3} y={3} width={Math.max(0, w - 6)} height={Math.max(0, h - 6)} fill={`url(#${holds.over ? 'hatch-red' : 'hatch'})`} opacity={0.35 + 0.65 * Math.min(1, holds.ratio)} pointerEvents="none" />}
+      {holds && w > 70 && h > 48 && <text x={6} y={41} fontSize={10} fill={holds.over ? 'var(--red)' : 'var(--ink-2)'} style={{ fontStretch: '80%', letterSpacing: '0.03em' }}>{holds.n ? `${holds.n} inside · ${Math.round(holds.ratio * 100)} %` : 'empty'}</text>}
       {w > 40 && h > 18 && <text x={6} y={14} fontSize={12} fill={above ? 'var(--ink-2)' : 'var(--ink)'}>{name}</text>}
       {w > 70 && h > 34 && <text x={6} y={27} fontSize={10} fill="var(--ink-2)" style={{ fontStretch: '80%', letterSpacing: '0.03em' }}>{pl.box.l} × {pl.box.w} × {pl.box.h}</text>}
       {pl.it.up && w > 56 && h > 18 && <path d={`M ${w - 16} 13 v-8 m-3 3 l3-3 3 3 M ${w - 8} 13 v-8 m-3 3 l3-3 3 3`} fill="none" stroke={above ? 'var(--ink-3)' : 'var(--ink-2)'} strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" aria-label="This side up" />}

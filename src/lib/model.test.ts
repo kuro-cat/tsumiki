@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultKind, fillOf, packedVolume, rotateCompartment, type Bag, type Item, type Trip } from './model.ts'
+import { defaultCapacity, defaultKind, fillOf, packedVolume, roomiestHome, rotateCompartment, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -29,4 +29,25 @@ test('fillOf reports over volume without refusing', () => {
   assert.equal(f.height, 10)
   assert.equal(f.over, true)
   assert.equal(Math.round(f.ratio * 100), 120)
+})
+
+test('roomiestHome fills a container with room before the compartment', () => {
+  const bag: Bag = { id: 'b', name: 'B', empty: 0, limit: null, compartments: [{ id: 'c', name: 'Main', l: 50, w: 30, h: 20, x: 0, y: 0, z: 0 }] }
+  const cube: ContainerItem = { id: 'k', name: 'Cube', category: 'gear', kind: 'container', l: 30, w: 20, h: 10, up: false, capacity: 5, weight: 100, qty: 1 }
+  const containers = [{ id: 'p1', it: cube }]
+  assert.equal(roomiestHome(bag, containers, {}, {}, 1000), 'p1')
+  assert.equal(roomiestHome(bag, containers, {}, { p1: 4500 }, 1000), 'c')
+})
+
+test('removing a container placement removes what it holds', () => {
+  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagId: 'b', checklist: [],
+    placements: [{ id: 'p1', itemId: 'k', compartmentId: 'c', x: 0, y: 0, z: 0, o: 0 }, { id: 'p2', itemId: 'r', compartmentId: 'c', x: 30, y: 0, z: 0, o: 0 }],
+    loose: [{ id: 'l1', itemId: 's', home: 'p1' }, { id: 'l2', itemId: 's', home: 'c' }] }
+  const r = withoutPlacements(trip, new Set(['p1']))
+  assert.deepEqual(r.placements.map((p) => p.id), ['p2'])
+  assert.deepEqual(r.loose.map((l) => l.id), ['l2'])
+})
+
+test('defaultCapacity is 90 % of the outer box in litres', () => {
+  assert.equal(defaultCapacity({ l: 30, w: 20, h: 10 }), 5.4)
 })
