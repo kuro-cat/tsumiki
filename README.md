@@ -7,6 +7,8 @@ Packing planner. Enter your bags (interior L × W × H, empty weight, limit) and
 - **Trips**: one or more bags, plus dates, weather, kind of trip, and activities that produce a rule-based checklist matched against your inventory. Each checklist entry links to one or more inventory items, guessed from keywords until you pin it, and counts as packed when the packed units reach its quantity; Auto-pack takes what the list asks for. The header picks which bag the plan shows; a strip above the schedule totals each bag. Drop an item on the strip's Worn tab to wear it instead: it counts as packed and weighs nothing in any bag. A wordless postmark appears when the checklist is packed, every bag is under its limit, and nothing is over volume. With a Claude API key (Data tab) you can ask for destination-specific extras; everything works without one.
 - **Data**: JSON export/import, API key, remove sample data. Everything is stored in the browser.
 
+Works at phone width too: one compartment at a time on the sheet, a tap-to-expand title strip, and drag from the row grip.
+
 ```sh
 npm install
 npm run dev      # http://localhost:5173

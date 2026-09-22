@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { CLIMATES, KINDS, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
 
-const COLS = { gridTemplateColumns: 'minmax(0, 1fr) 120px 70px' }
+const COLS = { '--cols': 'minmax(0, 1fr) 120px 70px' } as CSSProperties
 
 export function Trips({ state, api, go }: ViewProps) {
   const [editId, setEditId] = useState<string | null>(state.activeTripId)

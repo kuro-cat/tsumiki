@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, type State } from '../store'
 import type { ViewProps } from '../App'
 import { AUTOPACK_ANIM_KEY, autopackAnimates } from './Plan'
 
-export function Data({ state, api }: ViewProps) {
+export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; red?: boolean } | null>(null)
   const [anim, setAnim] = useState(autopackAnimates)
   const toggleAnim = (on: boolean) => { setAnim(on); try { localStorage.setItem(AUTOPACK_ANIM_KEY, on ? 'on' : 'off') } catch { /* session-only */ } }
@@ -44,6 +44,13 @@ export function Data({ state, api }: ViewProps) {
     <section className="page">
       <div className="page-head"><h1>Data</h1><p className="muted">Everything lives in this browser. Nothing is sent anywhere unless you add a key below.</p></div>
       <div className="data">
+        {theme && (
+          <section className="phone-only">
+            <h2>Paper</h2>
+            <div className="tools">{theme}</div>
+            <p className="hint">Vellum in a light room, Blueprint in a dark one, or follow the system.</p>
+          </section>
+        )}
         <section>
           <h2>Backup</h2>
           <div className="tools">

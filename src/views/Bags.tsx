@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
 import { bagVolume, fmtDim, fmtVol, fmtW, newBag, newCompartment, type Bag, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
@@ -10,8 +10,8 @@ const PRESETS = [
   { name: 'Checked, medium', l: 68, w: 46, h: 26, empty: 3800, limit: 23000 },
   { name: 'Daypack 20 L', l: 42, w: 26, h: 16, empty: 600, limit: null },
 ]
-const COLS = { gridTemplateColumns: 'minmax(0, 2fr) 150px 90px 90px 90px 60px' }
-const CCOLS = { gridTemplateColumns: 'minmax(0, 2fr) repeat(6, 72px) 36px' }
+const COLS = { '--cols': 'minmax(0, 2fr) 150px 90px 90px 90px 60px' } as CSSProperties
+const CCOLS = { '--cols': 'minmax(0, 2fr) repeat(6, 72px) 36px' } as CSSProperties
 type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
 
 export function Bags({ state, api }: ViewProps) {
@@ -119,7 +119,7 @@ export function Bags({ state, api }: ViewProps) {
             <span className="num">{fmtVol(bagVolume(b))}</span>
             <span className="num">{fmtW(b.empty)}</span>
             <span className="num">{b.limit == null ? '—' : fmtW(b.limit)}</span>
-            <span className="num">{usedBy(b.id)}</span>
+            <span className="num trips">{usedBy(b.id)}</span>
           </button>
         ))}
         {!state.bags.length && <div className="empty"><p>No bags yet. Start from a preset above and correct the numbers.</p></div>}

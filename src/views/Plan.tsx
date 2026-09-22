@@ -16,6 +16,9 @@ type Ghost = { left: number; top: number; w: number; h: number }
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
 
 const PAD = { l: 88, r: 84, t: 84 }
+const PAD_N = { l: 44, r: 60, t: 84 }
+/** Below this sheet width the pack sheet draws one compartment at a time and the title block collapses to a strip. */
+const NARROW = 640
 const GAP = 64
 const eps = 1e-6
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
@@ -40,28 +43,33 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
     ro.observe(el)
     return () => ro.disconnect()
   }, [trip !== null])
-  const padB = size.W < 700 ? 132 : 108
+  const narrow = size.W > 0 && size.W < NARROW
+  const padB = narrow ? 64 : size.W < 700 ? 132 : 108
+  const [compIdx, setCompIdx] = useState(0)
+  const [tbOpen, setTbOpen] = useState(false)
+  const shownComp = bag && narrow && mode === 'pack' ? bag.compartments[Math.min(compIdx, bag.compartments.length - 1)] : null
 
   // Pack mode is a schedule of rooms: compartments side by side at one scale. Assemble mode draws them where the traveler put them.
   const layout = useMemo(() => {
     if (!bag || !size.W || !size.H || !bag.compartments.length) return null
-    const aw = size.W - PAD.l - PAD.r, ah = size.H - PAD.t - padB
-    const cs = bag.compartments
+    const P = narrow ? PAD_N : PAD
+    const aw = size.W - P.l - P.r, ah = size.H - P.t - padB
+    const cs = shownComp ? [shownComp] : bag.compartments
     if (mode === 'pack') {
       const sumL = cs.reduce((a, c) => a + c.l, 0), maxW = Math.max(...cs.map((c) => c.w))
       const s = Math.min((aw - GAP * (cs.length - 1)) / sumL, ah / maxW)
       if (!(s > 0)) return null
-      let x = PAD.l + (aw - (sumL * s + GAP * (cs.length - 1))) / 2
-      const comps: CL[] = cs.map((c) => { const cl = { c, ox: x, oy: PAD.t + (ah - c.w * s) / 2 }; x += c.l * s + GAP; return cl })
+      let x = P.l + (aw - (sumL * s + GAP * (cs.length - 1))) / 2
+      const comps: CL[] = cs.map((c) => { const cl = { c, ox: x, oy: P.t + (ah - c.w * s) / 2 }; x += c.l * s + GAP; return cl })
       return { s, comps, ext: null }
     }
     const EL = Math.max(...cs.map((c) => c.x + c.l)), EW = Math.max(...cs.map((c) => c.y + c.w))
     const CL = EL + Math.max(...cs.map((c) => c.l)) * 0.5, CW = EW + Math.max(...cs.map((c) => c.w)) * 0.5
     const s = Math.min(aw / CL, ah / CW)
     if (!(s > 0)) return null
-    const ox = PAD.l + (aw - CL * s) / 2, oy = PAD.t + (ah - CW * s) / 2
+    const ox = P.l + (aw - CL * s) / 2, oy = P.t + (ah - CW * s) / 2
     return { s, comps: cs.map((c) => ({ c, ox: ox + c.x * s, oy: oy + c.y * s })), ext: { ox, oy, EL, EW, CL, CW } }
-  }, [bag, size, padB, mode])
+  }, [bag, size, padB, mode, narrow, shownComp])
 
   const placedList = useMemo<PL[]>(
     () =>
@@ -368,7 +376,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
       key={r.it.id}
       data-item={r.it.id}
       className={'row' + (r.remaining ? ' drag' : ' spent') + (drag && drag.itemId === r.it.id && !drag.placementId ? ' dragging' : '')}
-      onPointerDown={r.remaining && mode === 'pack' ? (e) => startDrag(e, { itemId: r.it.id, o: 0 }) : undefined}
+      onPointerDown={r.remaining && mode === 'pack' ? (e) => { if (e.pointerType !== 'mouse' && !(e.target as Element).closest('.grip')) return; startDrag(e, { itemId: r.it.id, o: 0 }) } : undefined}
     >
       <span className="grip">{r.remaining ? <Icon name="grip" /> : <Icon name="check" />}</span>
       <span className="name"><span>{r.it.color && <i className="sw" style={{ '--sw': r.it.color } as CSSProperties} />}<span>{r.it.name}</span></span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}{r.wornN ? ` · ${r.wornN} worn` : ''}</span></span>
@@ -397,7 +405,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
               <pattern id="hatch" width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={6} stroke="var(--ink-3)" strokeWidth={0.75} /></pattern>
               <pattern id="hatch-red" width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={6} stroke="var(--red)" strokeWidth={0.9} /></pattern>
             </defs>
-            <rect width={size.W} height={size.H} fill="url(#g10)" onPointerDown={() => setSelected(null)} />
+            <rect width={size.W} height={size.H} fill="url(#g10)" onPointerDown={() => { setSelected(null); setTbOpen(false) }} />
             {layout.ext && (
               <>
                 <Dim x1={layout.ext.ox} y1={layout.ext.oy - 40} x2={layout.ext.ox + layout.ext.EL * s} y2={layout.ext.oy - 40} edge={layout.ext.oy} label={`${layout.ext.EL} cm`} />
@@ -457,6 +465,13 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
           </svg>
         )}
         {bag && view === '3d' && <Suspense fallback={<div className="sheet-empty"><p>Loading the 3D view…</p></div>}><Scene3D comps={scene} cut={cut} cam={cam} /></Suspense>}
+        {bag && shownComp && bag.compartments.length > 1 && view === 'plan' && (
+          <div className="ctabs" role="tablist" aria-label="Compartment on the sheet">
+            {bag.compartments.map((c, i) => (
+              <button key={c.id} role="tab" aria-selected={c.id === shownComp.id} className={'ctab' + (fills[c.id]?.over ? ' red' : '')} onClick={() => { setCompIdx(i); setSelected(null) }}>{c.name}</button>
+            ))}
+          </div>
+        )}
         {bag && view === 'plan' && (
           <div className="mode seg" role="group" aria-label="Sheet mode">
             <button aria-pressed={mode === 'pack'} onClick={() => { setMode('pack'); setSelected(null) }}>Pack</button>
@@ -510,16 +525,24 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
             <p className="num label">{trip.worn.length} items · {fmtW(wornWeight(trip, items))}</p>
           </div>
         )}
-        {bag ? (
-          <div className="tb" aria-label="Title block">
+        {bag && narrow && !tbOpen ? (
+          <button className={'tb strip' + (tot!.over || tot!.wState === 'over' ? ' red' : '')} aria-label="Title block, tap to expand" aria-expanded={false} onClick={() => setTbOpen(true)}>
+            <span className="name">{bag.name}</span>
+            <span className="num">{fmtW(tot!.total)}{tot!.limit != null ? ` / ${fmtW(tot!.limit)}` : ''}</span>
+            <span className="num">{Math.round(tot!.fill * 100)} %</span>
+            <StateMark s={tot!.wState} />
+          </button>
+        ) : bag ? (
+          <div className={'tb' + (narrow ? ' open' : '')} aria-label="Title block" onClick={narrow ? () => setTbOpen(false) : undefined}>
             <div className="cell wide"><span className="label">Trip</span><span className="v">{trip.name}</span><span className="sub">{trip.destination ? `${trip.destination} · ` : ''}{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights</span></div>
             <div className="cell wide bag-w"><span className="label">Bag</span><span className="v">{bag.name}</span><span className="sub">{fmtDim(mainOf(bag))} cm{bag.compartments.length > 1 ? ` · ${bag.compartments.length} compartments` : ''} · {fmtW(bag.empty)} empty</span></div>
             <div className="cell scale"><span className="label">Scale</span>{layout && <ScaleBar s={layout.s} />}</div>
+            <i className="brk" aria-hidden="true" />
             <div className="cell rule items"><span className="label">Items · {tot!.count}</span><span className="v num">{fmtW(tot!.itemsW)}</span></div>
             <div className="cell total"><span className="label">Total</span><span className="v num">{fmtW(tot!.total)}</span></div>
             <div className="cell"><span className="label">Limit</span><span className="v num">{tot!.limit == null ? '—' : fmtW(tot!.limit)}</span></div>
-            <div className="cell"><span className="label">Margin</span><span className={'v num' + (tot!.margin != null && tot!.margin < 0 ? ' red' : '')}>{tot!.margin == null ? '—' : (tot!.margin < 0 ? '−' : '') + fmtW(Math.abs(tot!.margin))}</span></div>
-            <div className="cell"><span className="label">Fill</span><span className={'v num' + (tot!.over ? ' red' : '')}>{Math.round(tot!.fill * 100)} %</span></div>
+            <div className="cell margin"><span className="label">Margin</span><span className={'v num' + (tot!.margin != null && tot!.margin < 0 ? ' red' : '')}>{tot!.margin == null ? '—' : (tot!.margin < 0 ? '−' : '') + fmtW(Math.abs(tot!.margin))}</span></div>
+            <div className="cell fill"><span className="label">Fill</span><span className={'v num' + (tot!.over ? ' red' : '')}>{Math.round(tot!.fill * 100)} %</span></div>
             <div className="cell"><span className="label">Weight</span><span className="v state"><StateMark s={tot!.wState} />{tot!.wState}</span></div>
             <div className="gauges" role="group" aria-label="Fill by compartment">
               {bag.compartments.map((c) => {

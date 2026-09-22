@@ -79,7 +79,7 @@ export default function App() {
         {tab === 'Inventory' && <Inventory state={state} api={api} go={setTab} />}
         {tab === 'Bags' && <Bags state={state} api={api} go={setTab} />}
         {tab === 'Trips' && <Trips state={state} api={api} go={setTab} />}
-        {tab === 'Data' && <Data state={state} api={api} go={setTab} />}
+        {tab === 'Data' && <Data state={state} api={api} go={setTab} theme={themeSel} />}
       </main>
     </div>
   )

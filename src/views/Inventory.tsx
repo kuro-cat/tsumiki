@@ -4,7 +4,7 @@ import type { ViewProps } from '../App'
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
 type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean; capacity: number; autoCap: boolean }
-const COLS = { gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) 70px 170px 80px 44px' }
+const COLS = { '--cols': 'minmax(0, 2fr) minmax(0, 1fr) 70px 170px 80px 44px' } as CSSProperties
 
 export function Inventory({ state, api }: ViewProps) {
   const blank = (): Form => ({ id: uid(), name: '', category: 'clothing', kind: 'soft', l: 20, w: 15, h: 5, volume: 2, packsTo: state.packsTo.clothing, weight: 200, qty: 1, color: '', up: false, capacity: defaultCapacity({ l: 20, w: 15, h: 5 }), autoCap: true })
@@ -95,7 +95,7 @@ export function Inventory({ state, api }: ViewProps) {
               <span className="dim">{it.kind}{it.kind !== 'soft' && it.up ? ' ↑' : ''}</span>
               <span className="num">{fmtSize(it)}</span>
               <span className="num">{fmtW(it.weight)}</span>
-              <span className="num">{it.qty}</span>
+              <span className="num qty">{it.qty}</span>
             </button>
           ))}
           {!list.length && <div className="empty"><p>{q ? 'Nothing matches that filter.' : 'No items yet. Add the first one above.'}</p></div>}
