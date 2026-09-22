@@ -9,7 +9,7 @@ export function newTrip(bagId: string | null): Trip {
   const bagIds = bagId ? [bagId] : []
   const start = new Date(); start.setDate(start.getDate() + 7)
   const end = new Date(start); end.setDate(end.getDate() + 3)
-  return { id: uid(), name: 'New trip', destination: '', start: isoDate(start), end: isoDate(end), climate: 'mild', kind: 'city', activities: [], bagIds, checklist: [], placements: [], loose: [] }
+  return { id: uid(), name: 'New trip', destination: '', start: isoDate(start), end: isoDate(end), climate: 'mild', kind: 'city', activities: [], bagIds, checklist: [], placements: [], loose: [], worn: [] }
 }
 
 function sampleState(): State {
@@ -54,7 +54,7 @@ function sampleState(): State {
   const end = new Date(start); end.setDate(end.getDate() + 5)
   const trip: Trip = {
     id: uid(), name: 'Lisbon', destination: 'Lisbon, Portugal', start: isoDate(start), end: isoDate(end),
-    climate: 'hot', kind: 'city', activities: ['photography'], bagIds: [backpack.id, daypack.id], checklist: [], placements: [], loose: [], sample: S,
+    climate: 'hot', kind: 'city', activities: ['photography'], bagIds: [backpack.id, daypack.id], checklist: [], placements: [], loose: [], worn: [], sample: S,
   }
   trip.checklist = suggest({ nights: 5, climate: trip.climate, kind: trip.kind, activities: trip.activities }).map((c) => ({ ...c, id: uid(), packed: false }))
   const byName = (n: string) => items.find((x) => x.name === n)!
@@ -62,6 +62,7 @@ function sampleState(): State {
   trip.placements = autoPackBins(backpack.compartments, pre).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
   const day = ['Water bottle', 'Book'].map((n, i) => ({ key: `${byName(n).id}:d${i}`, box: byName(n) as Boxed, os: orientationsOf(byName(n) as Boxed) }))
   trip.placements.push(...autoPackBins(daypack.compartments, day).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o })))
+  trip.worn = ['Sandals', 'Sun hat', 'Wallet'].map((n) => ({ id: uid(), itemId: byName(n).id }))
   const cube = trip.placements.find((p) => p.itemId === byName('Packing cube, M').id)
   trip.loose = [
     ...['T-shirt', 'T-shirt', 'Underwear', 'Underwear'].map((n) => ({ id: uid(), itemId: byName(n).id, home: cube?.id ?? mainOf(backpack).id })),
@@ -70,7 +71,7 @@ function sampleState(): State {
   return { items, bags, trips: [trip], activeTripId: trip.id, apiKey: '', packsTo: { ...DEFAULT_PACKS_TO } }
 }
 
-export const KEY = 'bin-pack.v5'
+export const KEY = 'bin-pack.v6'
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
@@ -90,7 +91,7 @@ export function useStore() {
     set: (patch: Partial<State>) => setState((s) => ({ ...s, ...patch })),
     replace: (s: State) => setState(s),
     upsertItem: (it: Item) => setState((s) => ({ ...s, items: upsert(s.items, it) })),
-    removeItem: (id: string) => setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => { const r = withoutPlacements(t, new Set(t.placements.filter((p) => p.itemId === id).map((p) => p.id))); return { ...t, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== id) } }) })),
+    removeItem: (id: string) => setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => { const r = withoutPlacements(t, new Set(t.placements.filter((p) => p.itemId === id).map((p) => p.id))); return { ...t, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== id), worn: t.worn.filter((w) => w.itemId !== id) } }) })),
     /** Saves a bag and drops placements in compartments that no longer exist or no longer hold them. */
     upsertBag: (b: Bag) => setState((s) => ({
       ...s, bags: upsert(s.bags, b),

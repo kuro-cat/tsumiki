@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement } from '../store'
+import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, wornCount, wornWeight, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, looseVolumes, mainOf, matchItem, newTrip, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
 import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
@@ -22,7 +22,7 @@ const asBox = (c: Compartment): Placed => ({ x: c.x, y: c.y, z: c.z, l: c.l, w: 
 export const AUTOPACK_ANIM_KEY = 'bin-pack.autopack-anim'
 export const autopackAnimates = () => { try { return localStorage.getItem(AUTOPACK_ANIM_KEY) !== 'off' } catch { return true } }
 
-export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: PlanView; bagId: string | null; show: (id: string) => void }) {
+export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { view: PlanView; bagId: string | null; worn: boolean; show: (id: string) => void }) {
   const { items, bags } = state
   const trip = state.trips.find((t) => t.id === state.activeTripId) ?? null
   const bag = trip && bagId ? bags.find((b) => b.id === bagId) ?? null : null
@@ -117,7 +117,7 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
       items
         .map((it) => {
           const placedN = trip ? packedCount(trip, it.id) : 0
-          return { it, placedN, remaining: Math.max(0, it.qty - placedN), onList: matchedIds.has(it.id) }
+          return { it, placedN, wornN: trip ? wornCount(trip, it.id) : 0, remaining: Math.max(0, it.qty - placedN), onList: matchedIds.has(it.id) }
         })
         .sort((a, b) => Number(b.onList) - Number(a.onList) || a.it.name.localeCompare(b.it.name)),
     [items, trip, matchedIds],
@@ -129,8 +129,10 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
   const dragComp = drag?.compId && bag ? bag.compartments.find((c) => c.id === drag.compId) ?? null : null
   const dragBox = drag && dragItem && isBoxed(dragItem) ? oriented(dragItem, drag.o) : drag && dragComp ? oriented(dragComp, drag.o) : null
   const softSide = dragItem?.kind === 'soft' ? Math.cbrt(packedVolume(dragItem)) : 0
+  const wornRef = useRef<HTMLButtonElement>(null)
+  const wornHit = !!drag?.itemId && (() => { const r = wornRef.current?.getBoundingClientRect(); return !!r && drag.px >= r.left && drag.px <= r.right && drag.py >= r.top && drag.py <= r.bottom })()
   let snap: Snap | null = null
-  if (drag && bag && layout && view === 'plan') {
+  if (drag && bag && layout && view === 'plan' && !wornHit) {
     const { s } = layout
     if (dragComp && dragBox && layout.ext) {
       const { ox, oy, CL, CW } = layout.ext
@@ -170,6 +172,7 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
   const dragRef = useRef(drag); dragRef.current = drag
   const itemsRef = useRef(items); itemsRef.current = items
   const snapRef = useRef(snap); snapRef.current = snap
+  const wornHitRef = useRef(wornHit); wornHitRef.current = wornHit
   const ghostRef = useRef(ghost); ghostRef.current = ghost
 
   const startDrag = (e: RPointerEvent, d: Pick<Drag, 'itemId' | 'placementId' | 'compId' | 'o'>) => {
@@ -193,7 +196,12 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
       const d = dragRef.current, sn = snapRef.current, g = ghostRef.current
       setDrag(null)
       if (!d) return
-      if (d.compId && bagId) {
+      if (d.itemId && wornHitRef.current) {
+        const w: Worn = { id: uid(), itemId: d.itemId }
+        const pid = d.placementId
+        api.patchTrip(tripId, (t) => ({ ...(pid ? withoutPlacements(t, new Set([pid])) : {}), worn: [...t.worn, w] }))
+        setSelected(null)
+      } else if (d.compId && bagId) {
         if (!sn) return
         if (d.o & 1) api.rotateCompartment(bagId, d.compId)
         api.patchCompartment(bagId, d.compId, { x: sn.x, y: sn.y, z: sn.z })
@@ -235,7 +243,12 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
 
   const compOf = (id: string) => bag?.compartments.find((c) => c.id === id) ?? null
   const removePl = (id: string) => trip && api.patchTrip(trip.id, (t) => withoutPlacements(t, new Set([id])))
-  const removeLoose = (itemId: string) => trip && api.patchTrip(trip.id, (t) => { const last = [...t.loose].reverse().find((l) => l.itemId === itemId); return { loose: t.loose.filter((l) => l !== last) } })
+  const removeUnit = (itemId: string) => trip && api.patchTrip(trip.id, (t) => {
+    const w = [...t.worn].reverse().find((x) => x.itemId === itemId)
+    if (w) return { worn: t.worn.filter((x) => x !== w) }
+    const last = [...t.loose].reverse().find((l) => l.itemId === itemId)
+    return { loose: t.loose.filter((l) => l !== last) }
+  })
   /** Re-seats a placement in a new orientation at the same corner, settling on whatever is under it. */
   const reorient = (id: string, o: number) => {
     if (!trip || !bag) return
@@ -351,13 +364,13 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
       onPointerDown={r.remaining && mode === 'pack' ? (e) => startDrag(e, { itemId: r.it.id, o: 0 }) : undefined}
     >
       <span className="grip">{r.remaining ? <Icon name="grip" /> : <Icon name="check" />}</span>
-      <span className="name"><span>{r.it.color && <i className="sw" style={{ '--sw': r.it.color } as CSSProperties} />}<span>{r.it.name}</span></span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}</span></span>
+      <span className="name"><span>{r.it.color && <i className="sw" style={{ '--sw': r.it.color } as CSSProperties} />}<span>{r.it.name}</span></span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}{r.wornN ? ` · ${r.wornN} worn` : ''}</span></span>
       <span className="w num">{fmtW(r.it.weight)}</span>
       {r.it.qty > 8 ? <span className="num dim">{r.placedN} / {r.it.qty}</span> : (
         <span className="marks" role="img" aria-label={`${r.placedN} of ${r.it.qty} packed`}>{Array.from({ length: r.it.qty }, (_, i) => <i key={i} className={i < r.placedN ? 'on' : ''} />)}</span>
       )}
       <span className="acts" onPointerDown={(e) => e.stopPropagation()}>
-        {r.it.kind === 'soft' && <button className="btn quiet" onClick={() => removeLoose(r.it.id)} disabled={!r.placedN} aria-label={`Take one ${r.it.name} out`} title="Take one out"><Icon name="minus" /></button>}
+        {(r.it.kind === 'soft' || r.wornN > 0) && <button className="btn quiet" onClick={() => removeUnit(r.it.id)} disabled={!r.placedN} aria-label={`Take one ${r.it.name} out`} title={r.wornN ? 'Take one off' : 'Take one out'}><Icon name="minus" /></button>}
         <button className="btn quiet" onClick={() => placeOne(r.it)} disabled={!r.remaining || !bag} aria-label={`Pack ${r.it.name}`} title={r.it.kind === 'soft' ? 'Add to the roomiest compartment' : 'Place at the best free spot'}><Icon name="plus" /></button>
       </span>
     </div>
@@ -472,6 +485,24 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
           </div>
         )}
         {note && <div className={'note' + (note.red ? ' red' : '')} role="status">{note.text}</div>}
+        {worn && (
+          <div className="worn-list" aria-label="Worn items">
+            <h2>Worn</h2>
+            <p className="dim">On your body or in your pockets. Counts as packed; weighs nothing in any bag.</p>
+            {Object.entries(trip.worn.reduce<Record<string, number>>((a, w) => ({ ...a, [w.itemId]: (a[w.itemId] ?? 0) + 1 }), {})).map(([id, n]) => {
+              const it = items.find((i) => i.id === id)
+              return it ? (
+                <div key={id} className="worn-row">
+                  <span className="name">{it.color && <i className="sw" style={{ '--sw': it.color } as CSSProperties} />}<span>{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
+                  <span className="num dim">{fmtW(it.weight * n)}</span>
+                  <button className="btn quiet" onClick={() => removeUnit(id)} aria-label={`Take off ${it.name}`}><Icon name="minus" />Take off</button>
+                </div>
+              ) : null
+            })}
+            {!trip.worn.length && <p className="dim">Nothing yet. Drag an item onto the Worn tab.</p>}
+            <p className="num label">{trip.worn.length} items · {fmtW(wornWeight(trip, items))}</p>
+          </div>
+        )}
         {bag ? (
           <div className="tb" aria-label="Title block">
             <div className="cell wide"><span className="label">Trip</span><span className="v">{trip.name}</span><span className="sub">{trip.destination ? `${trip.destination} · ` : ''}{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights</span></div>
@@ -497,7 +528,7 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
               })}
             </div>
           </div>
-        ) : (
+        ) : worn ? null : (
           <div className="sheet-empty">
             <h2>Choose a bag</h2>
             <p>The plan is drawn at the bag's interior dimensions.</p>
@@ -523,7 +554,7 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
             <button className="btn quiet" onClick={clearAll} disabled={!packedN}>Clear</button>
           </div>
         </div>
-        {tb.length > 0 && (
+        {(tb.length > 0 || trip.worn.length > 0) && (
           <div className="bagstrip" role="tablist" aria-label="Bags on this trip">
             {tb.map((b) => {
               const t = bagTotals(b, trip, items)
@@ -536,6 +567,11 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
                 </button>
               )
             })}
+            <button ref={wornRef} role="tab" aria-selected={worn} className={'bagtab wornt' + (wornHit ? ' hit' : '')} onClick={() => show('worn')} title="Drop an item here to wear it">
+              <span className="name">Worn</span>
+              <span className="num">{trip.worn.length}</span>
+              <span className="num dim">{fmtW(wornWeight(trip, items))}</span>
+            </button>
           </div>
         )}
         <div className="prog">
@@ -578,7 +614,7 @@ export function Plan({ state, api, go, view, bagId, show }: ViewProps & { view: 
         <div className={'ghost' + (snap && !snap.ok ? ' bad' : '') + (dragItem?.kind === 'soft' ? ' soft' : '') + (snap?.over ? ' over' : '')} style={{ left: ghost.left, top: ghost.top, width: ghost.w, height: ghost.h }} aria-hidden="true">
           <span>{dragItem?.name ?? dragComp?.name}</span><br />
           <span className="dim">
-            {dragItem?.kind === 'soft'
+            {wornHit ? 'worn' : dragItem?.kind === 'soft'
               ? snap ? (snap.over ? 'over volume' : snap.home !== snap.compId ? `into ${placedList.find((pl) => pl.p.id === snap!.home)?.it.name}` : `loose in ${compOf(snap.compId)?.name}`) : `${fmtVol(packedVolume(dragItem))} packed`
               : dragBox ? `${dragBox.l} × ${dragBox.w} · ${snap ? (snap.ok ? `base ${snap.z} cm` : "doesn't fit") : dragItem?.kind === 'rigid' && !dragItem.up ? 'R turns · T tips' : 'R turns'}` : ''}
           </span>

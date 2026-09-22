@@ -36,7 +36,8 @@ export default function App() {
   // Which of the trip's bags the sheet shows; falls back to the trip's first bag.
   const [shown, setShown] = useState<string | null>(null)
   const tb = trip ? tripBags(trip, state.bags) : []
-  const bagId = tb.find((b) => b.id === shown)?.id ?? tb[0]?.id ?? null
+  const worn = shown === 'worn'
+  const bagId = worn ? null : tb.find((b) => b.id === shown)?.id ?? tb[0]?.id ?? null
 
   const themeSel = (
     <select className="theme" aria-label="Theme" value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
@@ -60,8 +61,9 @@ export default function App() {
               {state.trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
             {tb.length > 0 && (
-              <select aria-label="Bag on the sheet" value={bagId ?? ''} onChange={(e) => setShown(e.target.value)}>
+              <select aria-label="Bag on the sheet" value={worn ? 'worn' : bagId ?? ''} onChange={(e) => setShown(e.target.value)}>
                 {tb.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                <option value="worn">Worn</option>
               </select>
             )}
             <div className="seg" role="group" aria-label="View">
@@ -73,7 +75,7 @@ export default function App() {
         ) : themeSel}
       </header>
       <main className="main">
-        {tab === 'Plan' && <Plan state={state} api={api} go={setTab} view={view} bagId={bagId} show={setShown} />}
+        {tab === 'Plan' && <Plan state={state} api={api} go={setTab} view={view} bagId={bagId} worn={worn} show={setShown} />}
         {tab === 'Inventory' && <Inventory state={state} api={api} go={setTab} />}
         {tab === 'Bags' && <Bags state={state} api={api} go={setTab} />}
         {tab === 'Trips' && <Trips state={state} api={api} go={setTab} />}

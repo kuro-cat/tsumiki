@@ -399,3 +399,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .trow.bag.lift { opacity: 0.45; }
 .trow.bag.drop-before { box-shadow: inset 0 2px 0 var(--blue); }
 .trow.bag.drop-after { box-shadow: inset 0 -2px 0 var(--blue); }
+.bagtab.wornt { border-style: dashed; }
+.bagtab.wornt.hit { border-style: solid; border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+.worn-list { position: absolute; inset: 0; padding: 72px 88px 40px; display: grid; align-content: start; gap: 8px; max-width: 560px; }
+.worn-list h2 { font-stretch: 75%; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; }
+.worn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule-2); }
+.worn-row .name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.worn-row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

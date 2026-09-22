@@ -20,6 +20,8 @@ export type Compartment = { id: string; name: string; l: number; w: number; h: n
 export type Bag = { id: string; name: string; empty: number; limit: number | null; compartments: Compartment[]; sample?: boolean }
 /** o is the orientation index, see pack.ts. */
 export type Placement = { id: string; itemId: string; compartmentId: string; x: number; y: number; z: number; o: number }
+/** One unit on the traveler's body: counts as packed, takes no bag space and no bag weight. */
+export type Worn = { id: string; itemId: string }
 /** A soft item's home on a trip: one entry per unit, no position. home is a compartment id or the placement id of a container. */
 export type Loose = { id: string; itemId: string; home: string }
 export type Climate = 'hot' | 'mild' | 'cold' | 'mixed'
@@ -30,7 +32,7 @@ export type CheckItem = { id: string; label: string; category: Category; qty: nu
 export type Trip = {
   id: string; name: string; destination: string; start: string; end: string
   climate: Climate; kind: TripKind; activities: string[]
-  bagIds: string[]; checklist: CheckItem[]; placements: Placement[]; loose: Loose[]; sample?: boolean
+  bagIds: string[]; checklist: CheckItem[]; placements: Placement[]; loose: Loose[]; worn: Worn[]; sample?: boolean
 }
 export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
 
@@ -46,7 +48,9 @@ export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 export const nights = (t: { start: string; end: string }) => Math.max(1, Math.round((Date.parse(t.end) - Date.parse(t.start)) / 86400000))
 export const matchItem = (c: CheckItem, items: Item[]) => items.find((i) => c.match.some((k) => i.name.toLowerCase().includes(k)))
 /** Units of an item in the bag on this trip: rigid placements plus loose entries. */
-export const packedCount = (trip: Trip, itemId: string) => trip.placements.filter((p) => p.itemId === itemId).length + trip.loose.filter((l) => l.itemId === itemId).length
+export const wornCount = (trip: Trip, itemId: string) => trip.worn.filter((w) => w.itemId === itemId).length
+export const packedCount = (trip: Trip, itemId: string) => trip.placements.filter((p) => p.itemId === itemId).length + trip.loose.filter((l) => l.itemId === itemId).length + wornCount(trip, itemId)
+export const wornWeight = (trip: Trip, items: Item[]) => trip.worn.reduce((a, w) => a + (items.find((i) => i.id === w.itemId)?.weight ?? 0), 0)
 export const isPacked = (c: CheckItem, trip: Trip, items: Item[]) => {
   if (c.packed) return true
   const m = matchItem(c, items)
@@ -121,7 +125,7 @@ export function tripReady(trip: Trip, bags: Bag[], items: Item[]) {
   const tb = tripBags(trip, bags)
   if (!tb.length || !trip.checklist.length || !trip.checklist.every((c) => isPacked(c, trip, items))) return false
   const totals = tb.map((b) => bagTotals(b, trip, items))
-  return totals.some((t) => t.count > 0) && totals.every((t) => !t.over && (t.limit == null || t.total <= t.limit))
+  return (totals.some((t) => t.count > 0) || trip.worn.length > 0) && totals.every((t) => !t.over && (t.limit == null || t.total <= t.limit))
 }
 /** Fill of one container: contents against capacity. */
 export function containerFill(it: ContainerItem, looseVol: number) {
