@@ -16,7 +16,7 @@ type Ghost = { left: number; top: number; w: number; h: number }
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
 
 const PAD = { l: 88, r: 84, t: 84 }
-const PAD_N = { l: 44, r: 60, t: 84 }
+const PAD_N = { l: 44, r: 60, t: 128 }
 /** Below this sheet width the pack sheet draws one compartment at a time and the title block collapses to a strip. */
 const NARROW = 640
 const GAP = 64
@@ -44,7 +44,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
     return () => ro.disconnect()
   }, [trip !== null])
   const narrow = size.W > 0 && size.W < NARROW
-  const padB = narrow ? 64 : size.W < 700 ? 132 : 108
+  const padB = narrow ? 60 : size.W < 700 ? 132 : 108
   const [compIdx, setCompIdx] = useState(0)
   const [tbOpen, setTbOpen] = useState(false)
   const shownComp = bag && narrow && mode === 'pack' ? bag.compartments[Math.min(compIdx, bag.compartments.length - 1)] : null
