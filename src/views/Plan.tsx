@@ -494,16 +494,16 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
           <div className="sel">
             <span>{selPl.it.name}</span>
             <span className="dim">{fmtDim(selPl.box)} · {fmtW(selPl.it.weight)} · {compOf(selPl.p.compartmentId)?.name} · base {selPl.box.z} cm · {faceName(selPl.p.o)}{cFills[selPl.p.id] ? ` · holds ${cFills[selPl.p.id].n}, ${Math.round(cFills[selPl.p.id].ratio * 100)} %` : ''}</span>
-            <button className="btn quiet" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn</button>
-            <button className="btn quiet" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip</button>
-            <button className="btn quiet" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Remove (Delete)"><Icon name="x" />Remove</button>
+            <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn</button>
+            <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip</button>
+            <button className="btn text" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Remove (Delete)"><Icon name="x" />Remove</button>
           </div>
         )}
         {selComp && !drag && mode === 'assemble' && bag && (
           <div className="sel">
             <span>{selComp.name}</span>
             <span className="dim">{fmtDim(selComp)} cm · at {selComp.x}, {selComp.y}, z {selComp.z}</span>
-            <button className="btn quiet" onClick={() => api.rotateCompartment(bag.id, selComp.id)} title="Rotate (R)"><Icon name="rotate" />Rotate</button>
+            <button className="btn text" onClick={() => api.rotateCompartment(bag.id, selComp.id)} title="Rotate (R)"><Icon name="rotate" />Rotate</button>
           </div>
         )}
         {note && <div className={'note' + (note.red ? ' red' : '')} role="status">{note.text}</div>}
@@ -517,7 +517,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
                 <div key={id} className="worn-row">
                   <span className="name">{it.color && <i className="sw" style={{ '--sw': it.color } as CSSProperties} />}<span>{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
                   <span className="num dim">{fmtW(it.weight * n)}</span>
-                  <button className="btn quiet" onClick={() => removeUnit(id)} aria-label={`Take off ${it.name}`}><Icon name="minus" />Take off</button>
+                  <button className="btn text" onClick={() => removeUnit(id)} aria-label={`Take off ${it.name}`}><Icon name="minus" />Take off</button>
                 </div>
               ) : null
             })}
@@ -580,8 +580,8 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
           <h2>Schedule</h2>
           <span className="dim">{trip.name}</span>
           <div className="right">
-            <button className="btn" onClick={autoPackAll} disabled={!bag} title="Pack the remaining checklist items">Auto-pack</button>
-            <button className="btn quiet" onClick={clearAll} disabled={!packedN}>Clear</button>
+            <button className="btn primary" onClick={autoPackAll} disabled={!bag} title="Pack the remaining checklist items">Auto-pack</button>
+            <button className="btn text" onClick={clearAll} disabled={!packedN}>Clear</button>
           </div>
         </div>
         {(tb.length > 0 || trip.worn.length > 0) && (
@@ -619,7 +619,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
           {rows.length > 0 && totalChecks === 0 && (
             <div className="sch-empty">
               <p>No checklist yet. Drag anything in, or let the trip suggest one.</p>
-              <button className="btn quiet" onClick={() => go('Trips')}>Open trip <Icon name="arrow" /></button>
+              <button className="btn text" onClick={() => go('Trips')}>Open trip <Icon name="arrow" /></button>
             </div>
           )}
           {mode === 'assemble' && view === 'plan' && <div className="sch-empty"><p>Assemble mode: drag compartments into place on the sheet. Switch back to Pack to place items.</p></div>}

@@ -113,7 +113,7 @@ export function Trips({ state, api, go }: ViewProps) {
                     )
                   })}
                   {state.bags.some((b) => !trip.bagIds.includes(b.id)) ? (
-                    <select aria-label="Add a bag" value="" onChange={(e) => e.target.value && patch({ bagIds: [...trip.bagIds, e.target.value] })}>
+                    <select className="act" aria-label="Add a bag" value="" onChange={(e) => e.target.value && patch({ bagIds: [...trip.bagIds, e.target.value] })}>
                       <option value="">Add a bag…</option>
                       {state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
@@ -130,7 +130,7 @@ export function Trips({ state, api, go }: ViewProps) {
                 <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{a}</label>)}</div>
               </div>
               <div className="form-actions">
-                <button className="btn" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
+                <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
                 <span className="hint">{nights(trip)} nights</span>
                 <div className="right"><button className="btn danger" type="button" onClick={remove}>Delete trip</button></div>
               </div>
@@ -161,7 +161,7 @@ export function Trips({ state, api, go }: ViewProps) {
                         <small>{c.packed && !linked.length ? 'ticked' : linked.length ? `${units} / ${c.qty}` : c.note ?? 'not in inventory'}{c.itemIds ? '' : linked.length ? ' · guessed' : ''}</small>
                         <LinkPicker entry={c} items={state.items} onChange={setLink} />
                       </span>
-                      <span className={'tag' + (c.source === 'ai' ? ' blue' : '')}>{c.source}</span>
+                      {c.source === 'rule' ? <span /> : <span className={'tag' + (c.source === 'ai' ? ' blue' : '')}>{c.source}</span>}
                       <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) }))} aria-label={`Remove ${c.label}`}><Icon name="x" /></button>
                     </div>
                   )

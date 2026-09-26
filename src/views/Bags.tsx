@@ -11,8 +11,9 @@ const PRESETS = [
   { name: 'Daypack 20 L', l: 42, w: 26, h: 16, empty: 600, limit: null },
 ]
 const COLS = { '--cols': 'minmax(0, 2fr) 150px 90px 90px 90px 60px' } as CSSProperties
-const CCOLS = { '--cols': 'minmax(0, 2fr) repeat(6, 72px) 36px' } as CSSProperties
 type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
+const AXIS: Record<Num, string> = { l: 'L', w: 'W', h: 'D', x: 'X', y: 'Y', z: 'Z' }
+const AXIS_NAME: Record<Num, string> = { l: 'length', w: 'width', h: 'depth', x: 'X position', y: 'Y position', z: 'Z position' }
 
 export function Bags({ state, api }: ViewProps) {
   const [form, setForm] = useState<Bag>(blank)
@@ -69,40 +70,40 @@ export function Bags({ state, api }: ViewProps) {
         <span className="label">{state.bags.length} bags</span>
       </div>
       <form className="form" onSubmit={save} aria-label={editing ? 'Edit bag' : 'Add bag'}>
+        <div className="presets">
+          <span className="label">Start from</span>
+          {PRESETS.map((p) => (
+            <button key={p.name} type="button" className="chip" onClick={() => applyPreset(p)}>{p.name}<span className="dim">{fmtDim(p)}</span></button>
+          ))}
+          <span className="hint">Approximate interior sizes for the Main compartment. Check your airline's numbers and edit.</span>
+        </div>
         <label className="field s6"><span className="label">Name</span><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></label>
         <label className="field s3"><span className="label">Empty weight</span><span className="unit"><input type="number" min={0} step={10} value={form.empty} onChange={(e) => set('empty', Number(e.target.value))} required /><span className="dim">g</span></span></label>
         <label className="field s3"><span className="label">Weight limit</span><span className="unit"><input type="number" min={0} step={100} value={form.limit ?? ''} onChange={(e) => set('limit', e.target.value === '' ? null : Number(e.target.value))} placeholder="none" /><span className="dim">g</span></span></label>
         <div className="field s12">
-          <span className="label">Compartments</span>
-          <div className="table comps">
-            <div className="trow head" style={CCOLS}>
-              <span className="label">Name</span><span className="label num">L cm</span><span className="label num">W cm</span><span className="label num">D cm</span><span className="label num">X</span><span className="label num">Y</span><span className="label num">Z</span><span />
-            </div>
+          <span className="label">Compartments<span className="dim">cm, size then position</span></span>
+          <div className="comps">
             {form.compartments.map((c, i) => (
-              <div key={c.id} className="trow" style={CCOLS}>
+              <div key={c.id} className="comp">
                 <input type="text" value={c.name} onChange={(e) => setComp(c.id, { name: e.target.value })} aria-label="Compartment name" placeholder={i === 0 ? 'Main' : 'Pocket'} />
                 {(['l', 'w', 'h', 'x', 'y', 'z'] as Num[]).map((k) => (
-                  <input key={k} type="number" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={k.toUpperCase()} required />
+                  <label key={k} className={'cin' + (k === 'x' ? ' x' : '')}>
+                    <span className="label">{AXIS[k]}</span>
+                    <input type="number" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
+                  </label>
                 ))}
                 <button type="button" className="btn quiet" onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} aria-label={`Remove ${c.name}`} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'}><Icon name="x" /></button>
               </div>
             ))}
           </div>
           <div className="tools" style={{ marginTop: 8 }}>
-            <button type="button" className="btn quiet" onClick={addComp}><Icon name="plus" />Add compartment</button>
+            <button type="button" className="btn text" onClick={addComp}><Icon name="plus" />Add compartment</button>
             <span className="hint">Measure each inside. X, Y, Z is where it sits in the assembled bag; drag them into place under Assemble on the plan.</span>
           </div>
         </div>
-        <div className="presets">
-          <span className="label">Start from</span>
-          {PRESETS.map((p) => (
-            <button key={p.name} type="button" className="btn quiet" onClick={() => applyPreset(p)}>{p.name} · {fmtDim(p)}</button>
-          ))}
-          <span className="hint">Approximate interior sizes for the Main compartment. Check your airline's numbers and edit.</span>
-        </div>
         <div className="form-actions">
-          <button className="btn" type="submit">{editing ? 'Save changes' : 'Add bag'}</button>
-          {editing && <button className="btn quiet" type="button" onClick={cancel}>Cancel</button>}
+          <button className="btn primary" type="submit">{editing ? 'Save changes' : 'Add bag'}</button>
+          {editing && <button className="btn text" type="button" onClick={cancel}>Cancel</button>}
           {editing && (
             <div className="right">
               <button className="btn danger" type="button" onClick={() => { api.removeBag(form.id); cancel() }} title={usedBy(form.id) ? 'Trips using this bag will lose their placements' : undefined}>Delete bag</button>

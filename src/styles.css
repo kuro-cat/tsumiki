@@ -21,6 +21,7 @@
   --red: #c2311e;
   --red-soft: #fbecea;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%232b2b2b' stroke-width='1.2'/%3E%3C/svg%3E");
+  --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%232f6fd0' stroke-width='1.2'/%3E%3C/svg%3E");
   --font: 'Archivo', system-ui, sans-serif;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --t: 180ms;
@@ -44,6 +45,7 @@
   --red: #ff8a75;
   --red-soft: #494a67;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e6eef8' stroke-width='1.2'/%3E%3C/svg%3E");
+  --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f2d366' stroke-width='1.2'/%3E%3C/svg%3E");
   --tint: 42%;
   color-scheme: dark;
 }
@@ -122,6 +124,14 @@ a { color: var(--blue); text-underline-offset: 3px; }
 .btn.danger:hover:not(:disabled) { background: var(--red); color: var(--paper); }
 .btn.quiet { border-color: transparent; color: var(--ink-2); padding-left: 6px; padding-right: 6px; }
 .btn.quiet:hover:not(:disabled) { background: var(--paper-2); color: var(--ink); }
+/* Primary: the one action a form or panel exists for, drawn solid. */
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:hover:not(:disabled) { background: var(--ink-2); border-color: var(--ink-2); }
+.btn.primary:disabled { background: none; }
+/* Text action: a worded action without a frame, lettered in the provisional ink so it never reads as a hint. */
+.btn.text { border-color: transparent; color: var(--blue); padding-left: 6px; padding-right: 6px; }
+.btn.text:hover:not(:disabled) { background: var(--blue-soft); color: var(--blue); }
+.btn.text:disabled { border-color: transparent; }
 .btn.busy { color: var(--ink-3); border-color: var(--rule); pointer-events: none; }
 .link { background: none; border: 0; padding: 0; color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
 
@@ -147,9 +157,18 @@ select { appearance: none; -webkit-appearance: none; padding-right: 18px;
   background-image: var(--chevron);
   background-repeat: no-repeat; background-position: right 2px center; }
 input[type='number'] { text-align: right; }
+/* A select that performs an action (its value stays empty) is lettered like a text action, not underlined like a field. */
+select.act { width: auto; field-sizing: content; color: var(--blue); border-bottom-color: transparent; background-image: var(--chevron-act); }
+select.act:hover:not(:disabled), select.act:focus { border-bottom-color: var(--blue); }
+select.act:disabled { color: var(--ink-3); background-image: var(--chevron); opacity: 0.6; }
+select.act option { color: var(--ink); background: var(--paper); }
 input[type='checkbox'] { accent-color: var(--ink); width: 14px; height: 14px; margin: 0; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); padding: 3px 10px; font-size: 13px; cursor: pointer; transition: border-color var(--t); }
+.chip:hover { border-color: var(--ink-2); }
 .chip:has(:checked) { border-color: var(--ink); }
+button.chip { background: none; color: var(--ink); font-stretch: 85%; letter-spacing: 0.03em; line-height: 1.2; padding: 4px 10px; }
+button.chip:hover { border-color: var(--ink); background: var(--paper-2); }
+button.chip .dim { font-size: 12px; }
 /* Checkbox chips carry the same 8 px square mark as the schedule, so checked reads without relying on border value. */
 .chip:has(input[type='checkbox'])::before { content: ''; width: 8px; height: 8px; border: 1px solid var(--ink); flex: none; transition: background var(--t) var(--ease); }
 .chip:has(input[type='checkbox']:checked)::before { background: var(--ink); }
@@ -169,7 +188,9 @@ input[type='checkbox'] { accent-color: var(--ink); width: 14px; height: 14px; ma
 .unit { display: flex; align-items: baseline; gap: 6px; }
 .unit .dim { font-size: 12px; }
 .radios { display: flex; gap: 6px; flex-wrap: wrap; }
-.presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; grid-column: 1 / -1; }
+.presets { display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; grid-column: 1 / -1; padding-bottom: 14px; border-bottom: 1px solid var(--rule-2); }
+.presets > .label { margin-right: 4px; }
+.presets .hint { flex-basis: 100%; }
 .hint { font-size: 12px; color: var(--ink-2); }
 
 .table { border-top: 1px solid var(--ink); }
@@ -260,7 +281,7 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 @keyframes stamp { from { transform: rotate(-6deg) scale(1.35); opacity: 0; } to { transform: rotate(-6deg) scale(1); opacity: 1; } }
 
 .sel { position: absolute; left: 56px; top: 12px; display: flex; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--blue); padding: 4px 6px 4px 10px; color: var(--ink); font-size: 13px; max-width: calc(100% - 72px); }
-.sel .btn.quiet { padding: 3px 6px; }
+.sel .btn.text { padding: 3px 6px; }
 .note { position: absolute; left: 50%; transform: translateX(-50%); top: 12px; background: var(--paper); border: 1px solid var(--ink); padding: 5px 10px; font-size: 13px; animation: fade 200ms var(--ease) both; }
 .note.red { border-color: var(--red); }
 @keyframes fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
@@ -320,19 +341,20 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .trip-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .check-list { border-top: 1px solid var(--ink); }
 .check-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 4px 7px 0; border-bottom: 1px solid var(--rule-2); }
-.check-row .lbl { min-width: 0; display: grid; }
+.check-row .lbl { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.check-row .lbl > span:first-child { flex-basis: 100%; }
 .check-row .lbl small { color: var(--ink-2); font-size: 12px; }
 .check-row.done .lbl > span:first-child { text-decoration: line-through; text-decoration-color: var(--ink-3); color: var(--ink-2); }
 .mark { width: 10px; height: 10px; border: 1px solid var(--ink); display: block; }
 .mark.on { background: var(--ink); }
 .mark.miss { border-color: var(--red); border-style: dashed; }
 .mark.half { background: linear-gradient(to right, var(--ink) 50%, transparent 50%); }
-.links { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+.links { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .links .chip { padding: 1px 4px 1px 8px; font-size: 12px; cursor: default; gap: 2px; }
 .links.guess .chip { border-style: dashed; }
 .links .chip button { display: flex; border: 0; background: none; color: var(--ink-3); padding: 2px; cursor: pointer; }
 .links .chip button:hover { color: var(--ink); }
-.links select { font-size: 12px; padding: 1px 18px 1px 4px; min-width: 0; width: auto; }
+.links select { font-size: 12px; padding: 1px 16px 1px 2px; min-width: 0; width: auto; }
 .row.check .acts select { max-width: 110px; }
 .add-row { display: flex; gap: 8px; align-items: flex-end; padding-top: 8px; }
 .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -418,13 +440,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
   .trow .name { flex: 1 1 100%; }
   .trow .num, .trow .dim { font-size: 12px; color: var(--ink-2); text-align: left; }
   .trow.bag { flex-wrap: wrap; }
-  .comps .trow { display: grid; grid-template-columns: repeat(6, 1fr) 32px; gap: 6px; }
-  .comps .trow input[type='text'] { grid-column: 1 / -1; }
-  .comps .trow input[type='number'] { grid-column: span 2; }
-  .comps .trow .btn { grid-column: 7; grid-row: 3; }
-  .comps .trow.head { display: none; }
   .tripbags .tripbag { grid-template-columns: minmax(0, 1fr) max-content; grid-template-areas: 'name count' 'swap remove'; }
-  .tripbags .tripbag .name { grid-area: name; } .tripbags .tripbag .dim { grid-area: count; } .tripbags .tripbag select { grid-area: swap; width: 100%; min-width: 0; } .tripbags .tripbag .btn { grid-area: remove; justify-self: end; }
+  .tripbags .tripbag .name { grid-area: name; } .tripbags .tripbag .dim { grid-area: count; } .tripbags .tripbag select { grid-area: swap; justify-self: start; min-width: 0; } .tripbags .tripbag .btn { grid-area: remove; justify-self: end; }
   .trow .qty::before { content: 'qty '; color: var(--ink-3); }
   .trow .trips::before { content: 'trips '; color: var(--ink-3); }
   .page, .data, .data section, .page-head, .page-head p, .field, .tools { min-width: 0; max-width: 100%; }
@@ -434,7 +451,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
   .data { gap: 22px; }
 }
 @media (pointer: coarse) {
-  .row .acts .btn.quiet, .worn-row .btn.quiet, .sel .btn.quiet { padding: 8px 8px; }
+  .row .acts .btn.quiet, .worn-row .btn.text, .sel .btn.text { padding: 8px 8px; }
   .bagtab, .ctab, .mode button, .cams button, .seg button { min-height: 32px; }
   .check-row .btn.quiet, .links .chip button { padding: 6px; }
   .trow.bag .grip { padding: 8px 4px; margin: -8px 0; }
@@ -458,10 +475,23 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .ghost.soft { border-style: dashed; background-image: repeating-linear-gradient(45deg, transparent 0 4px, var(--rule) 4px 5px); }
 .ghost.soft.over { border-color: var(--red); color: var(--red); background-color: var(--red-soft); }
 .row .acts { display: flex; gap: 2px; }
-.comps .trow { gap: 6px; padding: 4px 8px; }
-.comps input { font: inherit; padding: 3px 6px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); min-width: 0; }
-.comps input[type='number'] { text-align: right; }
-.comps input:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
+/* Compartments: underlined cells with the axis lettered in, so no header row or table rules are needed. */
+.comps { display: grid; gap: 4px; }
+.comp { display: grid; grid-template-columns: minmax(0, 1fr) repeat(6, 64px) 32px; gap: 12px; align-items: end; }
+.comp .cin.x { margin-left: 14px; }
+.cin { display: flex; align-items: baseline; gap: 6px; border-bottom: 1px solid var(--rule); transition: border-color var(--t) var(--ease); cursor: text; }
+.cin:focus-within { border-bottom-color: var(--ink); }
+.cin > .label { color: var(--ink-3); flex: none; }
+.cin input[type='number'] { border-bottom: 0; }
+.comp .btn { justify-self: end; }
+@media (max-width: 600px) {
+  .comps { gap: 14px; }
+  .comp { grid-template-columns: repeat(3, minmax(0, 1fr)) 32px; gap: 8px 12px; }
+  .comp > input[type='text'] { grid-column: 1 / 4; }
+  .comp .btn { grid-column: 4; grid-row: 1; }
+  .comp .cin.x { grid-column: 1; margin-left: 0; }
+}
+.field > .label .dim { text-transform: none; letter-spacing: 0.03em; font-weight: 400; margin-left: 6px; }
 .packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 720px; }
 
 /* Several bags per trip */

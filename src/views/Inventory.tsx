@@ -75,8 +75,8 @@ export function Inventory({ state, api }: ViewProps) {
           </div>
         </div>
         <div className="form-actions">
-          <button className="btn" type="submit">{editing ? 'Save changes' : 'Add item'}</button>
-          {editing && <button className="btn quiet" type="button" onClick={cancel}>Cancel</button>}
+          <button className="btn primary" type="submit">{editing ? 'Save changes' : 'Add item'}</button>
+          {editing && <button className="btn text" type="button" onClick={cancel}>Cancel</button>}
           <span className="hint">{form.kind === 'rigid' ? 'Measure it the way it goes in the bag; it keeps this shape.' : form.kind === 'container' ? 'Outer size as packed; Holds is what fits inside, prefilled at 90 % of the box.' : 'Volume as measured loose; packs-to is how much of that it takes once stuffed in.'}</span>
           {editing && <div className="right"><button className="btn danger" type="button" onClick={() => { api.removeItem(form.id); cancel() }}>Delete item</button></div>}
         </div>

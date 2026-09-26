@@ -11,7 +11,7 @@ export function LinkPicker({ entry, items, onChange, compact }: { entry: CheckIt
       {!compact && linked.map((i) => (
         <span key={i.id} className="chip">{i.name}<button type="button" onClick={() => onChange(ids.filter((x) => x !== i.id))} aria-label={`Unlink ${i.name}`}><Icon name="x" size={12} /></button></span>
       ))}
-      <select aria-label={`Link ${entry.label} to`} value="" onChange={(e) => onChange(e.target.value === '*none' ? [] : [...ids, e.target.value])}>
+      <select className="act" aria-label={`Link ${entry.label} to`} value="" onChange={(e) => onChange(e.target.value === '*none' ? [] : [...ids, e.target.value])}>
         <option value="">{linked.length ? 'Link another…' : 'Link to…'}</option>
         {rest.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
         {entry.itemIds?.length === 0 ? null : <option value="*none">None in inventory</option>}
