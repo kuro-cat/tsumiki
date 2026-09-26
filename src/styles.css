@@ -103,6 +103,10 @@ a { color: var(--blue); text-underline-offset: 3px; }
 .red { color: var(--red); }
 .blue { color: var(--blue); }
 .hint { font-size: var(--fs-s); color: var(--ink-2); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A row that wraps: toolbars, chips, tags. */
+.cluster { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cluster.tight { gap: 6px; }
 
 /* Shell */
 .app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
@@ -212,6 +216,7 @@ button.chip .dim { font-weight: 400; }
 .page-head { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; }
 .page-head .label, .page-head .count { color: var(--ink-2); }
 .page-head .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.page-head input[type='search'] { width: 180px; }
 .panel, .form { background: var(--raise); border: 1px solid var(--ink); }
 .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; padding: 20px; animation: open 220ms var(--ease) both; }
 @keyframes open { from { opacity: 0; transform: translateY(-6px); } }
@@ -226,7 +231,7 @@ button.chip .dim { font-weight: 400; }
 .unit { display: flex; align-items: center; gap: 8px; }
 .unit .dim { font-size: var(--fs-m); }
 .radios { display: flex; gap: 6px; flex-wrap: wrap; }
-.presets { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; grid-column: 1 / -1; }
+.presets { grid-column: 1 / -1; }
 .presets > .label { margin-right: 4px; }
 .field > .label .dim { font-weight: 400; margin-left: 6px; }
 
@@ -247,7 +252,7 @@ button.trow:hover { background: var(--paper); }
 button.trow[aria-current='true'] { background: var(--blue-soft); }
 .trow .name { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .trow > .dim { font-size: var(--fs-m); }
-.trow .name > span:not(.tag) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table > .hint { padding: 10px 16px; }
 .empty { padding: 32px 16px; }
 
 /* Friendly empty states */
@@ -339,13 +344,12 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .ctabs button.red { color: var(--red); }
 .worn-list { position: absolute; inset: 0; padding: 72px 32px 32px; display: grid; align-content: start; gap: 8px; max-width: 560px; }
 .worn-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule-2); }
-.worn-row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Schedule: bag tabs, readouts, what's left to pack, then what sits where. */
 .schedule { display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; background: var(--raise); border-left: 1px solid var(--rule-2); }
 .bagstrip { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; padding: 12px; border-bottom: 1px solid var(--rule-2); }
 .bagtab { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink-2); padding: 6px 10px; font-size: var(--fs-m); cursor: pointer; transition: border-color var(--t), color var(--t), background var(--t); }
-.bagtab .name { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.bagtab .name { font-weight: 600; max-width: 160px; color: var(--ink); }
 .bagtab:hover { background: var(--paper); }
 .bagtab[aria-selected='true'] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--ink); }
 .bagtab.red, .bagtab.red .name { color: var(--red); }
@@ -401,7 +405,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .row .grip { color: var(--ink-3); display: flex; touch-action: none; opacity: 0.6; }
 .row.drag:hover .grip { opacity: 1; color: var(--ink); }
 .row .name { min-width: 0; display: grid; }
-.row .name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.row .name > span:first-child { font-weight: 500; }
 .row .w { font-size: var(--fs-m); color: var(--ink-2); }
 .row.check { grid-template-columns: 16px 20px minmax(0, 1fr); cursor: pointer; }
 /* The add key: + packs at the best spot in one tap; the chevron joined to it opens Put in… for a compartment, another bag, or wearing it. */
@@ -437,7 +441,7 @@ select.put:disabled { opacity: 0.5; cursor: default; }
 .block .dim { color: color-mix(in srgb, var(--ink) 72%, transparent); }
 .in-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 2px 0; }
 .in-row .cat, .block .cat.tinted { color: var(--ink); }
-.in-name { background: none; border: 0; padding: 4px 0; text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-m); color: inherit; }
+.in-name { background: none; border: 0; padding: 4px 0; text-align: left; min-width: 0; font-size: var(--fs-m); color: inherit; }
 button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .in-row .num { color: color-mix(in srgb, var(--ink) 72%, transparent); font-size: var(--fs-s); }
 .in-row .btn.quiet { color: var(--ink); }
@@ -446,16 +450,13 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .blk-act.btn.text { color: var(--ink); padding: 4px 6px; min-height: 28px; font-size: var(--fs-s); text-decoration: underline; text-underline-offset: 3px; }
 
 /* Trips */
-.trip-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .trip-tabs .bagtab .num { color: var(--ink-2); }
 .trip-body { display: grid; gap: 24px; }
+.checklist { display: grid; gap: 10px; }
+.checklist > .page-head { gap: 10px; }
 .page.narrow { max-width: 860px; }
 .trip-card { padding: 20px; display: grid; gap: 14px; }
 .trip-card .when { color: var(--ink-2); }
-.trip-card .facts { display: flex; flex-wrap: wrap; gap: 6px; }
-.trip-card .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.trip-card .actions .right { margin-left: auto; }
-.check-list { background: var(--raise); border: 1px solid var(--rule); border-top: 2px solid var(--ink); overflow: hidden; }
 .check-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule-2); }
 .check-row:last-child { border-bottom: 0; }
 .check-row .lbl { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; }
@@ -473,18 +474,16 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .glyph.units i.on { background: var(--blue); border-color: var(--blue); }
 .check-row .chev { display: flex; color: var(--ink-2); transition: transform var(--t) var(--ease); }
 .check-row .lbl[aria-expanded='true'] .chev { transform: rotate(180deg); }
-.links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .links .chip { padding: 2px 4px 2px 10px; font-size: var(--fs-s); cursor: default; gap: 2px; }
 .links.guess .chip { border-style: dashed; }
 .links .chip button { display: flex; border: 0; background: none; color: var(--ink-2); padding: 3px; cursor: pointer; }
 .links .chip button:hover { color: var(--ink); background: var(--paper-2); }
 .links select { font-size: var(--fs-s); min-height: 30px; }
-.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .msg { font-size: var(--fs-m); color: var(--ink-2); }
 .msg.red { color: var(--red); }
 .tripbags { display: grid; gap: 0; }
 .tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule-2); }
-.tripbag .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.tripbag .name { font-weight: 500; }
 .tripbags > select.act, .tripbags > .share-add { justify-self: start; margin-top: 6px; }
 .shared-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-2); }
 .shared-edit .radios { flex: 1 1 auto; }
@@ -496,7 +495,7 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .trow.bag.drop-after { box-shadow: inset 0 -2px 0 var(--blue); }
 
 /* Compartments: cells with the axis lettered in, so no header row is needed. */
-.comps { display: grid; gap: 8px; }
+.comps { display: grid; gap: 8px; margin-bottom: 8px; }
 .comp { display: grid; grid-template-columns: minmax(0, 1fr) 48px repeat(6, 72px) 32px; gap: 8px; align-items: center; }
 /* The compartment's colour: a swatch of its block with a chevron, the select itself laid invisibly over it. */
 .cswatch { position: relative; height: 36px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--blk) var(--bmix), var(--paper)) var(--chevron) no-repeat right 6px bottom 6px / 8px 5px; cursor: pointer; }
@@ -512,6 +511,7 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* Data */
 .data { display: grid; gap: 16px; max-width: 680px; }
 .data .hint { max-width: 64ch; }
+.data section > .chip { justify-self: start; }
 .data section { display: grid; gap: 12px; padding: 16px 0 8px; border-top: 2px solid var(--ink); }
 .data section.phone-only { display: none; }
 .packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
@@ -575,7 +575,7 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   .comp .cin.x { grid-column: 1; margin-left: 0; }
   .tripbags .tripbag { grid-template-columns: minmax(0, 1fr) max-content; grid-template-areas: 'name count' 'swap remove'; }
   .tripbags .tripbag .name { grid-area: name; } .tripbags .tripbag .dim { grid-area: count; } .tripbags .tripbag select { grid-area: swap; justify-self: start; min-width: 0; } .tripbags .tripbag .btn { grid-area: remove; justify-self: end; }
-  .page, .data, .data section, .page-head, .field, .tools { min-width: 0; max-width: 100%; }
+  .page, .data, .data section, .page-head, .field, .cluster { min-width: 0; max-width: 100%; }
   .page { overflow-x: hidden; }
   .packs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

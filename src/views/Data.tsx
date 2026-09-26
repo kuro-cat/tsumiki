@@ -56,14 +56,14 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
         {theme && (
           <section className="phone-only">
             <h2>Theme</h2>
-            <div className="tools">{theme}</div>
+            <div className="cluster">{theme}</div>
           </section>
         )}
         <section>
           <h2>Backup</h2>
-          <div className="tools">
+          <div className="cluster">
             <button className="btn" onClick={exportJson}>Export JSON</button>
-            <label className="btn">Import JSON<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={(e) => importJson(e.target.files?.[0])} /></label>
+            <label className="btn">Import JSON<input type="file" accept="application/json,.json" hidden onChange={(e) => importJson(e.target.files?.[0])} /></label>
             {msg && !msg.at && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
           </div>
           <p className="hint">Importing replaces everything here.</p>
@@ -84,11 +84,11 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
         </section>
         <section>
           <h2>Auto-pack</h2>
-          <label className="chip" style={{ justifySelf: 'start' }}><input type="checkbox" checked={anim} onChange={(e) => toggleAnim(e.target.checked)} />Animate items into the bag one by one</label>
+          <label className="chip"><input type="checkbox" checked={anim} onChange={(e) => toggleAnim(e.target.checked)} />Animate items into the bag one by one</label>
         </section>
         <section>
           <h2>Sample data</h2>
-          <div className="tools">
+          <div className="cluster">
             <button className="btn" onClick={removeSample} disabled={!sampleCount}>Remove sample data</button>
             <button className="btn" onClick={restoreSample}>Restore sample data</button>
             {msg?.at === 'sample' ? <span className="msg" role="status">{msg.text}</span> : <span className="hint">{sampleCount ? `${sampleCount} sample records` : 'None left'}</span>}
@@ -97,7 +97,7 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
         </section>
         <section>
           <h2>Start over</h2>
-          <div className="tools"><button className="btn danger" onClick={reset}>Delete all local data</button></div>
+          <div className="cluster"><button className="btn danger" onClick={reset}>Delete all local data</button></div>
         </section>
       </div>
     </section>

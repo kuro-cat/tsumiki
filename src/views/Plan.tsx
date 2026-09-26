@@ -463,7 +463,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     >
       <span className="grip" aria-hidden="true"><Icon name="grip" /></span>
       <CatIcon it={r.it} />
-      <span className="name"><span>{r.it.name}</span>{r.placedN > 0 && <span className="dim">{r.placedN} of {r.it.qty}{r.wornN ? `, ${r.wornN} worn` : ''}</span>}</span>
+      <span className="name"><span className="truncate">{r.it.name}</span>{r.placedN > 0 && <span className="dim">{r.placedN} of {r.it.qty}{r.wornN ? `, ${r.wornN} worn` : ''}</span>}</span>
       <span className="w num">{fmtW(r.it.weight)}</span>
       <span onPointerDown={(e) => e.stopPropagation()}>{addKey(r.it, r.remaining)}</span>
     </div>
@@ -478,7 +478,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     <label key={c.id} className="row check">
       <input type="checkbox" checked={c.packed} onChange={(e) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, packed: e.target.checked } : x)) }))} />
       <CatIcon it={c} />
-      <span className="name" title="Not in your inventory: tick it off by hand"><span>{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span></span>
+      <span className="name" title="Not in your inventory: tick it off by hand"><span className="truncate">{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span></span>
     </label>
   )
 
@@ -523,7 +523,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
                 const t = bagTotals(b, trip, items)
                 return (
                   <button key={b.id} role="tab" aria-selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
-                    <span className="name">{b.name}</span>
+                    <span className="name truncate">{b.name}</span>
                     {b.id !== bag?.id && <span className="num">{fmtW(t.total)}</span>}
                   </button>
                 )
@@ -541,7 +541,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
               )
             })}
             <button ref={wornRef} role="tab" aria-selected={worn} className={'bagtab wornt' + (wornHit ? ' hit' : '')} onClick={() => show('worn')} title="Drop an item here to wear it">
-              <span className="name">Worn</span>
+              <span className="name truncate">Worn</span>
               <span className="num">{trip.worn.length}</span>
             </button>
           </div>
@@ -674,7 +674,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
               return it ? (
                 <div key={id} className="worn-row">
                   <CatIcon it={it} />
-                  <span className="name"><span>{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
+                  <span className="name"><span className="truncate">{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
                   <span className="num dim">{fmtW(it.weight * n)}</span>
                   <button className="btn quiet" onClick={() => removeUnit(id)} aria-label={`Take off ${it.name}`} title="Take one off"><Icon name="minus" /></button>
                 </div>
@@ -772,7 +772,7 @@ function InRow({ it, n, onMinus, onSelect, label }: { it: Item; n: number; onMin
   return (
     <div className="in-row">
       <CatIcon it={it} />
-      {onSelect ? <button className="in-name" onClick={onSelect}>{it.name}{n > 1 ? ` × ${n}` : ''}</button> : <span className="in-name">{it.name}{n > 1 ? ` × ${n}` : ''}</span>}
+      {onSelect ? <button className="in-name truncate" onClick={onSelect}>{it.name}{n > 1 ? ` × ${n}` : ''}</button> : <span className="in-name truncate">{it.name}{n > 1 ? ` × ${n}` : ''}</span>}
       <span className="num dim">{fmtW(it.weight * n)}</span>
       <button className="btn quiet" onClick={onMinus} aria-label={label} title="Take one out"><Icon name="minus" /></button>
     </div>

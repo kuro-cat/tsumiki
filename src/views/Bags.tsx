@@ -84,7 +84,7 @@ export function Bags({ state, api }: ViewProps) {
       </div>
       {open && <form className="form" onSubmit={save} aria-label={editing ? 'Edit bag' : 'Add bag'}>
         <div className="form-title"><h2>{editing ? form.name || 'Edit bag' : 'New bag'}</h2><button type="button" className="btn quiet" onClick={cancel} aria-label="Close"><Icon name="x" /></button></div>
-        {!editing && <div className="presets">
+        {!editing && <div className="presets cluster">
           <span className="label">Start from</span>
           {PRESETS.map((p) => (
             <button key={p.name} type="button" className="chip" onClick={() => applyPreset(p)}>{p.name}<span className="dim">{fmtDim(p)}</span></button>
@@ -116,7 +116,7 @@ export function Bags({ state, api }: ViewProps) {
               </div>
             ))}
           </div>
-          <div className="tools" style={{ marginTop: 8 }}>
+          <div className="cluster">
             <button type="button" className="btn text" onClick={addComp}><Icon name="plus" />Add compartment</button>
           </div>
         </div>
@@ -134,7 +134,7 @@ export function Bags({ state, api }: ViewProps) {
         <div className="trow head sortable" style={COLS}>{by.head}</div>
         {list.map((b) => { const i = state.bags.indexOf(b); return (
           <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => { setForm(b); setEditing(true); setOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
-            <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span>{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}</span>
+            <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span className="truncate">{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}</span>
             <span className="num">{fmtDim(b.compartments[0])}</span>
             <span className="num">{fmtVol(bagVolume(b))}</span>
             <span className="num">{fmtW(b.empty)}</span>
@@ -144,8 +144,8 @@ export function Bags({ state, api }: ViewProps) {
         ) })}
         {!state.bags.length && <Blank art="bag" title="No bags yet">Add one from a preset, then correct the numbers.</Blank>}
         {state.bags.length > 1 && (by.sorted
-          ? <p className="hint" style={{ padding: '10px 16px' }}>Sorted by {by.sorted.toLowerCase()}. <button type="button" className="link" onClick={by.clear}>Show your order</button></p>
-          : <p className="hint" style={{ padding: '10px 16px' }}>Drag to reorder. New trips start with the first bag.</p>)}
+          ? <p className="hint">Sorted by {by.sorted.toLowerCase()}. <button type="button" className="link" onClick={by.clear}>Show your order</button></p>
+          : <p className="hint">Drag to reorder. New trips start with the first bag.</p>)}
       </div>
     </section>
   )

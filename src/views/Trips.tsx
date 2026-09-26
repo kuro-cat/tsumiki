@@ -85,12 +85,12 @@ export function Trips({ state, api, go }: ViewProps) {
       </div>
       {/* Trips as sheet tabs across the top; the chosen trip gets the full width below. */}
       {state.trips.length > 0 ? (
-        <div className="trip-tabs" role="tablist" aria-label="Trips">
+        <div className="trip-tabs cluster tight" role="tablist" aria-label="Trips">
           {state.trips.map((t) => {
             const done = t.checklist.filter((c) => isPacked(c, t, state.items)).length
             return (
               <button key={t.id} role="tab" type="button" className="bagtab" aria-selected={trip?.id === t.id} onClick={() => { setEditId(t.id); setEditing(false); setOpenRow(null); setMsg(null) }}>
-                <span className="name">{t.name}</span>
+                <span className="name truncate">{t.name}</span>
                 <span className="num">{fmtDate(t.start)} · {done} of {t.checklist.length}</span>
               </button>
             )
@@ -99,16 +99,16 @@ export function Trips({ state, api, go }: ViewProps) {
       ) : <Blank art="list" title="No trips yet">A trip turns its dates, weather and plans into a checklist.<button className="btn primary" onClick={startNew}>Start the first one</button></Blank>}
       <div className="trip-body">
         {trip && (
-          <div style={{ display: 'grid', gap: 24 }}>
+          <>
             {!editing ? (
               <div className="panel trip-card">
                 <div>
                   <h2>{trip.name}</h2>
                   <p className="when">{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights{trip.destination ? ` · ${trip.destination}` : ''}</p>
                 </div>
-                <div className="facts">{[trip.climate, trip.kind, ...trip.activities].map((f) => <span key={f} className="tag">{cap(f)}</span>)}</div>
+                <div className="cluster tight">{[trip.climate, trip.kind, ...trip.activities].map((f) => <span key={f} className="tag">{cap(f)}</span>)}</div>
                 <p className="muted">{tripBags(trip, state.bags).map((b) => b.name).join(' and ') || 'No bags yet'}{trip.shared?.length ? ', sharing a limit' : ''}</p>
-                <div className="actions">
+                <div className="cluster">
                   <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
                   <button className="btn" type="button" onClick={() => setEditing(true)}>Edit trip</button>
                 </div>
@@ -126,7 +126,7 @@ export function Trips({ state, api, go }: ViewProps) {
                     const others = state.bags.filter((x) => x.id !== b.id && !trip.bagIds.includes(x.id))
                     return (
                       <div key={b.id} className="tripbag">
-                        <span className="name">{b.name}</span>
+                        <span className="name truncate">{b.name}</span>
                         <span className="dim">{inBag(b, trip).placements.length + inBag(b, trip).loose.length} items</span>
                         <select className="act" aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) { api.snap(`Swapped ${b.name} for ${to.name}`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items), ...bagLeaves(t, b.id, to.id) })) } }}>
                           <option value="">Swap for…</option>
@@ -161,12 +161,12 @@ export function Trips({ state, api, go }: ViewProps) {
             </form>
             )}
 
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div className="page-head" style={{ gap: 10 }}>
+            <div className="checklist">
+              <div className="page-head">
                 <h2>Checklist</h2>
                 <span className="label">{trip.checklist.filter((c) => isPacked(c, trip, state.items)).length} of {trip.checklist.length} packed</span>
               </div>
-              <div className="tools">
+              <div className="cluster">
                 {!draft && <button className="btn primary" type="button" onClick={() => setDraft(blankDraft)}><Icon name="plus" />Add</button>}
                 <button className="btn" type="button" onClick={regenerate}>Suggest from trip</button>
                 <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking Claude…' : 'Ask Claude for extras'}</button>
@@ -192,7 +192,7 @@ export function Trips({ state, api, go }: ViewProps) {
                   </div>
                 </form>
               )}
-              <div className="check-list">
+              <div className="table">
                 {trip.checklist.map((c) => {
                   const linked = linkedItems(c, state.items)
                   const units = entryUnits(c, trip, state.items)
@@ -221,7 +221,7 @@ export function Trips({ state, api, go }: ViewProps) {
                 {!trip.checklist.length && <Blank art="list" title="The list is empty">Suggest one from the trip, or add your own.</Blank>}
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </section>

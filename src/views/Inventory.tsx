@@ -54,7 +54,7 @@ export function Inventory({ state, api }: ViewProps) {
         <h1>Inventory</h1>
         <span className="label">{state.items.length} items · {fmtW(totalW)}</span>
         <div className="right">
-          <input type="search" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} aria-label="Filter items" />
+          <input type="search" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter items" />
           {!open && <button className="btn primary" onClick={() => { setForm(blank()); setEditing(false); setOpen(true) }}><Icon name="plus" />Add item</button>}
         </div>
       </div>
@@ -107,7 +107,7 @@ export function Inventory({ state, api }: ViewProps) {
           <div className="trow head sortable" style={COLS}>{by.head}</div>
           {list.map((it) => (
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => { setForm(toForm(it)); setEditing(true); setOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-              <span className="name"><CatIcon it={it} /><span>{it.name}</span></span>
+              <span className="name"><CatIcon it={it} /><span className="truncate">{it.name}</span></span>
               <span className="dim">{cap(it.category)}</span>
               <span className="dim">{cap(it.kind)}{it.kind !== 'soft' && it.up ? ', upright' : ''}</span>
               <span className="num">{fmtSize(it)}</span>

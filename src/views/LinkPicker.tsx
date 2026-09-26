@@ -7,7 +7,7 @@ export function LinkPicker({ entry, items, onChange, compact }: { entry: CheckIt
   const ids = linked.map((i) => i.id)
   const rest = items.filter((i) => !ids.includes(i.id)).sort((a, b) => a.name.localeCompare(b.name))
   return (
-    <span className={'links' + (entry.itemIds ? '' : ' guess')}>
+    <span className={'links cluster tight' + (entry.itemIds ? '' : ' guess')}>
       {!compact && linked.map((i) => (
         <span key={i.id} className="chip">{i.name}<button type="button" onClick={() => onChange(ids.filter((x) => x !== i.id))} aria-label={`Unlink ${i.name}`}><Icon name="x" size={12} /></button></span>
       ))}
