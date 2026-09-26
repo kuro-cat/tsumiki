@@ -1,5 +1,6 @@
 import { linkedItems, type CheckItem, type Item } from '../store'
 import { Icon } from '../Icon'
+import { ActionSelect } from '../ui'
 
 /** Chips for an entry's linked items plus a select to add one. Any change pins the Link; 'none' pins it empty. */
 export function LinkPicker({ entry, items, onChange }: { entry: CheckItem; items: Item[]; onChange: (itemIds: string[]) => void }) {
@@ -11,11 +12,10 @@ export function LinkPicker({ entry, items, onChange }: { entry: CheckItem; items
       {linked.map((i) => (
         <span key={i.id} className="chip">{i.name}<button type="button" onClick={() => onChange(ids.filter((x) => x !== i.id))} aria-label={`Unlink ${i.name}`}><Icon name="x" size={12} /></button></span>
       ))}
-      <select className="act" aria-label={`Link ${entry.label} to`} value="" onChange={(e) => onChange(e.target.value === '*none' ? [] : [...ids, e.target.value])}>
-        <option value="">{linked.length ? 'Link another…' : 'Link to…'}</option>
+      <ActionSelect label={`Link ${entry.label} to`} placeholder={linked.length ? 'Link another…' : 'Link to…'} onPick={(id) => onChange(id === '*none' ? [] : [...ids, id])}>
         {rest.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
         {entry.itemIds?.length === 0 ? null : <option value="*none">None in inventory</option>}
-      </select>
+      </ActionSelect>
     </span>
   )
 }
