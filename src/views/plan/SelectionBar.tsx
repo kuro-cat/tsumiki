@@ -1,0 +1,41 @@
+import { fmtDim, type Bag, type Compartment } from '../../store'
+import type { Api } from '../../store'
+import { CatIcon, Icon } from '../../Icon'
+import { ActionSelect } from '../../ui'
+import type { PL } from './data'
+
+/** Actions on the selected item: turn, tip, move to another bag or wear it, take it out. */
+export function ItemBar({ selPl, bag, tb, rotatePl, tipPl, moveTo, removePl, setSelected }: {
+  selPl: PL; bag: Bag | null; tb: Bag[]; rotatePl: (id: string) => void; tipPl: (id: string) => void; moveTo: (id: string, dest: string) => void
+  removePl: (id: string) => void; setSelected: (id: string | null) => void
+}) {
+  return (
+    <div className="sel">
+      <span className="sel-name"><CatIcon it={selPl.it} />{selPl.it.name}<span className="dim">{fmtDim(selPl.box)} cm</span></span>
+      <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn<kbd>R</kbd></button>
+      <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip<kbd>T</kbd></button>
+      <ActionSelect label={`Move ${selPl.it.name} to…`} placeholder="Move to…" onPick={(to) => moveTo(selPl.p.id, to)}>
+        {tb.filter((b) => b.id !== bag?.id).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        <option value="worn">Wear it</option>
+      </ActionSelect>
+      <button className="btn text" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Take out (Delete)"><Icon name="x" />Take out</button>
+    </div>
+  )
+}
+
+/** Arranging: where the selected compartment sits, and a turn. */
+export function CompartmentBar({ selComp, bag, api }: { selComp: Compartment; bag: Bag; api: Api }) {
+  return (
+    <div className="sel" onKeyDown={(e) => e.stopPropagation()}>
+      <span className="sel-name">{selComp.name}<span className="dim">{fmtDim(selComp)} cm</span></span>
+      {/* Fine control, in cm from the bag's corner. Height only chooses what it rests on; it always settles. */}
+      {(['x', 'y', 'z'] as const).map((k) => (
+        <label key={k} className="cin xyz" title={k === 'x' ? 'Along the length' : k === 'y' ? 'Across the width' : 'Height it rests at'}>
+          <span className="label">{k === 'x' ? 'X' : k === 'y' ? 'Y' : 'Z'}</span>
+          <input type="number" step={1} value={selComp[k]} onChange={(e) => api.patchCompartment(bag.id, selComp.id, { [k]: Number(e.target.value) })} aria-label={`${selComp.name} ${k === 'z' ? 'height' : k.toUpperCase()} in cm`} />
+        </label>
+      ))}
+      <button className="btn text" onClick={() => api.rotateCompartment(bag.id, selComp.id)} title="Rotate (R)"><Icon name="rotate" />Rotate<kbd>R</kbd></button>
+    </div>
+  )
+}

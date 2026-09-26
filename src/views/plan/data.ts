@@ -4,6 +4,8 @@ import { oriented, type Placed } from '../../lib/pack'
 import { bagContainers } from '../../lib/packing'
 
 export const eps = 1e-6
+/** Packing items, or arranging the compartments in 3D. */
+export type Mode = 'pack' | 'assemble'
 /** A placement with its item and its footprint as oriented. */
 export type PL = { p: Placement; it: Boxed; box: Placed }
 /** A compartment on the sheet, with its drawn origin in sheet pixels. */
