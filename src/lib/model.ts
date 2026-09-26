@@ -74,6 +74,7 @@ export const fmtW = (g: number) => (Math.abs(g) >= 1000 ? (g / 1000).toFixed(2) 
 export const fmtDim = (b: { l: number; w: number; h: number }) => `${b.l} × ${b.w} × ${b.h}`
 export const fmtVol = (cm3: number) => (cm3 / 1000).toFixed(1) + ' L'
 export const fmtSize = (i: Item) => (i.kind === 'soft' ? `${i.volume} L, ${(packedVolume(i) / 1000).toFixed(1)} L packed` : i.kind === 'container' ? `${fmtDim(i)} cm · holds ${i.capacity} L` : `${fmtDim(i)} cm`)
+export const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 export const fmtDate = (s: string) => new Date(s + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
 /** Packed Volume in cm³: what a soft item takes once stuffed into a bag. */

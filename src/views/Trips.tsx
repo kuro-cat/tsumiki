@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
+import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, titleCase, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 
 export function Trips({ state, api, go }: ViewProps) {
@@ -106,7 +105,7 @@ export function Trips({ state, api, go }: ViewProps) {
                   <h2>{trip.name}</h2>
                   <p className="when">{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights{trip.destination ? ` · ${trip.destination}` : ''}</p>
                 </div>
-                <div className="cluster tight">{[trip.climate, trip.kind, ...trip.activities].map((f) => <span key={f} className="tag">{cap(f)}</span>)}</div>
+                <div className="cluster tight">{[trip.climate, trip.kind, ...trip.activities].map((f) => <span key={f} className="tag">{titleCase(f)}</span>)}</div>
                 <p className="muted">{tripBags(trip, state.bags).map((b) => b.name).join(' and ') || 'No bags yet'}{trip.shared?.length ? ', sharing a limit' : ''}</p>
                 <div className="cluster">
                   <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
@@ -146,13 +145,13 @@ export function Trips({ state, api, go }: ViewProps) {
                 </div>
               </div>
               <div className="field s12"><span className="label">Weather</span>
-                <div className="seg" role="group" aria-label="Weather">{CLIMATES.map((c) => <button key={c} type="button" aria-pressed={trip.climate === c} onClick={() => patch({ climate: c })}>{cap(c)}</button>)}</div>
+                <div className="seg" role="group" aria-label="Weather">{CLIMATES.map((c) => <button key={c} type="button" aria-pressed={trip.climate === c} onClick={() => patch({ climate: c })}>{titleCase(c)}</button>)}</div>
               </div>
               <div className="field s12"><span className="label">Kind of trip</span>
-                <div className="seg" role="group" aria-label="Kind of trip">{KINDS.map((k) => <button key={k} type="button" aria-pressed={trip.kind === k} onClick={() => patch({ kind: k })}>{cap(k)}</button>)}</div>
+                <div className="seg" role="group" aria-label="Kind of trip">{KINDS.map((k) => <button key={k} type="button" aria-pressed={trip.kind === k} onClick={() => patch({ kind: k })}>{titleCase(k)}</button>)}</div>
               </div>
               <div className="field s12"><span className="label">Activities</span>
-                <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{cap(a)}</label>)}</div>
+                <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{titleCase(a)}</label>)}</div>
               </div>
               <div className="form-actions">
                 <span className="hint">{nights(trip)} nights</span>
@@ -176,7 +175,7 @@ export function Trips({ state, api, go }: ViewProps) {
                 <form className="form" onSubmit={addEntry} aria-label="Add to the checklist">
                   <div className="form-title"><h2>Add to the list</h2><button type="button" className="btn quiet" onClick={() => setDraft(null)} aria-label="Close"><Icon name="x" /></button></div>
                   <label className="field s6"><span className="label">Name</span><input type="text" autoFocus value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Gift for the hosts" required /></label>
-                  <label className="field s4"><span className="label">Category</span><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{cap(c)}</option>)}</select></label>
+                  <label className="field s4"><span className="label">Category</span><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></label>
                   <label className="field s2"><span className="label">Quantity</span><input type="number" min={1} step={1} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} required /></label>
                   <label className="field s6"><span className="label">Linked item</span>
                     <select value={draft.link} onChange={(e) => { const it = state.items.find((i) => i.id === e.target.value); setDraft({ ...draft, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>

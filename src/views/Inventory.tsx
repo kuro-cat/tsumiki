@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from 'react'
-import { CATEGORIES, SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
+import { CATEGORIES, SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, titleCase, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
@@ -8,7 +8,6 @@ import { useSort, type Col } from './Sort'
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
 type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean; capacity: number; autoCap: boolean }
 const COLS = { '--cols': 'minmax(0, 2fr) minmax(0, 1fr) 150px 190px 80px 44px' } as CSSProperties
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const SORT: Col<Item>[] = [
   { label: 'Name', key: (i) => i.name },
   { label: 'Category', key: (i) => i.category },
@@ -62,7 +61,7 @@ export function Inventory({ state, api }: ViewProps) {
       {open && <form className="form" onSubmit={save} aria-label={editing ? 'Edit item' : 'Add item'}>
         <div className="form-title"><h2>{editing ? form.name || 'Edit item' : 'New item'}</h2><button type="button" className="btn quiet" onClick={cancel} aria-label="Close"><Icon name="x" /></button></div>
         <label className="field s4"><span className="label">Name</span><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Rain jacket" required /></label>
-        <label className="field s2"><span className="label">Category</span><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{cap(c)}</option>)}</select></label>
+        <label className="field s2"><span className="label">Category</span><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></label>
         <div className="field s3"><span className="label">Kind</span>
           <div className="seg" role="group" aria-label="Kind">
             <button type="button" aria-pressed={form.kind === 'rigid'} onClick={() => set('kind', 'rigid')}>Rigid</button>
@@ -108,8 +107,8 @@ export function Inventory({ state, api }: ViewProps) {
           {list.map((it) => (
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => { setForm(toForm(it)); setEditing(true); setOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
               <span className="name"><CatIcon it={it} /><span className="truncate">{it.name}</span></span>
-              <span className="dim">{cap(it.category)}</span>
-              <span className="dim">{cap(it.kind)}{it.kind !== 'soft' && it.up ? ', upright' : ''}</span>
+              <span className="dim">{titleCase(it.category)}</span>
+              <span className="dim">{titleCase(it.kind)}{it.kind !== 'soft' && it.up ? ', upright' : ''}</span>
               <span className="num">{fmtSize(it)}</span>
               <span className="num">{fmtW(it.weight)}</span>
               <span className="num qty">{it.qty}</span>

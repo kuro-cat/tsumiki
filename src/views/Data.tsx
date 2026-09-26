@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, sampleState, type State } from '../store'
+import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, sampleState, titleCase, type State } from '../store'
 import type { ViewProps } from '../App'
 import { AUTOPACK_ANIM_KEY, autopackAnimates } from './Plan'
 
@@ -77,7 +77,7 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
           <h2>Packed size by category</h2>
           <div className="packs">
             {CATEGORIES.map((c) => (
-              <label key={c} className="field"><span className="label">{c.charAt(0).toUpperCase() + c.slice(1)}</span><span className="unit"><input type="number" min={5} max={100} step={5} value={state.packsTo[c]} onChange={(e) => api.set({ packsTo: { ...state.packsTo, [c]: Number(e.target.value) } })} /><span className="dim">%</span></span></label>
+              <label key={c} className="field"><span className="label">{titleCase(c)}</span><span className="unit"><input type="number" min={5} max={100} step={5} value={state.packsTo[c]} onChange={(e) => api.set({ packsTo: { ...state.packsTo, [c]: Number(e.target.value) } })} /><span className="dim">%</span></span></label>
             ))}
           </div>
           <p className="hint">How much of its volume a soft item takes once squashed into a bag. New items start from these.</p>

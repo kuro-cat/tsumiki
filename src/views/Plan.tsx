@@ -756,10 +756,10 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
 }
 
 /** One colour block: a compartment or a container, its fill, and what sits in it. Module-level so it keeps its state across updates. */
-function Block({ id, name, color, pct, over, sub, ms, children }: { id: string; name: string; color: string; pct: number; over: boolean; sub?: string; ms: number; children: ReactNode }) {
+function Block({ id, name, color, pct, over, ms, children }: { id: string; name: string; color: string; pct: number; over: boolean; ms: number; children: ReactNode }) {
   return (
     <section className={'block' + (over ? ' over' : '')} style={{ '--blk': color } as CSSProperties} aria-label={name} data-home={id}>
-      <header><span className="bname">{name}</span>{sub && <span className="dim">{sub}</span>}<span className="num bpct">{Math.round(pct * 100)} %</span></header>
+      <header><span className="bname">{name}</span><span className="num bpct">{Math.round(pct * 100)} %</span></header>
       <Segments ratio={pct} n={10} over={over} small ms={ms} />
       {children}
     </section>
