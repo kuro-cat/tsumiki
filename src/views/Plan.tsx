@@ -107,7 +107,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const [fillMs, setFillMs] = useState(FILL_MS)
   const fillT = useRef(0)
   const stretch = (ms: number) => { setFillMs(ms); window.clearTimeout(fillT.current); fillT.current = window.setTimeout(() => setFillMs(FILL_MS), ms + 100) }
-  // The compartment or container that just took something flashes, on the drawing and in its block.
+  // A soft item has no footprint to settle, so the compartment or container that took it flashes on the drawing instead.
   const [pulse, setPulse] = useState<{ home: string; n: number } | null>(null)
   const pulseT = useRef(0)
   const absorb = (home: string) => { setPulse({ home, n: Date.now() }); window.clearTimeout(pulseT.current); pulseT.current = window.setTimeout(() => setPulse(null), 700) }
@@ -217,7 +217,6 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
         api.patchTrip(tripId, (t) => ({ placements: [...t.placements.filter((p) => p.id !== pl.id), pl] }))
         setSelected(pl.id)
         settle([pl.id])
-        absorb(sn.compId)
       } else if (sn && g) {
         setFlash(g)
         window.setTimeout(() => setFlash(null), 280)
@@ -305,7 +304,6 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
     setSelected(pl.id)
     settle([pl.id])
-    absorb(binId)
   }
   const putIn = (it: Item, home: string) => {
     if (!trip) return
@@ -320,7 +318,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
       const { p, o, binId } = r.placed[0]
       const pl: Placement = { id: uid(), itemId: it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, o }
       api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
-      settle([pl.id]); absorb(binId)
+      settle([pl.id])
       return
     }
     const pv = packedVolume(it)
@@ -488,7 +486,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     const f = cFills[c.id]
     const inside = group(trip.loose.filter((l) => l.home === c.id))
     return (
-      <Block key={c.id} id={c.id} name={c.it.name} color={cubeColor[c.id]} pct={f.ratio} over={f.over} pulse={pulse} ms={fillMs}>
+      <Block key={c.id} id={c.id} name={c.it.name} color={cubeColor[c.id]} pct={f.ratio} over={f.over} ms={fillMs}>
         {inside.map(([id, ls]) => { const it = items.find((x) => x.id === id); return it && <InRow key={id} it={it} n={ls.length} onMinus={() => takeOut(c.id, id)} label={`Take one ${it.name} out of ${c.it.name}`} /> })}
         {!inside.length && <p className="blk-empty">Empty</p>}
         {inside.length > 0 && <button className="btn text blk-act" onClick={() => emptyOut(c.id)}>Empty it</button>}
@@ -503,7 +501,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     const cubes = containers.filter((x) => x.compartmentId === c.id)
     const empty = !pls.length && !loose.length && !cubes.length
     return (
-      <Block key={c.id} id={c.id} name={c.name} color={compBlock(c, ci)} pct={pct} over={f.over} pulse={pulse} ms={fillMs}>
+      <Block key={c.id} id={c.id} name={c.name} color={compBlock(c, ci)} pct={pct} over={f.over} ms={fillMs}>
         {group(pls.map((pl) => ({ itemId: pl.it.id, pl }))).map(([id, xs]) => (
           <InRow key={id} it={xs[0].pl.it} n={xs.length} onSelect={() => setSelected(xs[xs.length - 1].pl.p.id)} onMinus={() => { removePl(xs[xs.length - 1].pl.p.id); setSelected(null) }} label={`Take one ${xs[0].pl.it.name} out`} />
         ))}
@@ -758,10 +756,9 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
 }
 
 /** One colour block: a compartment or a container, its fill, and what sits in it. Module-level so it keeps its state across updates. */
-function Block({ id, name, color, pct, over, sub, pulse, ms, children }: { id: string; name: string; color: string; pct: number; over: boolean; sub?: string; pulse: { home: string; n: number } | null; ms: number; children: ReactNode }) {
+function Block({ id, name, color, pct, over, sub, ms, children }: { id: string; name: string; color: string; pct: number; over: boolean; sub?: string; ms: number; children: ReactNode }) {
   return (
     <section className={'block' + (over ? ' over' : '')} style={{ '--blk': color } as CSSProperties} aria-label={name} data-home={id}>
-      {pulse?.home === id && <i key={pulse.n} className="flash" aria-hidden="true" />}
       <header><span className="bname">{name}</span>{sub && <span className="dim">{sub}</span>}<span className="num bpct">{Math.round(pct * 100)} %</span></header>
       <Segments ratio={pct} n={10} over={over} small ms={ms} />
       {children}
