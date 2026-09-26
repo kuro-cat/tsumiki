@@ -1,0 +1,14 @@
+/* Data */
+.data { display: grid; gap: 16px; max-width: 680px; }
+.data .hint { max-width: 64ch; }
+.data section > .chip { justify-self: start; }
+.data section { display: grid; gap: 12px; padding: 16px 0 8px; border-top: 2px solid var(--ink); }
+.data section.phone-only { display: none; }
+.packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.phone-only { display: none; }
+
+@media (max-width: 600px) {
+  .phone-only, .data section.phone-only { display: grid; }
+  .data, .data section { min-width: 0; max-width: 100%; }
+  .packs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

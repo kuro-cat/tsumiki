@@ -1,0 +1,81 @@
+@font-face {
+  font-family: 'Archivo';
+  src: url('/fonts/archivo.woff2') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+
+/* Fjord sea. Token names are kept from the drafting version: paper is the ground, ink the text, blue the accent, red is over. */
+:root {
+  --paper: #f2f5f5;
+  --paper-2: #e2e9ea;
+  --raise: #fbfcfc;
+  --ink: #152022;
+  --ink-2: #475759;
+  --ink-3: #5d6d6f;
+  --rule: #cbd5d7;
+  --rule-2: #dde5e6;
+  --grid: #e4eaeb;
+  --grid-major: #d2dcdd;
+  --blue: #2f6f80;
+  --blue-press: #245766;
+  --on-blue: #ffffff;
+  --blue-soft: #e1eef1;
+  --red: #c24a3c;
+  --red-soft: #f7e4e1;
+  /* Compartment and cube blocks: spruce, moss, lake, bark, then fern and slate sea for containers. */
+  --b1: #9fc2ba; --b2: #afc79c; --b3: #9db6cf; --b4: #c4b79f; --b5: #8fb5a2; --b6: #a6bfc6;
+  --bmix: 100%;
+  --floor: 30%;
+  --tint: 32%;
+  /* Secondary text and empty bar segments on a colour block. */
+  --blk-dim: color-mix(in srgb, var(--ink) 72%, transparent);
+  --blk-track: rgb(255 255 255 / 0.45);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23152022' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%232f6f80' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5 5.5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --font: 'Archivo', system-ui, sans-serif;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --t: 180ms;
+  --top-h: 52px;
+  /* Type sizes: small print, secondary, controls, body, heading, page title, readout. */
+  --fs-xs: 12px; --fs-s: 13px; --fs-m: 14px; --fs-base: 15px; --fs-l: 18px; --fs-xl: 26px; --fs-readout: 44px;
+  --on-red: #ffffff;
+  --blk-base: var(--paper);
+  color-scheme: light;
+}
+/* Night sea: the same palette in the dark. Blocks sink into the ground so light text stays readable on them. */
+:root[data-theme='dark'] {
+  --paper: #0f1a1c;
+  --paper-2: #172628;
+  --raise: #1c2d30;
+  --ink: #e4ecec;
+  --ink-2: #a3b3b4;
+  --ink-3: #8c9d9e;
+  --rule: #2c4043;
+  --rule-2: #223436;
+  --grid: #162528;
+  --grid-major: #1f3336;
+  --blue: #6fb3c4;
+  --blue-press: #8cc4d2;
+  --on-blue: #0f1a1c;
+  --blue-soft: #1b3940;
+  --red: #e07a6e;
+  --red-soft: #3a2426;
+  --bmix: 30%;
+  --floor: 22%;
+  --on-red: #0f1a1c;
+  --blk-base: #121718;
+  --tint: 40%;
+  --blk-dim: color-mix(in srgb, var(--ink) 90%, transparent);
+  --blk-track: rgb(255 255 255 / 0.12);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e4ecec' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236fb3c4' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+@media (max-width: 600px) {
+  :root { --fs-base: 16px; --fs-readout: 38px; }
+}

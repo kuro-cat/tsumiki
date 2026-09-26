@@ -1,0 +1,45 @@
+/* Trips */
+.trip-tabs .bagtab .num { color: var(--ink-2); }
+.trip-body { display: grid; gap: 24px; }
+.checklist { display: grid; gap: 10px; }
+.checklist > .page-head { gap: 10px; }
+.page.narrow { max-width: 860px; }
+.trip-card { padding: 20px; display: grid; gap: 14px; }
+.trip-card .when { color: var(--ink-2); }
+.check-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule-2); }
+.check-row:last-child { border-bottom: 0; }
+.check-row .lbl { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.check-row .entry { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 500; flex: 1 1 auto; }
+.check-row .count { font-size: var(--fs-m); color: var(--ink-2); }
+.check-row.done .entry > span { text-decoration: line-through; text-decoration-color: var(--ink-3); color: var(--ink-2); }
+.check-row.done .cat { opacity: 0.55; }
+.check-row .more { grid-column: 2 / -1; display: grid; gap: 8px; padding: 4px 0 2px; animation: open 180ms var(--ease) both; }
+.check-row .more .hint { font-size: var(--fs-s); }
+.glyph { width: 36px; min-height: 18px; display: flex; align-items: center; }
+.glyph.done { color: var(--blue); }
+.glyph.none { min-height: 0; height: 0; width: 16px; border-top: 1.5px dashed var(--ink-2); }
+.glyph.units { gap: 2px; }
+.glyph.units i { flex: none; width: 4px; height: 12px; border: 1px solid var(--ink-2); background: var(--raise); }
+.glyph.units i.on { background: var(--blue); border-color: var(--blue); }
+.check-row .chev { display: flex; color: var(--ink-2); transition: transform var(--t) var(--ease); }
+.check-row .lbl[aria-expanded='true'] .chev { transform: rotate(180deg); }
+.links .chip { padding: 2px 4px 2px 10px; font-size: var(--fs-s); cursor: default; gap: 2px; }
+.links.guess .chip { border-style: dashed; }
+.links .chip button { display: flex; border: 0; background: none; color: var(--ink-2); padding: 3px; cursor: pointer; }
+.links .chip button:hover { color: var(--ink); background: var(--paper-2); }
+.links select { font-size: var(--fs-s); min-height: 30px; }
+.tripbags { display: grid; gap: 0; }
+.tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule-2); }
+.tripbag .name { font-weight: 500; }
+.tripbags > select.act, .tripbags > .share-add { justify-self: start; margin-top: 6px; }
+.shared-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-2); }
+.shared-edit .radios { flex: 1 1 auto; }
+.shared-edit .unit { width: 110px; }
+
+@media (max-width: 600px) {
+  .tripbags .tripbag { grid-template-columns: minmax(0, 1fr) max-content; grid-template-areas: 'name count' 'swap remove'; }
+  .tripbags .tripbag .name { grid-area: name; } .tripbags .tripbag .dim { grid-area: count; } .tripbags .tripbag select { grid-area: swap; justify-self: start; min-width: 0; } .tripbags .tripbag .btn { grid-area: remove; justify-self: end; }
+}
+@media (pointer: coarse) {
+  .links .chip button { padding: 6px; }
+}
