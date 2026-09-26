@@ -144,7 +144,8 @@ select.put:disabled { opacity: 0.5; cursor: default; }
 /* Colour blocks: one per compartment, containers nested inside. */
 .block { background: color-mix(in srgb, var(--blk) var(--bmix), var(--blk-base)); border: 1px solid color-mix(in srgb, var(--blk) 65%, var(--ink)); padding: 10px 12px 8px; margin-bottom: 10px; animation: open 220ms var(--ease) both; }
 .block .block { background: color-mix(in srgb, var(--blk) var(--bmix), var(--raise)); margin: 8px 0 4px; border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); }
-.sheet rect.absorb { fill: var(--blue); animation: absorb 620ms var(--ease) both; }
+/* The space that took a soft item deepens in its own block colour for a moment. */
+.sheet rect.absorb { fill: color-mix(in srgb, var(--blk) var(--bmix), var(--blk-base)); animation: absorb 620ms var(--ease) both; }
 @keyframes absorb { from { opacity: 0.35; } to { opacity: 0; } }
 .in-row { animation: rowin 260ms var(--ease) both; }
 @keyframes rowin { from { opacity: 0; transform: translateX(-6px); } }

@@ -588,7 +588,8 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
               const cube = placedList.find((pl) => pl.p.id === pulse.home), cl = layout.comps.find((x) => x.c.id === (cube ? cube.p.compartmentId : pulse.home))
               if (!cl) return null
               const r = cube ? { x: cl.ox + cube.box.x * s, y: cl.oy + cube.box.y * s, w: cube.box.l * s, h: cube.box.w * s } : { x: cl.ox, y: cl.oy, w: cl.c.l * s, h: cl.c.w * s }
-              return <rect key={pulse.n} className="absorb" x={r.x} y={r.y} width={r.w} height={r.h} pointerEvents="none" />
+              const color = cube ? cubeColor[cube.p.id] : compBlock(cl.c, bag.compartments.indexOf(cl.c))
+              return <rect key={pulse.n} className="absorb" x={r.x} y={r.y} width={r.w} height={r.h} style={{ '--blk': color } as CSSProperties} pointerEvents="none" />
             })()}
             {selPl && !drag && layout.comps.find((cl) => cl.c.id === selPl.p.compartmentId) && (() => {
               const { ox, oy } = layout.comps.find((cl) => cl.c.id === selPl.p.compartmentId)!
