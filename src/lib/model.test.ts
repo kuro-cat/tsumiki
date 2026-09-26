@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bagLeaves, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { afterBagEdit, bagLeaves, withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -157,4 +157,48 @@ test('compartments settle: nothing floats once what held it up has moved', () =>
   // dragged past the corner, the assembly shifts back so nothing sits at a negative offset
   const [a, b] = settleCompartments([comp('a', -6, 4, 0, 10, 10, 10), comp('b', 30, -2, 0, 10, 10, 10)])
   assert.deepEqual([a.x, a.y, b.x, b.y], [0, 6, 36, 0])
+})
+
+const tripOf = (over: Partial<Trip>): Trip => ({ id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: [], checklist: [], placements: [], loose: [], worn: [], ...over })
+const comp = (id: string) => ({ id, name: id, l: 30, w: 20, h: 10, x: 0, y: 0, z: 0 })
+
+test('editing a bag leaves the trip’s other bags alone', () => {
+  const a: Bag = { id: 'a', name: 'A', empty: 0, limit: null, compartments: [comp('a1')] }
+  const t = tripOf({ bagIds: ['a', 'b'], placements: [{ id: 'pa', itemId: 'i', compartmentId: 'a1', x: 0, y: 0, z: 0, o: 0 }, { id: 'pb', itemId: 'i', compartmentId: 'b1', x: 0, y: 0, z: 0, o: 0 }], loose: [{ id: 'lb', itemId: 's', home: 'b1' }] })
+  const r = afterBagEdit(t, a, { ...a, name: 'A renamed' })
+  assert.deepEqual(r.placements.map((p) => p.id), ['pa', 'pb'])
+  assert.deepEqual(r.loose, t.loose)
+})
+
+test('a compartment removed from a bag takes its placements out and sends its loose units to Main', () => {
+  const before: Bag = { id: 'a', name: 'A', empty: 0, limit: null, compartments: [comp('main'), comp('pocket')] }
+  const after: Bag = { ...before, compartments: [comp('main')] }
+  const t = tripOf({
+    bagIds: ['a'],
+    placements: [{ id: 'cube', itemId: 'k', compartmentId: 'pocket', x: 0, y: 0, z: 0, o: 0 }, { id: 'stays', itemId: 'i', compartmentId: 'main', x: 0, y: 0, z: 0, o: 0 }],
+    loose: [{ id: 'in-cube', itemId: 's', home: 'cube' }, { id: 'in-pocket', itemId: 's', home: 'pocket' }, { id: 'in-main', itemId: 's', home: 'main' }],
+  })
+  const r = afterBagEdit(t, before, after)
+  assert.deepEqual(r.placements.map((p) => p.id), ['stays'])
+  // the cube's contents leave with it; what lay loose in the pocket moves to Main
+  assert.deepEqual(r.loose.map((l) => [l.id, l.home]), [['in-pocket', 'main'], ['in-main', 'main']])
+  // a trip without the bag is untouched
+  const other = tripOf({ bagIds: ['z'], placements: t.placements })
+  assert.equal(afterBagEdit(other, before, after), other)
+})
+
+test('withoutItem removes every unit of an item from a trip and unlinks it from the checklist', () => {
+  const entry = (id: string, itemIds: string[]) => ({ id, label: id, category: 'gear' as const, qty: 1, match: [id], itemIds, packed: false, source: 'manual' as const })
+  const t = tripOf({
+    placements: [{ id: 'pk', itemId: 'cube', compartmentId: 'c', x: 0, y: 0, z: 0, o: 0 }, { id: 'px', itemId: 'x', compartmentId: 'c', x: 0, y: 0, z: 0, o: 0 }],
+    loose: [{ id: 'l1', itemId: 'shirt', home: 'pk' }, { id: 'l2', itemId: 'cube', home: 'c' }, { id: 'l3', itemId: 'shirt', home: 'c' }],
+    worn: [{ id: 'w1', itemId: 'cube' }, { id: 'w2', itemId: 'x' }],
+    checklist: [entry('both', ['cube', 'x']), entry('only', ['cube']), entry('other', ['x'])],
+  })
+  const r = withoutItem(t, 'cube')
+  assert.deepEqual(r.placements.map((p) => p.id), ['px'])
+  // the shirt that was in the cube goes with it; the loose one stays
+  assert.deepEqual(r.loose.map((l) => l.id), ['l3'])
+  assert.deepEqual(r.worn.map((w) => w.id), ['w2'])
+  assert.deepEqual(r.checklist.map((c) => c.itemIds), [['x'], undefined, ['x']])
 })

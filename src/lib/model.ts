@@ -179,6 +179,26 @@ export function dropBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'
   const r = withoutPlacements(trip, new Set(mine.placements.map((p) => p.id)))
   return { placements: r.placements, loose: r.loose.filter((l) => !mine.loose.includes(l)) }
 }
+/** A trip after one of its bags was edited. Placements in compartments the bag no longer has come out, with what they held;
+ *  loose units in those compartments move to Main. The trip's other bags are left as they are. */
+export function afterBagEdit(trip: Trip, before: Bag, after: Bag): Trip {
+  if (!trip.bagIds.includes(after.id)) return trip
+  const gone = new Set(before.compartments.filter((c) => !after.compartments.some((x) => x.id === c.id)).map((c) => c.id))
+  const r = withoutPlacements(trip, new Set(trip.placements.filter((p) => gone.has(p.compartmentId)).map((p) => p.id)))
+  return { ...trip, placements: r.placements, loose: r.loose.map((l) => (gone.has(l.home) ? { ...l, home: mainOf(after).id } : l)) }
+}
+/** A trip without one item: its placements (with what they held), loose and worn units go, and checklist entries stop linking to it.
+ *  An entry whose only link it was goes back to matching by name. */
+export function withoutItem(trip: Trip, itemId: string): Trip {
+  const r = withoutPlacements(trip, new Set(trip.placements.filter((p) => p.itemId === itemId).map((p) => p.id)))
+  const checklist = trip.checklist.map((c) => {
+    if (!c.itemIds?.includes(itemId)) return c
+    const rest = c.itemIds.filter((x) => x !== itemId)
+    const { itemIds: _pinned, ...byName } = c
+    return rest.length ? { ...c, itemIds: rest } : byName
+  })
+  return { ...trip, checklist, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== itemId), worn: trip.worn.filter((w) => w.itemId !== itemId) }
+}
 /** Removes placements and, for containers, what they hold. */
 export function withoutPlacements(t: Trip, ids: Set<string>): Pick<Trip, 'placements' | 'loose'> {
   return { placements: t.placements.filter((p) => !ids.has(p.id)), loose: t.loose.filter((l) => !ids.has(l.home)) }

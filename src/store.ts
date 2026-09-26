@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { toPlacement } from './lib/packing'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -105,20 +105,13 @@ export function useStore() {
     set: (patch: Partial<State>) => setState((s) => ({ ...s, ...patch })),
     replace: (s: State) => setState(s),
     upsertItem: (it: Item) => setState((s) => ({ ...s, items: upsert(s.items, it) })),
-    removeItem: (id: string) => { api.snap(`Deleted ${name(now.current.items, id)}`); setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => { const r = withoutPlacements(t, new Set(t.placements.filter((p) => p.itemId === id).map((p) => p.id))); const checklist = t.checklist.map((c) => { if (!c.itemIds?.includes(id)) return c; const rest = c.itemIds.filter((x) => x !== id); const { itemIds: _i, ...u } = c; return rest.length ? { ...c, itemIds: rest } : u }); return { ...t, checklist, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== id), worn: t.worn.filter((w) => w.itemId !== id) } }) })) },
-    /** Saves a bag and drops placements in compartments that no longer exist or no longer hold them. */
+    removeItem: (id: string) => { api.snap(`Deleted ${name(now.current.items, id)}`); setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => withoutItem(t, id)) })) },
+    /** Saves a bag, settled so nothing floats; trips using it lose what sat in compartments it no longer has. */
     upsertBag: (raw: Bag) => setState((s) => {
       const b = { ...raw, compartments: settleCompartments(raw.compartments) }
-      return {
-      ...s, bags: upsert(s.bags, b),
-      trips: s.trips.map((t) => {
-        if (!t.bagIds.includes(b.id)) return t
-        const gone = new Set(t.placements.filter((p) => !b.compartments.some((c) => c.id === p.compartmentId)).map((p) => p.id))
-        const r = withoutPlacements(t, gone)
-        const homes = new Set([...b.compartments.map((c) => c.id), ...r.placements.map((p) => p.id)])
-        return { ...t, placements: r.placements, loose: r.loose.map((l) => (homes.has(l.home) ? l : { ...l, home: mainOf(b).id })) }
-      }),
-    } }),
+      const before = s.bags.find((x) => x.id === b.id)
+      return { ...s, bags: upsert(s.bags, b), trips: before ? s.trips.map((t) => afterBagEdit(t, before, b)) : s.trips }
+    }),
     removeBag: (id: string) => { api.snap(`Deleted ${name(now.current.bags, id)}`); setState((s) => {
       const bag = s.bags.find((b) => b.id === id)
       return { ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (bag && t.bagIds.includes(id) ? { ...t, bagIds: t.bagIds.filter((x) => x !== id), ...dropBag(bag, t), ...bagLeaves(t, id) } : t)) }
