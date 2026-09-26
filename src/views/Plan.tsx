@@ -7,6 +7,7 @@ import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { CatIcon, Icon } from '../Icon'
 import { ActionSelect, IconButton, Seg, Tab, TabList } from '../ui'
+import { useTransient } from './plan/hooks'
 
 type Mode = 'pack' | 'assemble'
 type Drag = { itemId?: string; placementId?: string; o: number; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
@@ -14,6 +15,8 @@ type Snap = { compId: string; home: string; x: number; y: number; z: number; ok:
 type PL = { p: Placement; it: Boxed; box: Placed }
 type CL = { c: Compartment; ox: number; oy: number }
 type Ghost = { left: number; top: number; w: number; h: number }
+type Fresh = { ids: Record<string, number>; from: Record<string, [number, number]> }
+const NOT_FRESH: Fresh = { ids: {}, from: {} }
 
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
 
@@ -95,24 +98,20 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const layered = !!bag && placedList.some((pl) => pl.box.z > 0 && bag.compartments.some((c) => c.id === pl.p.compartmentId))
   const [selected, setSelected] = useState<string | null>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
-  const [flash, setFlash] = useState<Ghost | null>(null)
-  // Footprints placed in the last moment, with their order in the batch. A single drop fades its wash in; an autopack batch arrives one item at a time.
-  const [fresh, setFresh] = useState<{ ids: Record<string, number>; from: Record<string, [number, number]> }>({ ids: {}, from: {} })
-  const freshT = useRef(0)
+  // A drop that doesn't fit leaves its footprint flashing red for a moment.
+  const [flash, showFlash] = useTransient<Ghost | null>(null)
+  // Footprints placed in the last moment, with their order in the batch. A single drop settles; an autopack batch arrives one item at a time.
+  const [fresh, showFresh] = useTransient<Fresh>(NOT_FRESH)
   const settle = (ids: string[], from?: Record<string, [number, number]>) => {
     const step = from ? 90 : 20
-    setFresh({ ids: Object.fromEntries(ids.map((id, i) => [id, i * step])), from: from ?? {} })
-    window.clearTimeout(freshT.current)
-    freshT.current = window.setTimeout(() => setFresh({ ids: {}, from: {} }), ids.length * step + 600)
+    showFresh({ ids: Object.fromEntries(ids.map((id, i) => [id, i * step])), from: from ?? {} }, ids.length * step + 600)
   }
   // Bars and readouts ease to new values; an autopack batch stretches that to the length of its arrival so they fill as items land.
-  const [fillMs, setFillMs] = useState(FILL_MS)
-  const fillT = useRef(0)
-  const stretch = (ms: number) => { setFillMs(ms); window.clearTimeout(fillT.current); fillT.current = window.setTimeout(() => setFillMs(FILL_MS), ms + 100) }
+  const [fillMs, showFillMs] = useTransient(FILL_MS)
+  const stretch = (ms: number) => showFillMs(ms, ms + 100)
   // A soft item has no footprint to settle, so the compartment or container that took it flashes on the drawing instead.
-  const [pulse, setPulse] = useState<{ home: string; n: number } | null>(null)
-  const pulseT = useRef(0)
-  const absorb = (home: string) => { setPulse({ home, n: Date.now() }); window.clearTimeout(pulseT.current); pulseT.current = window.setTimeout(() => setPulse(null), 700) }
+  const [pulse, showPulse] = useTransient<{ home: string; n: number } | null>(null)
+  const absorb = (home: string) => showPulse({ home, n: Date.now() }, 700)
   const say = api.say
 
   const tot = bag && trip ? bagTotals(bag, trip, items) : null
@@ -220,8 +219,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
         setSelected(pl.id)
         settle([pl.id])
       } else if (sn && g) {
-        setFlash(g)
-        window.setTimeout(() => setFlash(null), 280)
+        showFlash(g, 280)
       } else if (d.placementId) {
         const id = d.placementId
         api.snap(`Took out ${itemsRef.current.find((i) => i.id === d.itemId)?.name ?? 'it'}`)
