@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
@@ -23,7 +23,8 @@ const tok = (name: string) => new THREE.Color(getComputedStyle(document.document
 
 /** Axonometric line drawing of the assembled bag: white faces, graphite edges, dashed above the section cut, translucent soft fill. Renders on demand only. */
 export function Scene3D({ comps, cut, cam, arrange }: { comps: SceneComp[]; cut: number; cam: { view: CamView; n: number }; arrange?: Arrange }) {
-  const arr = useRef(arrange); arr.current = arrange
+  // The scene's listeners are set up once; this reads the arrange props of the latest render.
+  const arrangeNow = useEffectEvent(() => arrange)
   const host = useRef<HTMLDivElement>(null)
   const ctx = useRef<Ctx | null>(null)
   const [themeN, setThemeN] = useState(0)
@@ -64,18 +65,19 @@ export function Scene3D({ comps, cut, cam, arrange }: { comps: SceneComp[]; cut:
       const o = gizmo.object, id = o?.userData.id as string | undefined
       if (!o || !id) return
       // The group sits at the compartment's corner in scene space; back to cm from the bag's corner.
-      arr.current?.onMove(id, { x: Math.round(o.position.x + c.ext.EL / 2), y: Math.round(o.position.z + c.ext.EW / 2), z: Math.max(0, Math.round(o.position.y + c.ext.EH / 2)) })
+      arrangeNow()?.onMove(id, { x: Math.round(o.position.x + c.ext.EL / 2), y: Math.round(o.position.z + c.ext.EW / 2), z: Math.max(0, Math.round(o.position.y + c.ext.EH / 2)) })
     })
     // A click (not a drag) picks the compartment under the pointer, or clears the pick.
     let down: [number, number] | null = null
     const onDown = (e: PointerEvent) => { down = [e.clientX, e.clientY] }
     const onUp = (e: PointerEvent) => {
-      if (!arr.current || !down || gizmo.dragging || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return
+      const arr = arrangeNow()
+      if (!arr || !down || gizmo.dragging || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return
       const r = renderer.domElement.getBoundingClientRect()
       const ray = new THREE.Raycaster()
       ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera)
       const hit = ray.intersectObjects(c.pick, false)[0]
-      arr.current.onSelect((hit?.object.userData.id as string) ?? null)
+      arr.onSelect((hit?.object.userData.id as string) ?? null)
     }
     renderer.domElement.addEventListener('pointerdown', onDown)
     renderer.domElement.addEventListener('pointerup', onUp)

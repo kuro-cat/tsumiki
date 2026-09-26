@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
 import { BLOCKS, bagVolume, blockKey, fmtDim, fmtVol, fmtW, newBag, newCompartment, type Bag, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
@@ -51,10 +51,11 @@ export function Bags({ state, api }: ViewProps) {
   // Reorder by dragging the grip: the first bag is what a new trip starts with. Alt+arrows do the same from the keyboard.
   const listRef = useRef<HTMLDivElement>(null)
   const [lift, setLift] = useState<{ from: number; to: number } | null>(null)
-  const liftRef = useRef(lift); liftRef.current = lift
   const grab = (e: RPointerEvent, from: number) => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); setLift({ from, to: from }) }
+  const drop = useEffectEvent(() => { setLift(null); if (lift && lift.from !== lift.to) api.moveBag(lift.from, lift.to) })
+  const lifting = lift !== null
   useEffect(() => {
-    if (!lift) return
+    if (!lifting) return
     const rows = () => [...(listRef.current?.querySelectorAll<HTMLElement>('.trow.bag') ?? [])]
     const mv = (e: PointerEvent) => {
       const mids = rows().map((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 })
@@ -62,10 +63,10 @@ export function Bags({ state, api }: ViewProps) {
       if (to < 0) to = mids.length - 1
       setLift((l) => l && { ...l, to })
     }
-    const up = () => { const l = liftRef.current; setLift(null); if (l && l.from !== l.to) api.moveBag(l.from, l.to) }
+    const up = () => drop()
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up)
     return () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up) }
-  }, [lift !== null]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lifting])
   const keyMove = (e: KeyboardEvent, i: number) => {
     if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
     e.preventDefault()

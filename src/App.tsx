@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { tripBags, useStore, type Api, type State } from './store'
 import { Plan } from './views/Plan'
 import { Inventory } from './views/Inventory'
@@ -34,11 +34,12 @@ function useTheme() {
 /** One notice at a time, pinned to the bottom of the screen so it's seen wherever the traveler is scrolled. Undo stays for 6 s. */
 function Notices({ api }: { api: Api }) {
   const n = api.notice
+  const dismiss = useEffectEvent(() => api.dismiss())
   useEffect(() => {
     if (!n) return
-    const t = window.setTimeout(api.dismiss, n.undo ? 6000 : 3000)
+    const t = window.setTimeout(() => dismiss(), n.undo ? 6000 : 3000)
     return () => window.clearTimeout(t)
-  }, [n?.n]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [n])
   return (
     <div className="notices" role="status" aria-live="polite">
       {n && (
