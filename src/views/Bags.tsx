@@ -4,6 +4,7 @@ import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
 import { useSort } from './Sort'
 import { Blank } from './Blank'
+import { Field, FormCard, IconButton, PageHead, UnitInput, useEditor } from '../ui'
 
 const blank = (): Bag => ({ ...newBag('', 50, 32, 20, 1200, null) })
 const PRESETS = [
@@ -19,9 +20,8 @@ const AXIS: Record<Num, string> = { l: 'L', w: 'W', h: 'D', x: 'X', y: 'Y', z: '
 const AXIS_NAME: Record<Num, string> = { l: 'length', w: 'width', h: 'depth', x: 'X position', y: 'Y position', z: 'Z position' }
 
 export function Bags({ state, api }: ViewProps) {
-  const [form, setForm] = useState<Bag>(blank)
-  const [editing, setEditing] = useState(false)
-  const [open, setOpen] = useState(false)
+  const ed = useEditor(blank)
+  const { form, setForm, editing } = ed
   const set = <K extends keyof Bag>(k: K, v: Bag[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setComp = (id: string, patch: Partial<Compartment>) => set('compartments', form.compartments.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   const numC = (id: string, k: Num) => (e: ChangeEvent<HTMLInputElement>) => setComp(id, { [k]: Number(e.target.value) })
@@ -29,13 +29,12 @@ export function Bags({ state, api }: ViewProps) {
     const last = form.compartments[form.compartments.length - 1]
     set('compartments', [...form.compartments, newCompartment(`Pocket ${form.compartments.length}`, 20, 12, 5, last ? last.x + last.l + 2 : 0, 0, 0)])
   }
-  const cancel = () => { setForm(blank()); setEditing(false); setOpen(false) }
   const save = (e: FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || !form.compartments.length) return
     const { sample: _s, ...rest } = form
     api.upsertBag({ ...rest, name: form.name.trim(), compartments: form.compartments.map((c) => ({ ...c, name: c.name.trim() || 'Compartment' })) })
-    cancel()
+    ed.close()
   }
   const usedBy = (id: string) => state.trips.filter((t) => t.bagIds.includes(id)).length
   const by = useSort<Bag>([
@@ -78,62 +77,58 @@ export function Bags({ state, api }: ViewProps) {
 
   return (
     <section className="page">
-      <div className="page-head">
-        <h1>Bags</h1>
-        <div className="right">{!open && <button className="btn primary" onClick={() => { setForm(blank()); setEditing(false); setOpen(true) }}><Icon name="plus" />Add bag</button>}</div>
-      </div>
-      {open && <form className="form" onSubmit={save} aria-label={editing ? 'Edit bag' : 'Add bag'}>
-        <div className="form-title"><h2>{editing ? form.name || 'Edit bag' : 'New bag'}</h2><button type="button" className="btn quiet" onClick={cancel} aria-label="Close"><Icon name="x" /></button></div>
-        {!editing && <div className="presets cluster">
-          <span className="label">Start from</span>
-          {PRESETS.map((p) => (
-            <button key={p.name} type="button" className="chip" onClick={() => applyPreset(p)}>{p.name}<span className="dim">{fmtDim(p)}</span></button>
-          ))}
-          <span className="hint">Rough inside sizes. Check your airline's.</span>
-        </div>}
-        <label className="field s6"><span className="label">Name</span><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></label>
-        <label className="field s3"><span className="label">Empty weight</span><span className="unit"><input type="number" min={0} step={0.05} value={form.empty / 1000} onChange={(e) => set('empty', Math.round(Number(e.target.value) * 1000))} required /><span className="dim">kg</span></span></label>
-        <label className="field s3"><span className="label">Weight limit</span><span className="unit"><input type="number" min={0} step={0.5} value={form.limit == null ? '' : form.limit / 1000} onChange={(e) => set('limit', e.target.value === '' ? null : Math.round(Number(e.target.value) * 1000))} placeholder="none" /><span className="dim">kg</span></span></label>
-        <div className="field s12">
-          <span className="label">Compartments<span className="dim">inside size in cm; X Y Z is where it sits</span></span>
-          <div className="comps">
-            {form.compartments.map((c, i) => (
-              <div key={c.id} className="comp">
-                <input type="text" value={c.name} onChange={(e) => setComp(c.id, { name: e.target.value })} aria-label="Compartment name" placeholder={i === 0 ? 'Main' : 'Pocket'} />
-                <label className="cswatch" style={{ '--blk': `var(--${blockKey(c, i)})` } as CSSProperties} title="Colour on the plan">
-                  <select value={c.color ?? ''} onChange={(e) => setComp(c.id, { color: (e.target.value || undefined) as Compartment['color'] })} aria-label={`${c.name || 'Compartment'} colour`}>
-                    <option value="">Auto ({BLOCKS[i % 4][1]})</option>
-                    {BLOCKS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-                  </select>
-                </label>
-                {(['l', 'w', 'h', 'x', 'y', 'z'] as Num[]).map((k) => (
-                  <label key={k} className={'cin' + (k === 'x' ? ' x' : '')}>
-                    <span className="label">{AXIS[k]}</span>
-                    <input type="number" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
-                  </label>
-                ))}
-                <button type="button" className="btn quiet" onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} aria-label={`Remove ${c.name}`} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'}><Icon name="x" /></button>
-              </div>
-            ))}
-          </div>
-          <div className="cluster">
-            <button type="button" className="btn text" onClick={addComp}><Icon name="plus" />Add compartment</button>
-          </div>
-        </div>
-        <div className="form-actions">
+      <PageHead title="Bags" actions={!ed.open && <button className="btn primary" onClick={ed.add}><Icon name="plus" />Add bag</button>} />
+      {ed.open && (
+        <FormCard label={editing ? 'Edit bag' : 'Add bag'} title={editing ? form.name || 'Edit bag' : 'New bag'} onSubmit={save} onClose={ed.close} actions={<>
           <button className="btn primary" type="submit">{editing ? 'Save changes' : 'Add bag'}</button>
-          <button className="btn text" type="button" onClick={cancel}>Cancel</button>
+          <button className="btn text" type="button" onClick={ed.close}>Cancel</button>
           {editing && (
             <div className="right">
-              <button className="btn danger" type="button" onClick={() => { api.removeBag(form.id); cancel() }} title={usedBy(form.id) ? 'Trips using this bag will lose their placements' : undefined}>Delete bag</button>
+              <button className="btn danger" type="button" onClick={() => { api.removeBag(form.id); ed.close() }} title={usedBy(form.id) ? 'Trips using this bag will lose their placements' : undefined}>Delete bag</button>
             </div>
           )}
-        </div>
-      </form>}
+        </>}>
+          {!editing && <div className="presets cluster">
+            <span className="label">Start from</span>
+            {PRESETS.map((p) => (
+              <button key={p.name} type="button" className="chip" onClick={() => applyPreset(p)}>{p.name}<span className="dim">{fmtDim(p)}</span></button>
+            ))}
+            <span className="hint">Rough inside sizes. Check your airline's.</span>
+          </div>}
+          <Field label="Name" span={6}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></Field>
+          <Field label="Empty weight" span={3}><UnitInput unit="kg" min={0} step={0.05} value={form.empty / 1000} onChange={(e) => set('empty', Math.round(Number(e.target.value) * 1000))} required /></Field>
+          <Field label="Weight limit" span={3}><UnitInput unit="kg" min={0} step={0.5} value={form.limit == null ? '' : form.limit / 1000} onChange={(e) => set('limit', e.target.value === '' ? null : Math.round(Number(e.target.value) * 1000))} placeholder="none" /></Field>
+          <Field label={<>Compartments<span className="dim">inside size in cm; X Y Z is where it sits</span></>} span={12} group>
+            <div className="comps">
+              {form.compartments.map((c, i) => (
+                <div key={c.id} className="comp">
+                  <input type="text" value={c.name} onChange={(e) => setComp(c.id, { name: e.target.value })} aria-label="Compartment name" placeholder={i === 0 ? 'Main' : 'Pocket'} />
+                  <label className="cswatch" style={{ '--blk': `var(--${blockKey(c, i)})` } as CSSProperties} title="Colour on the plan">
+                    <select value={c.color ?? ''} onChange={(e) => setComp(c.id, { color: (e.target.value || undefined) as Compartment['color'] })} aria-label={`${c.name || 'Compartment'} colour`}>
+                      <option value="">Auto ({BLOCKS[i % 4][1]})</option>
+                      {BLOCKS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                    </select>
+                  </label>
+                  {(['l', 'w', 'h', 'x', 'y', 'z'] as Num[]).map((k) => (
+                    <label key={k} className={'cin' + (k === 'x' ? ' x' : '')}>
+                      <span className="label">{AXIS[k]}</span>
+                      <input type="number" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
+                    </label>
+                  ))}
+                  <IconButton icon="x" label={`Remove ${c.name}`} onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'} />
+                </div>
+              ))}
+            </div>
+            <div className="cluster">
+              <button type="button" className="btn text" onClick={addComp}><Icon name="plus" />Add compartment</button>
+            </div>
+          </Field>
+        </FormCard>
+      )}
       <div className="table" ref={listRef}>
         <div className="trow head sortable" style={COLS}>{by.head}</div>
         {list.map((b) => { const i = state.bags.indexOf(b); return (
-          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => { setForm(b); setEditing(true); setOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
+          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => ed.edit(b)} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
             <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span className="truncate">{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}</span>
             <span className="num">{fmtDim(b.compartments[0])}</span>
             <span className="num">{fmtVol(bagVolume(b))}</span>
