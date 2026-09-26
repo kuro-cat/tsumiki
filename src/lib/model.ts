@@ -1,4 +1,4 @@
-import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, fillHeight, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
+import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, dropZ, fillHeight, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
 
 export type Category = 'clothing' | 'footwear' | 'toiletries' | 'electronics' | 'documents' | 'gear' | 'misc'
 export const CATEGORIES: Category[] = ['clothing', 'footwear', 'toiletries', 'electronics', 'documents', 'gear', 'misc']
@@ -15,8 +15,12 @@ export type Item = RigidItem | SoftItem | ContainerItem
 /** Anything with a placement: rigid items and containers. */
 export type Boxed = RigidItem | ContainerItem
 export const isBoxed = (i: Item): i is Boxed => i.kind !== 'soft'
-/** One box-shaped space inside a bag. x, y, z is where the traveler assembled it relative to the bag; Main is first. */
-export type Compartment = { id: string; name: string; l: number; w: number; h: number; x: number; y: number; z: number }
+/** One box-shaped space inside a bag. x, y, z is where the traveler assembled it relative to the bag; Main is first. color is a block key, absent for the default by position. */
+export type Compartment = { id: string; name: string; l: number; w: number; h: number; x: number; y: number; z: number; color?: BlockKey }
+/** The block colours a compartment can wear, by CSS token. Compartments default to the first four by position. */
+export const BLOCKS = [['b1', 'Spruce'], ['b2', 'Moss'], ['b3', 'Lake'], ['b4', 'Bark'], ['b5', 'Fern'], ['b6', 'Slate sea']] as const
+export type BlockKey = (typeof BLOCKS)[number][0]
+export const blockKey = (c: Pick<Compartment, 'color'>, i: number): BlockKey => c.color ?? BLOCKS[i % 4][0]
 export type Bag = { id: string; name: string; empty: number; limit: number | null; compartments: Compartment[]; sample?: boolean }
 /** o is the orientation index, see pack.ts. */
 export type Placement = { id: string; itemId: string; compartmentId: string; x: number; y: number; z: number; o: number }
@@ -47,7 +51,9 @@ export const defaultKind = (c: Category): Kind => (c === 'clothing' ? 'soft' : '
 export const defaultUp = (c: Category) => c === 'electronics' || c === 'toiletries'
 export const orientationsOf = (it: Boxed) => (it.up ? UPRIGHT : ALL_ORIENTATIONS)
 /** Colored-pencil set for items: hues kept clear of the provisional and wrong inks on both themes. */
-export const SWATCHES = ['#c8714a', '#d0a33a', '#7d9b3f', '#3a9b8c', '#8a6bb8', '#b25e8f', '#8c6a4a', '#d98a9a']
+export const SWATCHES = ['#c98b52', '#d0a33a', '#7d9b3f', '#3a9b8c', '#4f7fae', '#6e8c9e', '#8c6a4a', '#b8a07a']
+/** Swatches retired for reading as purple or pink, and what saved items wear instead. */
+export const RETIRED_SWATCHES: Record<string, string> = { '#8a6bb8': '#4f7fae', '#b25e8f': '#6e8c9e', '#d98a9a': '#b8a07a', '#c8714a': '#c98b52' }
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
@@ -67,7 +73,7 @@ export const isPacked = (c: CheckItem, trip: Trip, items: Item[]) => c.packed ||
 export const fmtW = (g: number) => (Math.abs(g) >= 1000 ? (g / 1000).toFixed(2) + ' kg' : Math.round(g) + ' g')
 export const fmtDim = (b: { l: number; w: number; h: number }) => `${b.l} × ${b.w} × ${b.h}`
 export const fmtVol = (cm3: number) => (cm3 / 1000).toFixed(1) + ' L'
-export const fmtSize = (i: Item) => (i.kind === 'soft' ? `${i.volume} L · packs to ${i.packsTo} %` : i.kind === 'container' ? `${fmtDim(i)} cm · holds ${i.capacity} L` : `${fmtDim(i)} cm`)
+export const fmtSize = (i: Item) => (i.kind === 'soft' ? `${i.volume} L, ${(packedVolume(i) / 1000).toFixed(1)} L packed` : i.kind === 'container' ? `${fmtDim(i)} cm · holds ${i.capacity} L` : `${fmtDim(i)} cm`)
 export const fmtDate = (s: string) => new Date(s + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
 /** Packed Volume in cm³: what a soft item takes once stuffed into a bag. */
@@ -125,8 +131,9 @@ export function bagTotals(bag: Bag, trip: Trip, items: Item[]) {
   const total = actual ?? estimate
   const boxes = placedBoxes(trip, items), lv = looseVolumes(trip, items)
   const rigidVol = placements.reduce((a, p) => { const it = find(p.itemId); return a + (it && isBoxed(it) ? volume(it) : 0) }, 0)
-  const looseVol = loose.reduce((a, l) => { const it = find(l.itemId); return a + (it?.kind === 'soft' ? packedVolume(it) : 0) }, 0)
   const pids = new Set(placements.map((p) => p.id))
+  // What sits inside a container is already inside its box, which rigidVol counts; only soft items loose in a compartment add room taken.
+  const looseVol = loose.reduce((a, l) => { const it = find(l.itemId); return a + (it?.kind === 'soft' && !pids.has(l.home) ? packedVolume(it) : 0) }, 0)
   const over = bag.compartments.some((c) => fillOf(c, boxes[c.id] ?? [], lv[c.id] ?? 0).over) || placedContainers(trip, items).some((c) => pids.has(c.id) && containerFill(c.it, lv[c.id] ?? 0).over)
   return { count: placements.length + loose.length, itemsW, estimate, actual, total, limit: bag.limit, margin: bag.limit == null ? null : bag.limit - total, wState: weightState(total, bag.limit), fill: (rigidVol + looseVol) / bagVolume(bag), over }
 }
@@ -209,6 +216,16 @@ export function repack(from: Bag, to: Bag, trip: Trip, items: Item[]): Pick<Trip
     return [{ ...l, home }]
   })
   return { placements: next.placements, loose: [...rest.loose, ...loose] }
+}
+
+/** Gravity for an assembled bag: lowest first, each compartment comes to rest on the floor or on whatever is under it, so nothing floats.
+ *  z only orders the stack (raise one above another to put it on top). Anything moved past the bag's corner shifts the assembly back to 0. */
+export function settleCompartments(comps: Compartment[]): Compartment[] {
+  const mx = Math.min(0, ...comps.map((c) => c.x)), my = Math.min(0, ...comps.map((c) => c.y))
+  const order = comps.map((c, i) => ({ c: { ...c, x: c.x - mx, y: c.y - my }, i })).sort((a, b) => a.c.z - b.c.z || a.i - b.i)
+  const settled: Compartment[] = []
+  for (const { c } of order) settled.push({ ...c, z: dropZ(settled, c) })
+  return comps.map((c) => settled.find((s) => s.id === c.id)!)
 }
 
 /** Turns a compartment 90° in plan and carries its placements with it. */

@@ -1,16 +1,24 @@
-import { useState, type CSSProperties, type FormEvent } from 'react'
-import { CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Bag, type SharedLimit, type Trip } from '../store'
+import { useState, type FormEvent } from 'react'
+import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
+import { Blank } from './Blank'
 
-const COLS = { '--cols': 'minmax(0, 1fr) 120px 70px' } as CSSProperties
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
 
 export function Trips({ state, api, go }: ViewProps) {
   const [editId, setEditId] = useState<string | null>(state.activeTripId)
   const trip = state.trips.find((t) => t.id === editId) ?? state.trips[0] ?? null
-  const [manual, setManual] = useState('')
+  // The Add form: link is '' to guess from the name, '*none' for not in the inventory, or an item id.
+  const blankDraft = { label: '', category: 'misc' as Category, qty: 1, link: '', note: '' }
+  const [draft, setDraft] = useState<typeof blankDraft | null>(null)
+  // Details show as one summary until Edit; checklist rows open for linking on click.
+  // A trip nobody has named yet opens straight into its details.
+  const [editing, setEditing] = useState(() => !!trip && trip.name === 'New trip' && !trip.checklist.length)
+  const [openRow, setOpenRow] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; red?: boolean } | null>(null)
   const patch = (p: Partial<Trip>) => trip && api.patchTrip(trip.id, p)
@@ -19,6 +27,7 @@ export function Trips({ state, api, go }: ViewProps) {
     const t = newTrip(state.bags[0]?.id ?? null)
     api.upsertTrip(t)
     setEditId(t.id)
+    setEditing(true)
     setMsg(null)
   }
   const regenerate = () => {
@@ -51,12 +60,14 @@ export function Trips({ state, api, go }: ViewProps) {
       setBusy(false)
     }
   }
-  const addManual = (e: FormEvent) => {
+  const addEntry = (e: FormEvent) => {
     e.preventDefault()
-    const label = manual.trim()
-    if (!trip || !label) return
-    api.patchTrip(trip.id, (t) => ({ checklist: [...t.checklist, { ...withLink({ label, category: 'misc' as const, qty: 1, match: [label.toLowerCase()], source: 'manual' as const }, state.items), id: uid(), packed: false }] }))
-    setManual('')
+    const label = draft?.label.trim()
+    if (!trip || !draft || !label) return
+    const base: Omit<CheckItem, 'id' | 'packed'> = { label, category: draft.category, qty: Math.max(1, draft.qty), match: [label.toLowerCase()], source: 'manual', ...(draft.note.trim() ? { note: draft.note.trim() } : {}) }
+    const entry = draft.link === '' ? withLink(base, state.items) : { ...base, itemIds: draft.link === '*none' ? [] : [draft.link] }
+    api.patchTrip(trip.id, (t) => ({ checklist: [{ ...entry, id: uid(), packed: false }, ...t.checklist] }))
+    setDraft(null)
   }
   const toggleAct = (a: string) => trip && patch({ activities: trip.activities.includes(a) ? trip.activities.filter((x) => x !== a) : [...trip.activities, a] })
   const open = () => { if (trip) { api.set({ activeTripId: trip.id }); go('Plan') } }
@@ -67,35 +78,48 @@ export function Trips({ state, api, go }: ViewProps) {
   }
 
   return (
-    <section className="page">
+    <section className="page narrow">
       <div className="page-head">
         <h1>Trips</h1>
-        <p className="muted">Dates, weather, and activities make the checklist; the bags make the plan.</p>
-        <button className="btn" style={{ marginLeft: 'auto' }} onClick={startNew}><Icon name="plus" />New trip</button>
+        <div className="right"><button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button></div>
       </div>
-      <div className="trip-grid">
-        <div className="table">
-          <div className="trow head" style={COLS}><span className="label">Trip</span><span className="label">Dates</span><span className="label num">Packed</span></div>
+      {/* Trips as sheet tabs across the top; the chosen trip gets the full width below. */}
+      {state.trips.length > 0 ? (
+        <div className="trip-tabs" role="tablist" aria-label="Trips">
           {state.trips.map((t) => {
             const done = t.checklist.filter((c) => isPacked(c, t, state.items)).length
             return (
-              <button key={t.id} type="button" className="trow" style={COLS} aria-current={trip?.id === t.id ? 'true' : undefined} onClick={() => { setEditId(t.id); setMsg(null) }}>
-                <span className="name"><span>{t.name}{t.destination ? ` · ${t.destination}` : ''}</span>{t.sample && <span className="tag">sample</span>}</span>
-                <span className="dim">{fmtDate(t.start)} – {fmtDate(t.end)}</span>
-                <span className="num">{done} / {t.checklist.length}</span>
+              <button key={t.id} role="tab" type="button" className="bagtab" aria-selected={trip?.id === t.id} onClick={() => { setEditId(t.id); setEditing(false); setOpenRow(null); setMsg(null) }}>
+                <span className="name">{t.name}</span>
+                <span className="num">{fmtDate(t.start)} · {done} of {t.checklist.length}</span>
               </button>
             )
           })}
-          {!state.trips.length && <div className="empty"><p>No trips yet.</p><button className="btn" onClick={startNew}>Start the first one</button></div>}
         </div>
-
+      ) : <Blank art="list" title="No trips yet">A trip turns its dates, weather and plans into a checklist.<button className="btn primary" onClick={startNew}>Start the first one</button></Blank>}
+      <div className="trip-body">
         {trip && (
           <div style={{ display: 'grid', gap: 24 }}>
+            {!editing ? (
+              <div className="panel trip-card">
+                <div>
+                  <h2>{trip.name}</h2>
+                  <p className="when">{fmtDate(trip.start)} – {fmtDate(trip.end)} · {nights(trip)} nights{trip.destination ? ` · ${trip.destination}` : ''}</p>
+                </div>
+                <div className="facts">{[trip.climate, trip.kind, ...trip.activities].map((f) => <span key={f} className="tag">{cap(f)}</span>)}</div>
+                <p className="muted">{tripBags(trip, state.bags).map((b) => b.name).join(' and ') || 'No bags yet'}{trip.shared?.length ? ', sharing a limit' : ''}</p>
+                <div className="actions">
+                  <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
+                  <button className="btn" type="button" onClick={() => setEditing(true)}>Edit trip</button>
+                </div>
+              </div>
+            ) : (
             <form className="form" onSubmit={(e) => e.preventDefault()} aria-label="Trip details">
+              <div className="form-title"><h2>Edit trip</h2><button type="button" className="btn primary" onClick={() => setEditing(false)}>Done</button></div>
               <label className="field s6"><span className="label">Name</span><input type="text" value={trip.name} onChange={(e) => patch({ name: e.target.value })} required /></label>
               <label className="field s6"><span className="label">Destination</span><input type="text" value={trip.destination} onChange={(e) => patch({ destination: e.target.value })} placeholder="City, country" /></label>
-              <label className="field s3"><span className="label">Leave</span><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></label>
-              <label className="field s3"><span className="label">Return</span><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></label>
+              <label className="field s6"><span className="label">Leave</span><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></label>
+              <label className="field s6"><span className="label">Return</span><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></label>
               <div className="field s12"><span className="label">Bags</span>
                 <div className="tripbags">
                   {tripBags(trip, state.bags).map((b) => {
@@ -104,11 +128,11 @@ export function Trips({ state, api, go }: ViewProps) {
                       <div key={b.id} className="tripbag">
                         <span className="name">{b.name}</span>
                         <span className="dim">{inBag(b, trip).placements.length + inBag(b, trip).loose.length} items</span>
-                        <select className="act" aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items), ...bagLeaves(t, b.id, to.id) })) }}>
+                        <select className="act" aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) { api.snap(`Swapped ${b.name} for ${to.name}`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items), ...bagLeaves(t, b.id, to.id) })) } }}>
                           <option value="">Swap for…</option>
                           {others.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                         </select>
-                        <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) }))} aria-label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule"><Icon name="x" /></button>
+                        <button className="btn quiet" type="button" onClick={() => { api.snap(`Took ${b.name} off the trip`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) })) }} aria-label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule"><Icon name="x" /></button>
                       </div>
                     )
                   })}
@@ -118,61 +142,84 @@ export function Trips({ state, api, go }: ViewProps) {
                       {state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                   ) : !trip.bagIds.length && <span className="hint">No bags yet. Add one under Bags.</span>}
-                  <SharedLimits trip={trip} bags={tripBags(trip, state.bags)} onChange={(shared) => patch({ shared })} />
+                  <SharedLimits trip={trip} bags={tripBags(trip, state.bags)} onChange={(shared) => { if (shared.length < (trip.shared?.length ?? 0)) api.snap('Removed the shared limit'); patch({ shared }) }} />
                 </div>
               </div>
-              <div className="field s6"><span className="label">Weather</span>
-                <div className="seg" role="group" aria-label="Weather">{CLIMATES.map((c) => <button key={c} type="button" aria-pressed={trip.climate === c} onClick={() => patch({ climate: c })}>{c}</button>)}</div>
+              <div className="field s12"><span className="label">Weather</span>
+                <div className="seg" role="group" aria-label="Weather">{CLIMATES.map((c) => <button key={c} type="button" aria-pressed={trip.climate === c} onClick={() => patch({ climate: c })}>{cap(c)}</button>)}</div>
               </div>
-              <div className="field s6"><span className="label">Kind of trip</span>
-                <div className="seg" role="group" aria-label="Kind of trip">{KINDS.map((k) => <button key={k} type="button" aria-pressed={trip.kind === k} onClick={() => patch({ kind: k })}>{k}</button>)}</div>
+              <div className="field s12"><span className="label">Kind of trip</span>
+                <div className="seg" role="group" aria-label="Kind of trip">{KINDS.map((k) => <button key={k} type="button" aria-pressed={trip.kind === k} onClick={() => patch({ kind: k })}>{cap(k)}</button>)}</div>
               </div>
               <div className="field s12"><span className="label">Activities</span>
-                <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{a}</label>)}</div>
+                <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{cap(a)}</label>)}</div>
               </div>
               <div className="form-actions">
-                <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
                 <span className="hint">{nights(trip)} nights</span>
                 <div className="right"><button className="btn danger" type="button" onClick={remove}>Delete trip</button></div>
               </div>
             </form>
+            )}
 
             <div style={{ display: 'grid', gap: 10 }}>
               <div className="page-head" style={{ gap: 10 }}>
                 <h2>Checklist</h2>
-                <span className="label">{trip.checklist.filter((c) => isPacked(c, trip, state.items)).length} / {trip.checklist.length} packed</span>
+                <span className="label">{trip.checklist.filter((c) => isPacked(c, trip, state.items)).length} of {trip.checklist.length} packed</span>
               </div>
               <div className="tools">
+                {!draft && <button className="btn primary" type="button" onClick={() => setDraft(blankDraft)}><Icon name="plus" />Add</button>}
                 <button className="btn" type="button" onClick={regenerate}>Suggest from trip</button>
                 <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking Claude…' : 'Ask Claude for extras'}</button>
                 {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
               </div>
+              {draft && (
+                <form className="form" onSubmit={addEntry} aria-label="Add to the checklist">
+                  <div className="form-title"><h2>Add to the list</h2><button type="button" className="btn quiet" onClick={() => setDraft(null)} aria-label="Close"><Icon name="x" /></button></div>
+                  <label className="field s6"><span className="label">Name</span><input type="text" autoFocus value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Gift for the hosts" required /></label>
+                  <label className="field s4"><span className="label">Category</span><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{cap(c)}</option>)}</select></label>
+                  <label className="field s2"><span className="label">Quantity</span><input type="number" min={1} step={1} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} required /></label>
+                  <label className="field s6"><span className="label">Linked item</span>
+                    <select value={draft.link} onChange={(e) => { const it = state.items.find((i) => i.id === e.target.value); setDraft({ ...draft, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>
+                      <option value="">Match by name</option>
+                      {[...state.items].sort((a, b) => a.name.localeCompare(b.name)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                      <option value="*none">Nothing I own (tick it by hand)</option>
+                    </select>
+                  </label>
+                  <label className="field s6"><span className="label">Note <span className="dim">optional</span></span><input type="text" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="Buy at the airport" /></label>
+                  <div className="form-actions">
+                    <button className="btn primary" type="submit" disabled={!draft.label.trim()}>Add to the list</button>
+                    <button className="btn text" type="button" onClick={() => setDraft(null)}>Cancel</button>
+                  </div>
+                </form>
+              )}
               <div className="check-list">
                 {trip.checklist.map((c) => {
                   const linked = linkedItems(c, state.items)
                   const units = entryUnits(c, trip, state.items)
                   const packed = isPacked(c, trip, state.items)
-                  const mark = packed ? ' on' : units > 0 ? ' half' : linked.length ? '' : ' miss'
                   const setLink = (itemIds: string[]) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, itemIds } : x)) }))
                   return (
                     <div key={c.id} className={'check-row' + (packed ? ' done' : '')}>
-                      <span className={'mark' + mark} aria-label={packed ? 'packed' : units > 0 ? 'partly packed' : linked.length ? 'in inventory' : 'not in inventory'} />
-                      <span className="lbl">
+                      {/* Ticking happens on the plan; here the mark only reports: packed, how many of how many, or not owned. */}
+                      <Progress done={packed} units={units} qty={c.qty} owned={linked.length > 0} />
+                      <button type="button" className="lbl" aria-expanded={openRow === c.id} onClick={() => setOpenRow(openRow === c.id ? null : c.id)}>
                         <span className="entry"><CatIcon it={{ category: c.category, color: linked[0]?.color }} /><span>{c.label}</span></span>
-                        <small>{c.packed && !linked.length ? 'ticked' : linked.length ? `${units} / ${c.qty}` : c.note ?? 'not in inventory'}{c.itemIds ? '' : linked.length ? ' · guessed' : ''}</small>
-                        <LinkPicker entry={c} items={state.items} onChange={setLink} />
-                      </span>
-                      {c.source === 'rule' ? <span /> : <span className={'tag' + (c.source === 'ai' ? ' blue' : '')}>{c.source}</span>}
-                      <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) }))} aria-label={`Remove ${c.label}`}><Icon name="x" /></button>
+                        <span className="count">{c.packed && !linked.length ? 'Ticked' : linked.length ? `${units} of ${c.qty}` : 'Not in inventory'}</span>
+                        <span className="chev" aria-hidden="true"><Icon name="chev" /></span>
+                      </button>
+                      {c.source === 'ai' ? <span className="tag blue">Claude</span> : c.source === 'manual' ? <span className="tag">Yours</span> : <span />}
+                      {openRow === c.id && (
+                        <div className="more">
+                          <span className="hint">{c.note ? `${c.note}. ` : ''}{linked.length ? (c.itemIds ? 'Packed when these are in a bag:' : 'Matched by name. Packed when these are in a bag:') : 'Link it to something you own, or tick it off on the plan.'}</span>
+                          <LinkPicker entry={c} items={state.items} onChange={setLink} />
+                          <div><button className="btn text" type="button" onClick={() => { api.snap(`Removed ${c.label}`); api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) })) }}><Icon name="x" />Remove from the list</button></div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
-                {!trip.checklist.length && <div className="empty"><p>Empty. Suggest from the trip, or add your own below.</p></div>}
+                {!trip.checklist.length && <Blank art="list" title="The list is empty">Suggest one from the trip, or add your own.</Blank>}
               </div>
-              <form className="add-row" onSubmit={addManual}>
-                <label className="field" style={{ flex: 1 }}><span className="label">Add your own</span><input type="text" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Gift for the hosts" /></label>
-                <button className="btn" type="submit" disabled={!manual.trim()}>Add</button>
-              </form>
             </div>
           </div>
         )}
@@ -212,4 +259,12 @@ function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onCha
       )}
     </>
   )
+}
+
+/** What a checklist entry's mark reports on the trip page: a tick when packed, a small bar of units for linked items, a dash when not owned. */
+function Progress({ done, units, qty, owned }: { done: boolean; units: number; qty: number; owned: boolean }) {
+  if (done) return <span className="glyph done" aria-label="packed"><Icon name="check" /></span>
+  if (!owned) return <span className="glyph none" aria-label="not in inventory" />
+  const n = Math.min(qty, 6), f = (units / qty) * n
+  return <span className="glyph units" aria-label={`${units} of ${qty} packed`}>{Array.from({ length: n }, (_, i) => <i key={i} className={i < Math.floor(f) ? 'on' : ''} />)}</span>
 }

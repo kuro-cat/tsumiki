@@ -13,6 +13,7 @@ const P = {
   arrow: 'M3 8h10M9.5 4.5L13 8l-3.5 3.5',
   up: 'M8 12.5v-9M4.5 7L8 3.5 11.5 7',
   down: 'M8 3.5v9M4.5 9L8 12.5 11.5 9',
+  chev: 'M4.5 6.5L8 10l3.5-3.5',
   spark: 'M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3M4.5 4.5l1.5 1.5M10 10l1.5 1.5M11.5 4.5L10 6M6 10l-1.5 1.5',
 } as const
 
@@ -29,5 +30,5 @@ const CAT: Record<Category, LucideIcon> = { clothing: Shirt, footwear: Footprint
 /** An item's category, drawn in its own colour when it has one. */
 export function CatIcon({ it }: { it: { category: Category; color?: string } }) {
   const C = CAT[it.category]
-  return <C className={'cat' + (it.color ? ' tinted' : '')} size={14} strokeWidth={2} style={it.color ? ({ '--sw': it.color } as CSSProperties) : undefined} aria-hidden="true" />
+  return <C className={'cat' + (it.color ? ' tinted' : '')} size={18} strokeWidth={2} style={it.color ? ({ '--sw': it.color } as CSSProperties) : undefined} aria-hidden="true" />
 }

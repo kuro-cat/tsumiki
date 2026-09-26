@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bagLeaves, bagTotals, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { bagLeaves, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -131,4 +131,30 @@ test('a bag leaving a trip takes its Actual Weight and its place in a Shared Lim
   assert.deepEqual(bagLeaves(trip, 'a'), { weighed: { b: 900 }, shared: [] })
   // trips from before weighing existed have neither field
   assert.deepEqual(bagLeaves({} as Trip, 'a'), { weighed: {}, shared: [] })
+})
+
+test('a bag counts a container by its box, not its box plus what is inside', () => {
+  const cube: ContainerItem = { id: 'k', name: 'Cube', category: 'gear', kind: 'container', l: 10, w: 10, h: 10, up: false, capacity: 0.9, weight: 100, qty: 1 }
+  const shirt: Item = { id: 's', name: 'Shirt', category: 'clothing', kind: 'soft', volume: 1, packsTo: 50, weight: 150, qty: 1 }
+  const bag: Bag = { id: 'b', name: 'B', empty: 0, limit: null, compartments: [{ id: 'c', name: 'Main', l: 20, w: 10, h: 10, x: 0, y: 0, z: 0 }] }
+  const trip = { bagIds: ['b'], placements: [{ id: 'p', itemId: 'k', compartmentId: 'c', x: 0, y: 0, z: 0, o: 0 }], loose: [{ id: 'l1', itemId: 's', home: 'p' }], worn: [], checklist: [] } as unknown as Trip
+  // 2 L bag, 1 L cube: half full whether or not the cube holds a shirt; the shirt still weighs
+  assert.equal(bagTotals(bag, trip, [cube, shirt]).fill, 0.5)
+  assert.equal(bagTotals(bag, trip, [cube, shirt]).itemsW, 250)
+  // a shirt loose in the compartment does take room
+  assert.equal(bagTotals(bag, { ...trip, loose: [{ id: 'l2', itemId: 's', home: 'c' }] }, [cube, shirt]).fill, 0.75)
+})
+
+test('compartments settle: nothing floats once what held it up has moved', () => {
+  const comp = (id: string, x: number, y: number, z: number, l: number, w: number, h: number) => ({ id, name: id, x, y, z, l, w, h })
+  // Main was resting on the sleeve (z 3); the sleeve slides out from under it
+  const [main, sleeve] = settleCompartments([comp('main', 0, 0, 3, 50, 32, 20), comp('sleeve', 60, 0, 0, 36, 26, 3)])
+  assert.equal(main.z, 0)
+  assert.equal(sleeve.z, 0)
+  // raise the sleeve above Main and put it over Main: it stacks on Main's top
+  const [m2, s2] = settleCompartments([comp('main', 0, 0, 0, 50, 32, 20), comp('sleeve', 5, 5, 30, 36, 26, 3)])
+  assert.deepEqual([m2.z, s2.z], [0, 20])
+  // dragged past the corner, the assembly shifts back so nothing sits at a negative offset
+  const [a, b] = settleCompartments([comp('a', -6, 4, 0, 10, 10, 10), comp('b', 30, -2, 0, 10, 10, 10)])
+  assert.deepEqual([a.x, a.y, b.x, b.y], [0, 6, 36, 0])
 })

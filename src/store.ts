@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -15,7 +15,7 @@ export function newTrip(bagId: string | null): Trip {
 export function sampleState(): State {
   const S = true
   // Sample items are coloured by category so the swatches and fills are visible on first run.
-  const tint: Record<Category, string> = { clothing: '#d0a33a', footwear: '#8c6a4a', toiletries: '#c8714a', electronics: '#8a6bb8', documents: '#d98a9a', gear: '#3a9b8c', misc: '#7d9b3f' }
+  const tint: Record<Category, string> = { clothing: '#d0a33a', footwear: '#8c6a4a', toiletries: '#c98b52', electronics: '#4f7fae', documents: '#b8a07a', gear: '#3a9b8c', misc: '#7d9b3f' }
   const rigid = (name: string, category: Category, l: number, w: number, h: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'rigid', l, w, h, up: defaultUp(category), weight, qty, color: tint[category], sample: S })
   const soft = (name: string, category: Category, volume: number, weight: number, qty = 1): Item => ({ id: uid(), name, category, kind: 'soft', volume, packsTo: DEFAULT_PACKS_TO[category], weight, qty, color: tint[category], sample: S })
   const container = (name: string, l: number, w: number, h: number, weight: number, capacity: number): Item => ({ id: uid(), name, category: 'gear', kind: 'container', l, w, h, up: false, capacity, weight, qty: 1, color: tint.gear, sample: S })
@@ -75,25 +75,40 @@ export const KEY = 'bin-pack.v7'
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as State
+    if (raw) { const s = JSON.parse(raw) as State; return { ...s, items: s.items.map((i) => (i.color && RETIRED_SWATCHES[i.color] ? { ...i, color: RETIRED_SWATCHES[i.color] } : i)) } }
   } catch { /* fall through to sample */ }
   return sampleState()
 }
 
 const upsert = <T extends { id: string }>(list: T[], x: T) => (list.some((y) => y.id === x.id) ? list.map((y) => (y.id === x.id ? x : y)) : [...list, x])
 
+/** A notice for the traveler; with undo, it offers to put back what the last removal took. */
+export type Notice = { text: string; red?: boolean; undo?: State; n: number }
+
 export function useStore() {
   const [state, setState] = useState<State>(load)
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* storage unavailable: session-only */ }
   }, [state])
+  // Every removal keeps the state before it, so the notice can undo it: nothing is lost to a wrong tap.
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const now = useRef(state); now.current = state
+  const name = (list: { id: string; name: string }[], id: string) => list.find((x) => x.id === id)?.name ?? 'it'
   const api = {
+    /** Call just before a removal: the notice names it and offers Undo. */
+    snap: (text: string) => setNotice({ text, undo: now.current, n: Date.now() }),
+    say: (text: string, red = false) => setNotice({ text, red, n: Date.now() }),
+    undo: () => { if (notice?.undo) { setState(notice.undo); setNotice({ text: 'Put back', n: Date.now() }) } },
+    dismiss: () => setNotice(null),
+    notice,
     set: (patch: Partial<State>) => setState((s) => ({ ...s, ...patch })),
     replace: (s: State) => setState(s),
     upsertItem: (it: Item) => setState((s) => ({ ...s, items: upsert(s.items, it) })),
-    removeItem: (id: string) => setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => { const r = withoutPlacements(t, new Set(t.placements.filter((p) => p.itemId === id).map((p) => p.id))); const checklist = t.checklist.map((c) => { if (!c.itemIds?.includes(id)) return c; const rest = c.itemIds.filter((x) => x !== id); const { itemIds: _i, ...u } = c; return rest.length ? { ...c, itemIds: rest } : u }); return { ...t, checklist, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== id), worn: t.worn.filter((w) => w.itemId !== id) } }) })),
+    removeItem: (id: string) => { api.snap(`Deleted ${name(now.current.items, id)}`); setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => { const r = withoutPlacements(t, new Set(t.placements.filter((p) => p.itemId === id).map((p) => p.id))); const checklist = t.checklist.map((c) => { if (!c.itemIds?.includes(id)) return c; const rest = c.itemIds.filter((x) => x !== id); const { itemIds: _i, ...u } = c; return rest.length ? { ...c, itemIds: rest } : u }); return { ...t, checklist, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== id), worn: t.worn.filter((w) => w.itemId !== id) } }) })) },
     /** Saves a bag and drops placements in compartments that no longer exist or no longer hold them. */
-    upsertBag: (b: Bag) => setState((s) => ({
+    upsertBag: (raw: Bag) => setState((s) => {
+      const b = { ...raw, compartments: settleCompartments(raw.compartments) }
+      return {
       ...s, bags: upsert(s.bags, b),
       trips: s.trips.map((t) => {
         if (!t.bagIds.includes(b.id)) return t
@@ -102,22 +117,23 @@ export function useStore() {
         const homes = new Set([...b.compartments.map((c) => c.id), ...r.placements.map((p) => p.id)])
         return { ...t, placements: r.placements, loose: r.loose.map((l) => (homes.has(l.home) ? l : { ...l, home: mainOf(b).id })) }
       }),
-    })),
-    removeBag: (id: string) => setState((s) => {
+    } }),
+    removeBag: (id: string) => { api.snap(`Deleted ${name(now.current.bags, id)}`); setState((s) => {
       const bag = s.bags.find((b) => b.id === id)
       return { ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (bag && t.bagIds.includes(id) ? { ...t, bagIds: t.bagIds.filter((x) => x !== id), ...dropBag(bag, t), ...bagLeaves(t, id) } : t)) }
-    }),
+    }) },
     moveBag: (from: number, to: number) => setState((s) => { const bags = [...s.bags]; const [b] = bags.splice(from, 1); bags.splice(to, 0, b); return { ...s, bags } }),
+    /** Moves one compartment, then lets the whole assembly settle so nothing is left floating. */
     patchCompartment: (bagId: string, compId: string, patch: Partial<Compartment>) =>
-      setState((s) => ({ ...s, bags: s.bags.map((b) => (b.id !== bagId ? b : { ...b, compartments: b.compartments.map((c) => (c.id === compId ? { ...c, ...patch } : c)) })) })),
+      setState((s) => ({ ...s, bags: s.bags.map((b) => (b.id !== bagId ? b : { ...b, compartments: settleCompartments(b.compartments.map((c) => (c.id === compId ? { ...c, ...patch } : c))) })) })),
     rotateCompartment: (bagId: string, compId: string) => setState((s) => {
       const bag = s.bags.find((b) => b.id === bagId)
       if (!bag) return s
       const r = rotateCompartment(bag, compId, s.trips, s.items)
-      return { ...s, bags: upsert(s.bags, r.bag), trips: r.trips }
+      return { ...s, bags: upsert(s.bags, { ...r.bag, compartments: settleCompartments(r.bag.compartments) }), trips: r.trips }
     }),
     upsertTrip: (t: Trip) => setState((s) => ({ ...s, trips: upsert(s.trips, t), activeTripId: s.activeTripId ?? t.id })),
-    removeTrip: (id: string) => setState((s) => { const trips = s.trips.filter((t) => t.id !== id); return { ...s, trips, activeTripId: s.activeTripId === id ? trips[0]?.id ?? null : s.activeTripId } }),
+    removeTrip: (id: string) => { api.snap(`Deleted ${name(now.current.trips, id)}`); setState((s) => { const trips = s.trips.filter((t) => t.id !== id); return { ...s, trips, activeTripId: s.activeTripId === id ? trips[0]?.id ?? null : s.activeTripId } }) },
     patchTrip: (id: string, patch: Partial<Trip> | ((t: Trip) => Partial<Trip>)) =>
       setState((s) => ({ ...s, trips: s.trips.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t)) })),
   }
