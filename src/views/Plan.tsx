@@ -8,7 +8,7 @@ import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { Icon } from '../Icon'
 import { ActionSelect, Seg, Tab, TabList } from '../ui'
 import { FILL_MS, useSheetSize, useTransient } from './plan/hooks'
-import { NARROW, eps, planLayout, usePackData, type Mode } from './plan/data'
+import { NARROW, eps, planLayout, usePackData, type Mode, type PL } from './plan/data'
 import { DragGhost, useDrag, type Drag, type Dropped, type Ghost } from './plan/drag'
 import { NOT_FRESH, Postmark, Sheet, type Fresh } from './plan/Sheet'
 import { Schedule } from './plan/Schedule'
@@ -227,6 +227,12 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     say(parts.join(', '), unplaced > 0)
   }
   const clearAll = () => { if (trip && bag) { api.snap(`Emptied ${bag.name}`); api.patchTrip(trip.id, (t) => dropBag(bag, t)); setSelected(null) } }
+  // Pressing an item on the drawing selects it and gives the sheet focus, so R, T and Delete reach it. (Starting a drag prevents the default focus.)
+  const pressItem = (e: RPointerEvent, pl: PL) => {
+    startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, o: pl.p.o })
+    // focusVisible keeps the keyboard focus ring off for a mouse press; TypeScript's DOM types don't list it yet.
+    sheetRef.current?.focus({ preventScroll: true, focusVisible: false } as FocusOptions)
+  }
   const onKey = (e: KeyboardEvent) => {
     if (!selected || drag) return
     const isComp = !!compOf(selected)
@@ -265,7 +271,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
       <div className="sheet" ref={sheetRef} tabIndex={0} onKeyDown={onKey} aria-label="Packing plan">
         {bag && layout && view === 'plan' && (
           <Sheet bag={bag} layout={layout} size={size} data={data} cut={cut} selected={selected} hidden={drag?.placementId} fresh={fresh} pulse={mode === 'pack' ? pulse : null} selPl={drag ? null : selPl} packedN={packedN}
-            onClear={() => setSelected(null)} onItemDown={(e, pl) => startDrag(e, { itemId: pl.it.id, placementId: pl.p.id, o: pl.p.o })} />
+            onClear={() => setSelected(null)} onItemDown={pressItem} />
         )}
         {bag && view === '3d' && (
           <Suspense fallback={<div className="sheet-empty"><p>Loading the 3D view…</p></div>}>
