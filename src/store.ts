@@ -12,7 +12,7 @@ export function newTrip(bagId: string | null): Trip {
   return { id: uid(), name: 'New trip', destination: '', start: isoDate(start), end: isoDate(end), climate: 'mild', kind: 'city', activities: [], bagIds, checklist: [], placements: [], loose: [], worn: [] }
 }
 
-function sampleState(): State {
+export function sampleState(): State {
   const S = true
   // Sample items are coloured by category so the swatches and fills are visible on first run.
   const tint: Record<Category, string> = { clothing: '#d0a33a', footwear: '#8c6a4a', toiletries: '#c8714a', electronics: '#8a6bb8', documents: '#d98a9a', gear: '#3a9b8c', misc: '#7d9b3f' }

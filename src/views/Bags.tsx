@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent, type
 import { bagVolume, fmtDim, fmtVol, fmtW, newBag, newCompartment, type Bag, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
+import { useSort } from './Sort'
 
 const blank = (): Bag => ({ ...newBag('', 50, 32, 20, 1200, null) })
 const PRESETS = [
@@ -11,6 +12,7 @@ const PRESETS = [
   { name: 'Daypack 20 L', l: 42, w: 26, h: 16, empty: 600, limit: null },
 ]
 const COLS = { '--cols': 'minmax(0, 2fr) 150px 90px 90px 90px 60px' } as CSSProperties
+const main = (b: Bag) => b.compartments[0]
 type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
 const AXIS: Record<Num, string> = { l: 'L', w: 'W', h: 'D', x: 'X', y: 'Y', z: 'Z' }
 const AXIS_NAME: Record<Num, string> = { l: 'length', w: 'width', h: 'depth', x: 'X position', y: 'Y position', z: 'Z position' }
@@ -34,6 +36,16 @@ export function Bags({ state, api }: ViewProps) {
     cancel()
   }
   const usedBy = (id: string) => state.trips.filter((t) => t.bagIds.includes(id)).length
+  const by = useSort<Bag>([
+    { label: 'Name', key: (b) => b.name },
+    { label: 'Main L × W × D cm', num: true, key: (b) => main(b).l * main(b).w * main(b).h },
+    { label: 'Volume', num: true, key: bagVolume },
+    { label: 'Empty', num: true, key: (b) => b.empty },
+    { label: 'Limit', num: true, key: (b) => b.limit },
+    { label: 'Trips', num: true, key: (b) => usedBy(b.id) },
+  ])
+  // Sorting is a view; your own order (which new trips start from) is only draggable while no column is sorted.
+  const list = by.sort(state.bags)
 
   // Reorder by dragging the grip: the first bag is what a new trip starts with. Alt+arrows do the same from the keyboard.
   const listRef = useRef<HTMLDivElement>(null)
@@ -112,19 +124,21 @@ export function Bags({ state, api }: ViewProps) {
         </div>
       </form>
       <div className="table" ref={listRef}>
-        <div className="trow head" style={COLS}><span className="label">Name</span><span className="label num">Main L × W × D cm</span><span className="label num">Volume</span><span className="label num">Empty</span><span className="label num">Limit</span><span className="label num">Trips</span></div>
-        {state.bags.map((b, i) => (
-          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => { setForm(b); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onKeyDown={(e) => keyMove(e, i)} title="Alt+↑/↓ reorders">
-            <span className="name"><span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span><span>{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}{b.sample && <span className="tag">sample</span>}</span>
+        <div className="trow head sortable" style={COLS}>{by.head}</div>
+        {list.map((b) => { const i = state.bags.indexOf(b); return (
+          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => { setForm(b); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
+            <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span>{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}{b.sample && <span className="tag">sample</span>}</span>
             <span className="num">{fmtDim(b.compartments[0])}</span>
             <span className="num">{fmtVol(bagVolume(b))}</span>
             <span className="num">{fmtW(b.empty)}</span>
             <span className="num">{b.limit == null ? '—' : fmtW(b.limit)}</span>
             <span className="num trips">{usedBy(b.id)}</span>
           </button>
-        ))}
+        ) })}
         {!state.bags.length && <div className="empty"><p>No bags yet. Start from a preset above and correct the numbers.</p></div>}
-        {state.bags.length > 1 && <p className="hint" style={{ padding: '8px 8px 0' }}>Drag the grip to reorder. The first bag is what a new trip starts with.</p>}
+        {state.bags.length > 1 && (by.sorted
+          ? <p className="hint" style={{ padding: '8px 8px 0' }}>Sorted by {by.sorted.toLowerCase()}. <button type="button" className="link" onClick={by.clear}>Show your order</button> to drag bags into it; the first is what a new trip starts with.</p>
+          : <p className="hint" style={{ padding: '8px 8px 0' }}>Drag the grip to reorder. The first bag is what a new trip starts with.</p>)}
       </div>
     </section>
   )

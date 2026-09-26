@@ -2,10 +2,19 @@ import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from '
 import { CATEGORIES, SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
 import { CatIcon } from '../Icon'
+import { useSort, type Col } from './Sort'
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
 type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean; capacity: number; autoCap: boolean }
 const COLS = { '--cols': 'minmax(0, 2fr) minmax(0, 1fr) 70px 170px 80px 44px' } as CSSProperties
+const SORT: Col<Item>[] = [
+  { label: 'Name', key: (i) => i.name },
+  { label: 'Category', key: (i) => i.category },
+  { label: 'Kind', key: (i) => i.kind },
+  { label: 'Size', num: true, key: (i) => (i.kind === 'soft' ? i.volume * 1000 : i.l * i.w * i.h) },
+  { label: 'Weight', num: true, key: (i) => i.weight },
+  { label: 'Qty', num: true, key: (i) => i.qty },
+]
 
 export function Inventory({ state, api }: ViewProps) {
   const blank = (): Form => ({ id: uid(), name: '', category: 'clothing', kind: 'soft', l: 20, w: 15, h: 5, volume: 2, packsTo: state.packsTo.clothing, weight: 200, qty: 1, color: '', up: false, capacity: defaultCapacity({ l: 20, w: 15, h: 5 }), autoCap: true })
@@ -13,6 +22,7 @@ export function Inventory({ state, api }: ViewProps) {
   const [form, setForm] = useState<Form>(blank)
   const [editing, setEditing] = useState(false)
   const [q, setQ] = useState('')
+  const by = useSort(SORT)
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
   const num = (k: 'l' | 'w' | 'h' | 'volume' | 'packsTo' | 'weight' | 'qty') => (e: ChangeEvent<HTMLInputElement>) => setForm((f) => {
     const n = { ...f, [k]: Number(e.target.value) }
@@ -28,9 +38,10 @@ export function Inventory({ state, api }: ViewProps) {
     api.upsertItem(form.kind === 'soft' ? { ...base, kind: 'soft', volume: form.volume, packsTo: form.packsTo } : form.kind === 'container' ? { ...base, kind: 'container', ...box, capacity: form.capacity } : { ...base, kind: 'rigid', ...box })
     cancel()
   }
-  const list = state.items
+  // Unsorted, the schedule reads by category then name; a sorted column keeps that as its tie-break.
+  const list = by.sort(state.items
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
+    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)))
   const totalW = state.items.reduce((a, i) => a + i.weight * i.qty, 0)
 
   return (
@@ -88,7 +99,7 @@ export function Inventory({ state, api }: ViewProps) {
           <input type="search" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 200, marginLeft: 'auto' }} aria-label="Filter items" />
         </div>
         <div className="table" style={{ marginTop: 8 }}>
-          <div className="trow head" style={COLS}><span className="label">Name</span><span className="label">Category</span><span className="label">Kind</span><span className="label num">Size</span><span className="label num">Weight</span><span className="label num">Qty</span></div>
+          <div className="trow head sortable" style={COLS}>{by.head}</div>
           {list.map((it) => (
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => { setForm(toForm(it)); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
               <span className="name"><span><CatIcon it={it} /><span>{it.name}</span></span>{it.sample && <span className="tag">sample</span>}</span>

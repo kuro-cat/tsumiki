@@ -656,7 +656,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
             <div key={c.id} className="row check">
               <label>
                 <input type="checkbox" checked={c.packed} onChange={(e) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, packed: e.target.checked } : x)) }))} />
-                <span className="name"><span>{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span><span className="dim">{c.note ?? 'Tick when packed, link it, or add it to inventory'}</span></span>
+                <span className="name"><span><CatIcon it={c} /><span>{c.label}{c.qty > 1 ? ` × ${c.qty}` : ''}</span></span><span className="dim">{c.note ?? 'Tick when packed, link it, or add it to inventory'}</span></span>
               </label>
               <span className="acts" onPointerDown={(e) => e.stopPropagation()}>
                 <LinkPicker entry={c} items={items} compact onChange={(itemIds) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, itemIds } : x)) }))} />

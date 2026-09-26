@@ -201,6 +201,10 @@ button.chip .dim { font-size: 12px; }
 }
 .trow.head { color: var(--ink-2); padding: 6px 8px; border-bottom: 1px solid var(--rule); }
 .trow.head:hover { background: none; }
+/* Sortable headers: the label is the button; the sorted column goes graphite and carries its arrow. */
+.trow.head .sort { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 2px 0; font-size: 11px; color: var(--ink-2); cursor: pointer; transition: color var(--t) var(--ease); }
+.trow.head .sort.num { justify-content: flex-end; }
+.trow.head .sort:hover, .trow.head .sort.on { color: var(--ink); }
 button.trow:hover { background: var(--paper-2); }
 button.trow[aria-current='true'] { background: var(--blue-soft); }
 .trow .name { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -356,6 +360,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .check-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 4px 7px 0; border-bottom: 1px solid var(--rule-2); }
 .check-row .lbl { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
 .check-row .lbl > span:first-child { flex-basis: 100%; }
+.check-row .entry { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.check-row.done .cat { opacity: 0.55; }
 .check-row .lbl small { color: var(--ink-2); font-size: 12px; }
 .check-row.done .lbl > span:first-child { text-decoration: line-through; text-decoration-color: var(--ink-3); color: var(--ink-2); }
 .mark { width: 10px; height: 10px; border: 1px solid var(--ink); display: block; }
@@ -450,6 +456,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
   .page-head { flex-wrap: wrap; }
   .trow { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 8px 6px; }
   .trow.head { display: none; }
+  .trow.head.sortable { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 6px; }
   .trow .name { flex: 1 1 100%; }
   .trow .num, .trow .dim { font-size: 12px; color: var(--ink-2); text-align: left; }
   .trow.bag { flex-wrap: wrap; }

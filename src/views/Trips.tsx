@@ -3,7 +3,7 @@ import { CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPack
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
-import { Icon } from '../Icon'
+import { CatIcon, Icon } from '../Icon'
 
 const COLS = { '--cols': 'minmax(0, 1fr) 120px 70px' } as CSSProperties
 
@@ -158,7 +158,7 @@ export function Trips({ state, api, go }: ViewProps) {
                     <div key={c.id} className={'check-row' + (packed ? ' done' : '')}>
                       <span className={'mark' + mark} aria-label={packed ? 'packed' : units > 0 ? 'partly packed' : linked.length ? 'in inventory' : 'not in inventory'} />
                       <span className="lbl">
-                        <span>{c.label}</span>
+                        <span className="entry"><CatIcon it={{ category: c.category, color: linked[0]?.color }} /><span>{c.label}</span></span>
                         <small>{c.packed && !linked.length ? 'ticked' : linked.length ? `${units} / ${c.qty}` : c.note ?? 'not in inventory'}{c.itemIds ? '' : linked.length ? ' · guessed' : ''}</small>
                         <LinkPicker entry={c} items={state.items} onChange={setLink} />
                       </span>

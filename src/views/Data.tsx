@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, type State } from '../store'
+import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, sampleState, type State } from '../store'
 import type { ViewProps } from '../App'
 import { AUTOPACK_ANIM_KEY, autopackAnimates } from './Plan'
 
 export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
-  const [msg, setMsg] = useState<{ text: string; red?: boolean } | null>(null)
+  const [msg, setMsg] = useState<{ text: string; red?: boolean; at?: 'sample' } | null>(null)
   const [anim, setAnim] = useState(autopackAnimates)
   const toggleAnim = (on: boolean) => { setAnim(on); try { localStorage.setItem(AUTOPACK_ANIM_KEY, on ? 'on' : 'off') } catch { /* session-only */ } }
   const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length
@@ -32,7 +32,14 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
   const removeSample = () => {
     const trips = state.trips.filter((t) => !t.sample)
     api.replace({ ...state, items: state.items.filter((i) => !i.sample), bags: state.bags.filter((b) => !b.sample), trips, activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : trips[0]?.id ?? null })
-    setMsg({ text: 'Sample data removed.' })
+    setMsg({ text: 'Sample data removed.', at: 'sample' })
+  }
+  const restoreSample = () => {
+    const fresh = sampleState()
+    const own = <T extends { sample?: boolean }>(xs: T[]) => xs.filter((x) => !x.sample)
+    const trips = [...own(state.trips), ...fresh.trips]
+    api.replace({ ...state, items: [...own(state.items), ...fresh.items], bags: [...own(state.bags), ...fresh.bags], trips, activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : fresh.activeTripId })
+    setMsg({ text: `Sample data restored: ${fresh.items.length} items, ${fresh.bags.length} bags, ${fresh.trips.length} trip.`, at: 'sample' })
   }
   const reset = () => {
     if (!confirm('Delete everything Bin-pack stores in this browser? Export first if you want to keep it.')) return
@@ -56,7 +63,7 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
           <div className="tools">
             <button className="btn" onClick={exportJson}>Export JSON</button>
             <label className="btn">Import JSON<input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={(e) => importJson(e.target.files?.[0])} /></label>
-            {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
+            {msg && !msg.at && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
           </div>
           <p className="hint">Import replaces the current inventory, bags, and trips.</p>
         </section>
@@ -81,7 +88,12 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
         </section>
         <section>
           <h2>Sample data</h2>
-          <div className="tools"><button className="btn" onClick={removeSample} disabled={!sampleCount}>Remove sample data</button><span className="hint">{sampleCount ? `${sampleCount} sample records` : 'None left'}</span></div>
+          <div className="tools">
+            <button className="btn" onClick={removeSample} disabled={!sampleCount}>Remove sample data</button>
+            <button className="btn" onClick={restoreSample}>Restore sample data</button>
+            {msg?.at === 'sample' ? <span className="msg" role="status">{msg.text}</span> : <span className="hint">{sampleCount ? `${sampleCount} sample records` : 'None left'}</span>}
+          </div>
+          <p className="hint">Restore replaces whatever sample records are left with a fresh set, including the Lisbon trip. Your own items, bags, and trips are kept.</p>
         </section>
         <section>
           <h2>Start over</h2>
