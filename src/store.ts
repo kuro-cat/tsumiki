@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
+import { toPlacement } from './lib/packing'
 import { suggest } from './lib/suggest'
 import { DEFAULT_PACKS_TO, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
 
@@ -59,9 +60,9 @@ export function sampleState(): State {
   trip.checklist = suggest({ nights: 5, climate: trip.climate, kind: trip.kind, activities: trip.activities }).map((c) => ({ ...withLink(c, items), id: uid(), packed: false }))
   const byName = (n: string) => items.find((x) => x.name === n)!
   const pre = ['Laptop 13"', 'Toiletry kit', 'Sneakers, pair', 'Camera', 'Packing cube, M'].map((n, i) => ({ key: `${byName(n).id}:${i}`, box: byName(n) as Boxed, os: orientationsOf(byName(n) as Boxed) }))
-  trip.placements = autoPackBins(backpack.compartments, pre).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
+  trip.placements = autoPackBins(backpack.compartments, pre).placed.map(toPlacement)
   const day = ['Water bottle', 'Book'].map((n, i) => ({ key: `${byName(n).id}:d${i}`, box: byName(n) as Boxed, os: orientationsOf(byName(n) as Boxed) }))
-  trip.placements.push(...autoPackBins(daypack.compartments, day).placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o })))
+  trip.placements.push(...autoPackBins(daypack.compartments, day).placed.map(toPlacement))
   trip.worn = ['Sandals', 'Sun hat', 'Wallet'].map((n) => ({ id: uid(), itemId: byName(n).id }))
   const cube = trip.placements.find((p) => p.itemId === byName('Packing cube, M').id)
   trip.loose = [

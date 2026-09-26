@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, bagVolume, blockKey, sharedTotals, containerFill, dropBag, tripBags, tripReady, wornCount, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDim, fmtVol, fmtW, linkedItems, looseVolumes, mainOf, newTrip, entryUnits, packedCount, packedVolume, placedBoxes, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
-import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
+import { bagHeight, bagTotals, bagVolume, blockKey, sharedTotals, containerFill, dropBag, tripBags, tripReady, wornCount, fillOf, isBoxed, orientationsOf, withoutPlacements, fmtDim, fmtVol, fmtW, linkedItems, looseVolumes, mainOf, newTrip, packedCount, packedVolume, placedBoxes, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
+import { dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
+import { autoPackInto, bagContainers, fitOne, looseInBag, noFitReason, unitsToPack } from '../lib/packing'
 import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
@@ -83,7 +84,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const boxesBy = useMemo(() => (trip ? placedBoxes(trip, items) : {}), [trip, items])
   const looseBy = useMemo(() => (trip ? looseVolumes(trip, items) : {}), [trip, items])
   const fills = useMemo(() => Object.fromEntries((bag?.compartments ?? []).map((c) => [c.id, fillOf(c, boxesBy[c.id] ?? [], looseBy[c.id] ?? 0)])), [bag, boxesBy, looseBy])
-  const containers = useMemo(() => (trip && bag ? placedContainers(trip, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId)) : []), [trip, items, bag])
+  const containers = useMemo(() => (trip && bag ? bagContainers(trip, items, bag) : []), [trip, items, bag])
   const cubeColor = Object.fromEntries(containers.map((c, i) => [c.id, cubeBlock(c.it.color, i)]))
   const cFills = useMemo(() => Object.fromEntries(containers.map((c) => [c.id, { ...containerFill(c.it, looseBy[c.id] ?? 0), n: trip?.loose.filter((l) => l.home === c.id).length ?? 0 }])), [containers, looseBy, trip])
 
@@ -284,24 +285,15 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const placeOne = (it: Item) => {
     if (!trip || !bag) return
     if (it.kind === 'soft') {
-      const pv = packedVolume(it)
       // Chosen inside the updater so rapid clicks see each other's result.
-      const inBagC = (t: typeof trip) => placedContainers(t, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId))
-      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, { id: uid(), itemId: it.id, home: roomiestHome(bag, inBagC(t), placedBoxes(t, items), looseVolumes(t, items), pv) }] }))
-      const home = roomiestHome(bag, containers, boxesBy, looseBy, pv), c = compOf(home)
+      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, looseInBag(t, items, bag, it)] }))
+      const { home } = looseInBag(trip, items, bag, it), c = compOf(home)
       absorb(home)
-      if (c && (looseBy[home] ?? 0) + pv > fills[home].free + eps) say(`${c.name} is over volume`, true)
+      if (c && (looseBy[home] ?? 0) + packedVolume(it) > fills[home].free + eps) say(`${c.name} is over volume`, true)
       return
     }
-    const r = autoPackBins(bag.compartments, [{ key: it.id, box: it, os: orientationsOf(it) }], boxesBy)
-    if (!r.placed.length) {
-      // Why: no room left, or too big for every compartment; and whether another bag on the trip could take it.
-      const empty = autoPackBins(bag.compartments, [{ key: it.id, box: it, os: orientationsOf(it) }]).placed.length > 0
-      const other = tb.find((b) => b.id !== bag.id && autoPackBins(b.compartments, [{ key: it.id, box: it, os: orientationsOf(it) }], placedBoxes(trip, items)).placed.length > 0)
-      return say(`${it.name} (${fmtDim(it)} cm) ${empty ? 'has no gap big enough left' : `is bigger than every compartment in ${bag.name}`}.${other ? ` It fits in ${other.name}.` : ''}`, true)
-    }
-    const { p, o, binId } = r.placed[0]
-    const pl: Placement = { id: uid(), itemId: it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, o }
+    const pl = fitOne(bag.compartments, it, boxesBy)
+    if (!pl) return say(noFitReason(bag, tb.filter((b) => b.id !== bag.id), it, boxesBy), true)
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
     setSelected(pl.id)
     settle([pl.id])
@@ -314,10 +306,8 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     if (!bag) return
     if (isBoxed(it)) {
       const c = compOf(home)
-      const r = c && autoPackBins([c], [{ key: it.id, box: it, os: orientationsOf(it) }], boxesBy)
-      if (!r?.placed.length) return say(`${it.name} has no gap big enough in ${c?.name}.`, true)
-      const { p, o, binId } = r.placed[0]
-      const pl: Placement = { id: uid(), itemId: it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, o }
+      const pl = c && fitOne([c], it, boxesBy)
+      if (!pl) return say(`${it.name} has no gap big enough in ${c?.name}.`, true)
       api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
       settle([pl.id])
       return
@@ -331,29 +321,22 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const packInto = (it: Item, to: Bag | undefined) => {
     if (!trip || !to) return
     if (isBoxed(it)) {
-      const r = autoPackBins(to.compartments, [{ key: it.id, box: it, os: orientationsOf(it) }], placedBoxes(trip, items))
-      if (!r.placed.length) return say(`${it.name} doesn't fit in ${to.name}.`, true)
-      const { p, o, binId } = r.placed[0]
-      api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, { id: uid(), itemId: it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, o }] }))
-    } else {
-      const cubes = placedContainers(trip, items).filter((c) => to.compartments.some((x) => x.id === c.compartmentId))
-      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, { id: uid(), itemId: it.id, home: roomiestHome(to, cubes, placedBoxes(t, items), looseVolumes(t, items), packedVolume(it)) }] }))
-    }
+      const pl = fitOne(to.compartments, it, boxesBy)
+      if (!pl) return say(`${it.name} doesn't fit in ${to.name}.`, true)
+      api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
+    } else api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, looseInBag(t, items, to, it)] }))
     say(`Packed ${it.name} in ${to.name}`)
   }
   /** A placed item goes to another bag on the trip, or onto the traveler. */
   const moveTo = (id: string, dest: string) => {
     const pl = placedList.find((x) => x.p.id === id)
     if (!trip || !pl) return
-    const rest = withoutPlacements(trip, new Set([id]))
     let add: Placement | null = null
     if (dest !== 'worn') {
       // Placed against the trip as it will be once this unit has left; nothing changes if it won't fit.
       const to = tb.find((b) => b.id === dest)
-      const r = to && autoPackBins(to.compartments, [{ key: pl.it.id, box: pl.it, os: orientationsOf(pl.it) }], placedBoxes({ ...trip, ...rest }, items))
-      if (!to || !r?.placed.length) return say(`${pl.it.name} doesn't fit in ${to?.name ?? 'that bag'}.`, true)
-      const { p, o, binId } = r.placed[0]
-      add = { id: uid(), itemId: pl.it.id, compartmentId: binId, x: p.x, y: p.y, z: p.z, o }
+      add = to ? fitOne(to.compartments, pl.it, placedBoxes({ ...trip, ...withoutPlacements(trip, new Set([id])) }, items)) : null
+      if (!to || !add) return say(`${pl.it.name} doesn't fit in ${to?.name ?? 'that bag'}.`, true)
     }
     api.snap(dest === 'worn' ? `Wearing ${pl.it.name}` : `Moved ${pl.it.name} to ${tb.find((b) => b.id === dest)?.name}`)
     api.patchTrip(trip.id, (t) => {
@@ -364,28 +347,9 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   }
   const autoPackAll = () => {
     if (!trip || !bag) return
-    // What the list asks for: each unpacked entry's shortfall, taken from its linked items in link order, never beyond what is owned.
-    const left: Record<string, number> = Object.fromEntries(rows.map((r) => [r.it.id, r.remaining]))
-    const units: Item[] = matchedIds.size
-      ? trip.checklist.flatMap((c) => {
-          let need = Math.max(0, c.qty - entryUnits(c, trip, items))
-          return linkedItems(c, items).flatMap((it) => { const n = Math.min(need, left[it.id] ?? 0); need -= n; left[it.id] -= n; return Array.from({ length: n }, () => it) })
-        })
-      : rows.flatMap((r) => Array.from({ length: r.remaining }, () => r.it))
+    const units = unitsToPack(trip, items)
     if (!units.length) return say(matchedIds.size ? 'Every checklist item is already in the bag' : 'Nothing left to pack')
-    const boxes = units.flatMap((it, i) => (isBoxed(it) ? [{ key: `${it.id}:${i}`, box: it, os: orientationsOf(it) }] : []))
-    const res = autoPackBins(bag.compartments, boxes, boxesBy)
-    const add: Placement[] = res.placed.map((x) => ({ id: uid(), itemId: x.key.split(':')[0], compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
-    const next = { ...trip, placements: [...trip.placements, ...add] }
-    const after = placedBoxes(next, items), cubes = placedContainers(next, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId))
-    const vols = { ...looseBy }
-    const loose: Loose[] = units.flatMap((it) => {
-      if (it.kind !== 'soft') return []
-      const pv = packedVolume(it)
-      const home = roomiestHome(bag, cubes, after, vols, pv)
-      vols[home] = (vols[home] ?? 0) + pv
-      return [{ id: uid(), itemId: it.id, home }]
-    })
+    const { placements: add, loose, unplaced } = autoPackInto(trip, items, bag, units)
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, ...add], loose: [...t.loose, ...loose] }))
     if (autopackAnimates() && layout) {
       // Each footprint leaves from its own schedule row: row position minus where it lands, in sheet pixels.
@@ -398,8 +362,8 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
       settle(add.map((p) => p.id), from)
       stretch(add.length * 90 + 340)
     }
-    const parts = [add.length + loose.length ? `Packed ${add.length + loose.length} ${add.length + loose.length === 1 ? 'item' : 'items'}` : '', res.unplaced.length ? `${res.unplaced.length} didn't fit` : ''].filter(Boolean)
-    say(parts.join(', '), res.unplaced.length > 0)
+    const parts = [add.length + loose.length ? `Packed ${add.length + loose.length} ${add.length + loose.length === 1 ? 'item' : 'items'}` : '', unplaced ? `${unplaced} didn't fit` : ''].filter(Boolean)
+    say(parts.join(', '), unplaced > 0)
   }
   const clearAll = () => { if (trip && bag) { api.snap(`Emptied ${bag.name}`); api.patchTrip(trip.id, (t) => dropBag(bag, t)); setSelected(null) } }
   const onKey = (e: KeyboardEvent) => {
