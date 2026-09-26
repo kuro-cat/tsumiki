@@ -1,37 +1,23 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, bagVolume, blockKey, sharedTotals, containerFill, dropBag, tripBags, tripReady, wornCount, fillOf, isBoxed, orientationsOf, withoutPlacements, fmtDim, fmtVol, fmtW, linkedItems, looseVolumes, mainOf, newTrip, packedCount, packedVolume, placedBoxes, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
-import { dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
-import { autoPackInto, bagContainers, fitOne, looseInBag, noFitReason, unitsToPack } from '../lib/packing'
+import { bagHeight, bagTotals, bagVolume, sharedTotals, dropBag, tripBags, tripReady, wornCount, isBoxed, orientationsOf, withoutPlacements, fmtDim, fmtVol, fmtW, linkedItems, mainOf, newTrip, packedCount, packedVolume, placedBoxes, uid, type Bag, type Item, type Loose, type Placement, type Worn } from '../store'
+import { dropZ, faceName, fits, nextFace, oriented, volume } from '../lib/pack'
+import { autoPackInto, fitOne, looseInBag, noFitReason, unitsToPack } from '../lib/packing'
 import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { CatIcon, Icon } from '../Icon'
 import { ActionSelect, IconButton, Seg, Tab, TabList } from '../ui'
-import { useTransient } from './plan/hooks'
+import { FILL_MS, useSheetSize, useTransient, useTween } from './plan/hooks'
+import { NARROW, compBlock, eps, planLayout, usePackData, type PL } from './plan/data'
+import { DragGhost, useDrag, type Drag, type Dropped, type Ghost } from './plan/drag'
 
 type Mode = 'pack' | 'assemble'
-type Drag = { itemId?: string; placementId?: string; o: number; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
-type Snap = { compId: string; home: string; x: number; y: number; z: number; ok: boolean; soft: boolean; over: boolean }
-type PL = { p: Placement; it: Boxed; box: Placed }
-type CL = { c: Compartment; ox: number; oy: number }
-type Ghost = { left: number; top: number; w: number; h: number }
 type Fresh = { ids: Record<string, number>; from: Record<string, [number, number]> }
 const NOT_FRESH: Fresh = { ids: {}, from: {} }
 
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
 
-const PAD = { l: 72, r: 56, t: 96 }
-const PAD_N = { l: 40, r: 24, t: 112 }
-/** At or below this sheet width the pack sheet draws one compartment at a time. Matches the 600 px phone media query. */
-const NARROW = 600
-const GAP = 64
-const eps = 1e-6
-const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
 export const AUTOPACK_ANIM_KEY = 'bin-pack.autopack-anim'
-/** Compartments take the first four block colours in order, containers the last two. */
-const compBlock = (c: Compartment, i: number) => `var(--${blockKey(c, i)})`
-/** Containers wear their own item colour, softened so dark text reads on it; uncoloured ones take the last two blocks. */
-const cubeBlock = (color: string | undefined, i: number) => (color ? `color-mix(in srgb, ${color} 55%, var(--paper))` : `var(--b${(i % 2) + 5})`)
 export const autopackAnimates = () => { try { return localStorage.getItem(AUTOPACK_ANIM_KEY) !== 'off' } catch { return true } }
 
 export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewProps & { view: PlanView; setView: (v: PlanView) => void; bagId: string | null; worn: boolean; show: (id: string) => void }) {
@@ -42,54 +28,18 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const [mode, setMode] = useState<Mode>('pack')
   const arrangeFrom = useRef<PlanView>('plan')
   // Leaving 3D (the header's Plan/3D) ends arranging.
-  useEffect(() => { if (view === 'plan' && mode === 'assemble') setMode('pack') }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (view === 'plan' && mode === 'assemble') setMode('pack') }, [view, mode])
   const [cam, setCam] = useState<{ view: CamView; n: number }>({ view: 'iso', n: 0 })
 
   const sheetRef = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState({ W: 0, H: 0 })
-  useEffect(() => {
-    const el = sheetRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => setSize({ W: el.clientWidth, H: el.clientHeight }))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [trip !== null])
+  const size = useSheetSize(sheetRef, trip !== null)
   const narrow = size.W > 0 && size.W <= NARROW
-  const padB = narrow ? 28 : 48
   const [compIdx, setCompIdx] = useState(0)
   const shownComp = bag && narrow && mode === 'pack' ? bag.compartments[Math.min(compIdx, bag.compartments.length - 1)] : null
+  const layout = useMemo(() => (bag ? planLayout(size, shownComp ? [shownComp] : bag.compartments, narrow) : null), [bag, size, narrow, shownComp])
 
-  // The plan is a schedule of rooms: compartments side by side at one scale. Arranging them happens in the 3D view.
-  const layout = useMemo(() => {
-    if (!bag || !size.W || !size.H || !bag.compartments.length) return null
-    const P = narrow ? PAD_N : PAD
-    const aw = size.W - P.l - P.r, ah = size.H - P.t - padB
-    const cs = shownComp ? [shownComp] : bag.compartments
-    const sumL = cs.reduce((a, c) => a + c.l, 0), maxW = Math.max(...cs.map((c) => c.w))
-    const s = Math.min((aw - GAP * (cs.length - 1)) / sumL, ah / maxW)
-    if (!(s > 0)) return null
-    let x = P.l + (aw - (sumL * s + GAP * (cs.length - 1))) / 2
-    const comps: CL[] = cs.map((c) => { const cl = { c, ox: x, oy: P.t + (ah - c.w * s) / 2 }; x += c.l * s + GAP; return cl })
-    return { s, comps }
-  }, [bag, size, padB, narrow, shownComp])
-
-  const placedList = useMemo<PL[]>(
-    () =>
-      !trip
-        ? []
-        : trip.placements.flatMap((p) => {
-            const it = items.find((i) => i.id === p.itemId)
-            if (!it || !isBoxed(it)) return []
-            return [{ p, it, box: { ...oriented(it, p.o), x: p.x, y: p.y, z: p.z } }]
-          }),
-    [trip, items],
-  )
-  const boxesBy = useMemo(() => (trip ? placedBoxes(trip, items) : {}), [trip, items])
-  const looseBy = useMemo(() => (trip ? looseVolumes(trip, items) : {}), [trip, items])
-  const fills = useMemo(() => Object.fromEntries((bag?.compartments ?? []).map((c) => [c.id, fillOf(c, boxesBy[c.id] ?? [], looseBy[c.id] ?? 0)])), [bag, boxesBy, looseBy])
-  const containers = useMemo(() => (trip && bag ? bagContainers(trip, items, bag) : []), [trip, items, bag])
-  const cubeColor = Object.fromEntries(containers.map((c, i) => [c.id, cubeBlock(c.it.color, i)]))
-  const cFills = useMemo(() => Object.fromEntries(containers.map((c) => [c.id, { ...containerFill(c.it, looseBy[c.id] ?? 0), n: trip?.loose.filter((l) => l.home === c.id).length ?? 0 }])), [containers, looseBy, trip])
+  const data = usePackData(trip, bag, items)
+  const { placedList, boxesBy, looseBy, fills, containers, cubeColor, cFills } = data
 
   const H = bag ? bagHeight(bag) : 0
   const [cutRaw, setCutRaw] = useState<number | null>(null)
@@ -97,7 +47,6 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   // The cut only earns its place once something sits on top of something else.
   const layered = !!bag && placedList.some((pl) => pl.box.z > 0 && bag.compartments.some((c) => c.id === pl.p.compartmentId))
   const [selected, setSelected] = useState<string | null>(null)
-  const [drag, setDrag] = useState<Drag | null>(null)
   // A drop that doesn't fit leaves its footprint flashing red for a moment.
   const [flash, showFlash] = useTransient<Ghost | null>(null)
   // Footprints placed in the last moment, with their order in the batch. A single drop settles; an autopack batch arrives one item at a time.
@@ -138,112 +87,42 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   )
   const unmatched = trip ? trip.checklist.filter((c) => !linkedItems(c, items).length) : []
 
-  // Drag: the footprint appears at true scale the instant the drag starts and snaps to the 1 cm grid over a compartment.
-  const dragItem = drag?.itemId ? items.find((i) => i.id === drag.itemId) ?? null : null
-  const dragBox = drag && dragItem && isBoxed(dragItem) ? oriented(dragItem, drag.o) : null
-  const softSide = dragItem?.kind === 'soft' ? Math.cbrt(packedVolume(dragItem)) : 0
   const wornRef = useRef<HTMLButtonElement>(null)
-  const wornHit = !!drag?.itemId && (() => { const r = wornRef.current?.getBoundingClientRect(); return !!r && drag.px >= r.left && drag.px <= r.right && drag.py >= r.top && drag.py <= r.bottom })()
-  let snap: Snap | null = null
-  if (drag && bag && layout && view === 'plan' && !wornHit) {
-    const { s } = layout
-    if (dragItem && mode === 'pack') {
-      const halo = 24
-      const cl = layout.comps.find(({ c, ox, oy }) => drag.sx >= ox - halo && drag.sx <= ox + c.l * s + halo && drag.sy >= oy - halo && drag.sy <= oy + c.w * s + halo)
-      if (cl && dragBox) {
-        const others = placedList.filter((pl) => pl.p.compartmentId === cl.c.id && pl.p.id !== drag.placementId).map((pl) => pl.box)
-        const x = clamp(Math.round((drag.sx - cl.ox) / s - dragBox.l / 2), 0, Math.max(0, cl.c.l - dragBox.l))
-        const y = clamp(Math.round((drag.sy - cl.oy) / s - dragBox.w / 2), 0, Math.max(0, cl.c.w - dragBox.w))
-        const z = dropZ(others, { x, y, l: dragBox.l, w: dragBox.w })
-        snap = { compId: cl.c.id, home: cl.c.id, x, y, z, ok: fits(cl.c, others, { ...dragBox, x, y, z }), soft: false, over: false }
-      } else if (cl && dragItem.kind === 'soft') {
-        const pv = packedVolume(dragItem)
-        const px = (drag.sx - cl.ox) / s, py = (drag.sy - cl.oy) / s
-        const cube = placedList.find((pl) => pl.it.kind === 'container' && pl.p.compartmentId === cl.c.id && px >= pl.box.x && px <= pl.box.x + pl.box.l && py >= pl.box.y && py <= pl.box.y + pl.box.w)
-        snap = cube
-          ? { compId: cl.c.id, home: cube.p.id, x: 0, y: 0, z: 0, ok: true, soft: true, over: (looseBy[cube.p.id] ?? 0) + pv > cFills[cube.p.id].cap + eps }
-          : { compId: cl.c.id, home: cl.c.id, x: 0, y: 0, z: 0, ok: true, soft: true, over: (looseBy[cl.c.id] ?? 0) + pv > fills[cl.c.id].free + eps }
-      }
+  // Drag: the footprint appears at true scale the instant the drag starts and snaps to the 1 cm grid over a compartment.
+  const onDrop = ({ drag: d, snap: sn, ghost: g, wornHit: toWorn }: Dropped) => {
+    if (!trip || !d.itemId) return
+    if (toWorn) {
+      const w: Worn = { id: uid(), itemId: d.itemId }
+      const pid = d.placementId
+      api.patchTrip(trip.id, (t) => ({ ...(pid ? withoutPlacements(t, new Set([pid])) : {}), worn: [...t.worn, w] }))
+      setSelected(null)
+    } else if (sn?.ok && sn.soft) {
+      const l: Loose = { id: uid(), itemId: d.itemId, home: sn.home }
+      api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, l] }))
+      absorb(sn.home)
+      if (sn.over) say('Over volume: more soft than the room left', true)
+    } else if (sn?.ok) {
+      const pl: Placement = { id: d.placementId ?? uid(), itemId: d.itemId, compartmentId: sn.compId, x: sn.x, y: sn.y, z: sn.z, o: d.o }
+      api.patchTrip(trip.id, (t) => ({ placements: [...t.placements.filter((p) => p.id !== pl.id), pl] }))
+      setSelected(pl.id)
+      settle([pl.id])
+    } else if (sn && g) {
+      showFlash(g, 280)
+    } else if (d.placementId) {
+      // Dropped off the sheet: a placed unit comes out.
+      const id = d.placementId
+      api.snap(`Took out ${nameOf(d.itemId)}`)
+      api.patchTrip(trip.id, (t) => withoutPlacements(t, new Set([id])))
+      setSelected(null)
     }
   }
-  const gs = layout?.s ?? 4
-  const ghostOrigin = snap && layout ? layout.comps.find((cl) => cl.c.id === snap!.compId) : null
-  const ghost: Ghost | null =
-    drag && dragBox
-      ? snap && !snap.soft && ghostOrigin && layout
-        ? { left: drag.rl + ghostOrigin.ox + snap.x * layout.s, top: drag.rt + ghostOrigin.oy + snap.y * layout.s, w: dragBox.l * gs, h: dragBox.w * gs }
-        : { left: drag.px - (dragBox.l * gs) / 2, top: drag.py - (dragBox.w * gs) / 2, w: dragBox.l * gs, h: dragBox.w * gs }
-      : drag && softSide
-        ? { left: drag.px - (softSide * gs) / 2, top: drag.py - (softSide * gs) / 2, w: softSide * gs, h: softSide * gs }
-        : null
-  const dragRef = useRef(drag); dragRef.current = drag
-  const itemsRef = useRef(items); itemsRef.current = items
-  const snapRef = useRef(snap); snapRef.current = snap
-  const wornHitRef = useRef(wornHit); wornHitRef.current = wornHit
-  const ghostRef = useRef(ghost); ghostRef.current = ghost
-
+  const dragger = useDrag({ sheetRef, wornRef, items, layout, data, snapping: !!bag && view === 'plan' && mode === 'pack', onDrop })
+  const { drag, wornHit } = dragger
   const startDrag = (e: RPointerEvent, d: Pick<Drag, 'itemId' | 'placementId' | 'o'>) => {
     if (e.button !== 0 || !trip) return
-    e.preventDefault()
-    const r = sheetRef.current!.getBoundingClientRect()
     setSelected(d.placementId ?? null)
-    setDrag({ ...d, px: e.clientX, py: e.clientY, sx: e.clientX - r.left, sy: e.clientY - r.top, rl: r.left, rt: r.top })
+    dragger.start(e, d)
   }
-  const dragging = drag !== null
-  useEffect(() => {
-    if (!dragging || !trip) return
-    document.body.classList.add('dragging')
-    const tripId = trip.id
-    const mv = (e: PointerEvent) => {
-      const r = sheetRef.current?.getBoundingClientRect()
-      if (!r) return
-      setDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, sx: e.clientX - r.left, sy: e.clientY - r.top, rl: r.left, rt: r.top })
-    }
-    const up = () => {
-      const d = dragRef.current, sn = snapRef.current, g = ghostRef.current
-      setDrag(null)
-      if (!d) return
-      if (d.itemId && wornHitRef.current) {
-        const w: Worn = { id: uid(), itemId: d.itemId }
-        const pid = d.placementId
-        api.patchTrip(tripId, (t) => ({ ...(pid ? withoutPlacements(t, new Set([pid])) : {}), worn: [...t.worn, w] }))
-        setSelected(null)
-      } else if (d.itemId && sn?.ok && sn.soft) {
-        const l: Loose = { id: uid(), itemId: d.itemId, home: sn.home }
-        api.patchTrip(tripId, (t) => ({ loose: [...t.loose, l] }))
-        absorb(sn.home)
-        if (sn.over) say('Over volume: more soft than the room left', true)
-      } else if (d.itemId && sn?.ok) {
-        const pl: Placement = { id: d.placementId ?? uid(), itemId: d.itemId, compartmentId: sn.compId, x: sn.x, y: sn.y, z: sn.z, o: d.o }
-        api.patchTrip(tripId, (t) => ({ placements: [...t.placements.filter((p) => p.id !== pl.id), pl] }))
-        setSelected(pl.id)
-        settle([pl.id])
-      } else if (sn && g) {
-        showFlash(g, 280)
-      } else if (d.placementId) {
-        const id = d.placementId
-        api.snap(`Took out ${itemsRef.current.find((i) => i.id === d.itemId)?.name ?? 'it'}`)
-        api.patchTrip(tripId, (t) => withoutPlacements(t, new Set([id])))
-        setSelected(null)
-      }
-    }
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'r' || e.key === 'R') setDrag((d) => d && { ...d, o: d.o ^ 1 })
-      if (e.key === 't' || e.key === 'T') setDrag((d) => { const it = d?.itemId ? itemsRef.current.find((i) => i.id === d.itemId) : null; return d && it && isBoxed(it) ? { ...d, o: nextFace(d.o, orientationsOf(it)) } : d })
-      if (e.key === 'Escape') setDrag(null)
-    }
-    window.addEventListener('pointermove', mv)
-    window.addEventListener('pointerup', up)
-    window.addEventListener('pointercancel', up)
-    window.addEventListener('keydown', key)
-    return () => {
-      document.body.classList.remove('dragging')
-      window.removeEventListener('pointermove', mv)
-      window.removeEventListener('pointerup', up)
-      window.removeEventListener('pointercancel', up)
-      window.removeEventListener('keydown', key)
-    }
-  }, [dragging]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const compOf = (id: string) => bag?.compartments.find((c) => c.id === id) ?? null
   const nameOf = (itemId: string) => items.find((i) => i.id === itemId)?.name ?? 'it'
@@ -699,16 +578,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
         </div>
       </aside>
 
-      {ghost && drag && dragItem && (
-        <div className={'ghost' + (snap && !snap.ok ? ' bad' : '') + (dragItem?.kind === 'soft' ? ' soft' : '') + (snap?.over ? ' over' : '')} style={{ left: ghost.left, top: ghost.top, width: ghost.w, height: ghost.h }} aria-hidden="true">
-          <span>{dragItem.name}</span><br />
-          <span className="dim">
-            {wornHit ? 'worn' : dragItem?.kind === 'soft'
-              ? snap ? (snap.over ? 'over volume' : snap.home !== snap.compId ? `into ${placedList.find((pl) => pl.p.id === snap!.home)?.it.name}` : `into ${compOf(snap.compId)?.name}`) : `${fmtVol(packedVolume(dragItem))}`
-              : dragBox ? `${dragBox.l} × ${dragBox.w}${snap && !snap.ok ? " · doesn't fit" : ''}` : ''}
-          </span>
-        </div>
-      )}
+      <DragGhost d={dragger} homeName={(id) => compOf(id)?.name ?? placedList.find((pl) => pl.p.id === id)?.it.name} />
       {flash && <div className="ghost bad flash" style={{ left: flash.left, top: flash.top, width: flash.w, height: flash.h }} aria-hidden="true" />}
     </div>
   )
@@ -817,25 +687,6 @@ function Dim({ x1, y1, x2, y2, edge, label, color = 'var(--ink)' }: { x1: number
       <text x={(x1 + x2) / 2} y={y1 < edge ? y1 - 5 : y1 + 13} fontSize={11} fill={color} stroke="none" textAnchor="middle" style={textStyle}>{label}</text>
     </g>
   )
-}
-
-const FILL_MS = 420
-/** A number that eases to each new value, so a readout counts up rather than jumping. Reduced motion jumps. */
-function useTween(value: number, ms: number) {
-  const [v, setV] = useState(value)
-  const at = useRef(value), raf = useRef(0)
-  useEffect(() => {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { at.current = value; setV(value); return }
-    const a = at.current, t0 = performance.now()
-    const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / ms), x = a + (value - a) * (1 - Math.pow(1 - k, 3))
-      at.current = x; setV(x)
-      if (k < 1) raf.current = requestAnimationFrame(step)
-    }
-    raf.current = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf.current)
-  }, [value, ms])
-  return v
 }
 
 /** Segmented bar: the ratio fills whole segments left to right, the last one partly; all segments go red when over.
