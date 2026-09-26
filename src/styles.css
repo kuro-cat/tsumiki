@@ -302,8 +302,6 @@ kbd { font: inherit; font-size: var(--fs-xs); color: var(--ink-2); border: 1px s
 @media (pointer: coarse) { kbd { display: none; } }
 .sel-name { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-right: 6px; }
 .sel-name .dim { font-weight: 400; }
-.note { position: absolute; left: 50%; transform: translateX(-50%); bottom: 20px; background: var(--ink); color: var(--paper); padding: 9px 16px; font-size: var(--fs-m); max-width: calc(100% - 32px); animation: rise 220ms var(--ease) both; }
-.note.red { background: var(--red); color: var(--on-red); }
 @keyframes rise { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .notices { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40; max-width: calc(100% - 32px); pointer-events: none; }
 .notice { pointer-events: auto; display: flex; align-items: center; gap: 14px; background: var(--ink); color: var(--paper); padding: 8px 8px 8px 16px; font-size: var(--fs-m); animation: noticein 220ms var(--ease) both; }
@@ -312,6 +310,8 @@ kbd { font: inherit; font-size: var(--fs-xs); color: var(--ink-2); border: 1px s
 .notice .btn:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
 .notice.red { background: var(--red); color: var(--on-red); }
 @keyframes noticein { from { opacity: 0; transform: translateY(8px); } }
+/* The arrange hint is a notice held on the sheet rather than the screen. */
+.notice.arrange { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); animation-name: rise; }
 .sheet-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; padding: 24px; }
 .sheet-empty select { width: 240px; }
 
@@ -331,12 +331,9 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .mode, .cams { position: absolute; right: 16px; top: 16px; }
 .mode .btn.text { background: var(--raise); border-color: var(--ink); }
 .mode.in3d { top: 60px; }
-.note.arrange { display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 16px; }
-.note.arrange .btn { background: transparent; color: var(--paper); border-color: var(--paper); }
-.note.arrange .btn:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
 .sel .cin.xyz { width: 76px; min-height: 32px; }
-.note.arrange b { font-weight: 600; }
-.note.arrange .ax-x { color: #ff8577; } .note.arrange .ax-y { color: #7ee07e; } .note.arrange .ax-z { color: #8fb6ff; }
+.notice.arrange b { font-weight: 600; }
+.notice.arrange .ax-x { color: #ff8577; } .notice.arrange .ax-y { color: #7ee07e; } .notice.arrange .ax-z { color: #8fb6ff; }
 .scene.arranging canvas { cursor: pointer; }
 .ctabs { position: absolute; left: 16px; top: 12px; max-width: calc(100% - 32px); overflow-x: auto; scrollbar-width: none; }
 .ctabs button.red { color: var(--red); }
@@ -554,8 +551,7 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   .sel { left: 8px; right: 8px; top: 56px; bottom: auto; max-width: none; padding: 4px 4px 4px 10px; }
   .sel-name { flex-basis: 100%; }
   .sel-name .dim, kbd { display: none; }
-  .note { bottom: auto; top: 56px; }
-  .note.arrange { top: auto; bottom: 8px; left: 8px; right: 8px; transform: none; max-width: none; font-size: var(--fs-s); animation: none; }
+  .notice.arrange { bottom: 8px; left: 8px; right: 8px; transform: none; max-width: none; font-size: var(--fs-s); animation: none; }
   .worn-list { padding: 64px 16px 24px; }
   .readouts { gap: 16px; }
   .row { grid-template-columns: 24px 20px minmax(0, 1fr) auto auto; }

@@ -622,7 +622,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           </div>
         )}
         {mode === 'assemble' && view === '3d' && (
-          <div className="note arrange">
+          <div className="notice arrange">
             <span>{selComp ? <>Drag an arrow: <b className="ax-x">red</b> along, <b className="ax-z">blue</b> across, <b className="ax-y">green</b> up to stack. It settles onto what's below.</> : 'Pick a compartment to move it.'}</span>
             <button className="btn small" onClick={() => { setMode('pack'); setSelected(null); setView(arrangeFrom.current) }}>Done</button>
           </div>
