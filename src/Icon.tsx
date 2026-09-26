@@ -1,3 +1,7 @@
+import type { CSSProperties } from 'react'
+import { Compass, Droplets, Footprints, IdCard, Package, Plug, Shirt, type LucideIcon } from 'lucide-react'
+import type { Category, Item } from './store'
+
 const P = {
   grip: 'M6 4.5v.01M10 4.5v.01M6 8v.01M10 8v.01M6 11.5v.01M10 11.5v.01',
   rotate: 'M3.5 8a4.5 4.5 0 1 0 1.3-3.2M3.5 3.5V6h2.5',
@@ -16,4 +20,12 @@ export function Icon({ name, size = 16 }: { name: keyof typeof P; size?: number 
       <path d={P[name]} />
     </svg>
   )
+}
+
+const CAT: Record<Category, LucideIcon> = { clothing: Shirt, footwear: Footprints, toiletries: Droplets, electronics: Plug, documents: IdCard, gear: Compass, misc: Package }
+
+/** An item's category, drawn in its own colour when it has one. */
+export function CatIcon({ it }: { it: Pick<Item, 'category' | 'color'> }) {
+  const C = CAT[it.category]
+  return <C className={'cat' + (it.color ? ' tinted' : '')} size={14} strokeWidth={2} style={it.color ? ({ '--sw': it.color } as CSSProperties) : undefined} aria-hidden="true" />
 }

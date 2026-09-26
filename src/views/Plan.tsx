@@ -3,7 +3,7 @@ import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, worn
 import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
-import { Icon } from '../Icon'
+import { CatIcon, Icon } from '../Icon'
 import { LinkPicker } from './LinkPicker'
 
 type Mode = 'pack' | 'assemble'
@@ -379,7 +379,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
       onPointerDown={r.remaining && mode === 'pack' ? (e) => { if (e.pointerType !== 'mouse' && !(e.target as Element).closest('.grip')) return; startDrag(e, { itemId: r.it.id, o: 0 }) } : undefined}
     >
       <span className="grip">{r.remaining ? <Icon name="grip" /> : <Icon name="check" />}</span>
-      <span className="name"><span>{r.it.color && <i className="sw" style={{ '--sw': r.it.color } as CSSProperties} />}<span>{r.it.name}</span></span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}{r.wornN ? ` · ${r.wornN} worn` : ''}</span></span>
+      <span className="name"><span><CatIcon it={r.it} /><span>{r.it.name}</span></span><span className="dim">{r.it.kind === 'soft' ? `soft · ${fmtVol(packedVolume(r.it))} packed` : fmtSize(r.it)}{r.wornN ? ` · ${r.wornN} worn` : ''}</span></span>
       <span className="w num">{fmtW(r.it.weight)}</span>
       {r.it.qty > 8 ? <span className="num dim">{r.placedN} / {r.it.qty}</span> : (
         <span className="marks" role="img" aria-label={`${r.placedN} of ${r.it.qty} packed`}>{Array.from({ length: r.it.qty }, (_, i) => <i key={i} className={i < r.placedN ? 'on' : ''} />)}</span>
@@ -515,7 +515,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
               const it = items.find((i) => i.id === id)
               return it ? (
                 <div key={id} className="worn-row">
-                  <span className="name">{it.color && <i className="sw" style={{ '--sw': it.color } as CSSProperties} />}<span>{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
+                  <span className="name"><CatIcon it={it} /><span>{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
                   <span className="num dim">{fmtW(it.weight * n)}</span>
                   <button className="btn text" onClick={() => removeUnit(id)} aria-label={`Take off ${it.name}`}><Icon name="minus" />Take off</button>
                 </div>

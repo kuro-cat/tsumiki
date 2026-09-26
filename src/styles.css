@@ -225,7 +225,10 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 @keyframes arrive { from { transform: var(--from); opacity: 0; } }
 @keyframes fadein { from { opacity: 0; } }
 .sw { display: inline-block; width: 8px; height: 8px; border: 1px solid var(--ink); background: var(--sw, transparent); vertical-align: 1px; margin-right: 6px; flex: none; }
-.row .sw, .trow .sw { margin-right: 0; }
+.cat { display: block; flex: none; color: var(--ink-3); }
+/* The item's colour, pulled a third of the way to the ink so light swatches still read as a line on either paper. */
+.cat.tinted { color: color-mix(in srgb, var(--sw) 68%, var(--ink)); }
+.row.spent .cat { opacity: 0.55; }
 .row .name span:first-child, .trow .name span:first-child { display: flex; align-items: center; gap: 6px; }
 .row .name span:first-child > span, .trow .name span:first-child > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .chip.sw-chip { padding: 3px 6px; }

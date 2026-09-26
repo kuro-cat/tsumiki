@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from 'react'
 import { CATEGORIES, SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
+import { CatIcon } from '../Icon'
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
 type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean; capacity: number; autoCap: boolean }
@@ -90,7 +91,7 @@ export function Inventory({ state, api }: ViewProps) {
           <div className="trow head" style={COLS}><span className="label">Name</span><span className="label">Category</span><span className="label">Kind</span><span className="label num">Size</span><span className="label num">Weight</span><span className="label num">Qty</span></div>
           {list.map((it) => (
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => { setForm(toForm(it)); setEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-              <span className="name"><span>{it.color && <i className="sw" style={{ '--sw': it.color } as CSSProperties} />}<span>{it.name}</span></span>{it.sample && <span className="tag">sample</span>}</span>
+              <span className="name"><span><CatIcon it={it} /><span>{it.name}</span></span>{it.sample && <span className="tag">sample</span>}</span>
               <span className="dim">{it.category}</span>
               <span className="dim">{it.kind}{it.kind !== 'soft' && it.up ? ' ↑' : ''}</span>
               <span className="num">{fmtSize(it)}</span>
