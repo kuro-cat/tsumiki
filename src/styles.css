@@ -299,6 +299,14 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 
 .sel { position: absolute; left: 56px; top: 12px; display: flex; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--blue); padding: 4px 6px 4px 10px; color: var(--ink); font-size: 13px; max-width: calc(100% - 72px); }
 .sel .btn.text { padding: 3px 6px; }
+/* A selected container lists what it holds under the card's actions. */
+.sel:has(.contents) { flex-wrap: wrap; }
+.sel .contents { flex-basis: 100%; max-width: 380px; display: grid; gap: 1px; margin: 2px 0 2px; padding-top: 6px; border-top: 1px solid var(--rule-2); max-height: 40vh; overflow: auto; }
+.sel .contents .btn.text { justify-self: start; margin-top: 2px; }
+.in-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; }
+.in-row .name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.in-row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.in-row .btn.quiet { padding: 3px 4px; }
 .note { position: absolute; left: 50%; transform: translateX(-50%); top: 12px; background: var(--paper); border: 1px solid var(--ink); padding: 5px 10px; font-size: 13px; animation: fade 200ms var(--ease) both; }
 .note.red { border-color: var(--red); }
 @keyframes fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

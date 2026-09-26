@@ -261,6 +261,12 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
     const last = [...t.loose].reverse().find((l) => l.itemId === itemId)
     return { loose: t.loose.filter((l) => l !== last) }
   })
+  /** One unit of an item out of a container, back to the schedule; or everything out, keeping the container where it is. */
+  const takeOut = (home: string, itemId: string) => trip && api.patchTrip(trip.id, (t) => {
+    const last = [...t.loose].reverse().find((l) => l.home === home && l.itemId === itemId)
+    return { loose: t.loose.filter((l) => l !== last) }
+  })
+  const emptyOut = (home: string) => trip && api.patchTrip(trip.id, (t) => ({ loose: t.loose.filter((l) => l.home !== home) }))
   /** Re-seats a placement in a new orientation at the same corner, settling on whatever is under it. */
   const reorient = (id: string, o: number) => {
     if (!trip || !bag) return
@@ -500,6 +506,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
             <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn</button>
             <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip</button>
             <button className="btn text" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Remove (Delete)"><Icon name="x" />Remove</button>
+            {cFills[selPl.p.id] && <Contents trip={trip} items={items} cube={selPl.p.id} name={selPl.it.name} takeOut={takeOut} emptyOut={emptyOut} />}
           </div>
         )}
         {selComp && !drag && mode === 'assemble' && bag && (
@@ -769,6 +776,24 @@ function ScaleBar({ s }: { s: number }) {
 }
 
 /** Four weight states as line marks, so colour is never the only signal. */
+/** What a selected container holds, one row per item, each with a − that takes one unit out. */
+function Contents({ trip, items, cube, name, takeOut, emptyOut }: { trip: { loose: Loose[] }; items: Item[]; cube: string; name: string; takeOut: (home: string, itemId: string) => void; emptyOut: (home: string) => void }) {
+  const counts = trip.loose.filter((l) => l.home === cube).reduce<Record<string, number>>((a, l) => ({ ...a, [l.itemId]: (a[l.itemId] ?? 0) + 1 }), {})
+  const rows = Object.entries(counts).flatMap(([id, n]) => { const it = items.find((i) => i.id === id); return it?.kind === 'soft' ? [{ it, n }] : [] })
+  return (
+    <div className="contents" role="group" aria-label={`In ${name}`}>
+      {rows.length ? rows.map(({ it, n }) => (
+        <div key={it.id} className="in-row">
+          <span className="name"><CatIcon it={it} /><span>{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
+          <span className="dim num">{fmtVol(packedVolume(it) * n)}</span>
+          <button className="btn quiet" onClick={() => takeOut(cube, it.id)} aria-label={`Take one ${it.name} out of ${name}`} title="Take one out"><Icon name="minus" /></button>
+        </div>
+      )) : <p className="dim">Empty. Drop soft items on it to pack them inside.</p>}
+      {rows.length > 0 && <button className="btn text" onClick={() => emptyOut(cube)}>Empty it</button>}
+    </div>
+  )
+}
+
 /** TOTAL says where its number comes from, and is where the bag is weighed: the value becomes a kg field in place. */
 function TotalCell({ tot, onWeigh }: { tot: ReturnType<typeof bagTotals>; onWeigh: (g: number | null) => void }) {
   const [edit, setEdit] = useState<string | null>(null)
