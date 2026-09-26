@@ -5,7 +5,7 @@ import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { CatIcon, Icon } from '../Icon'
-import { ActionSelect, IconButton, Seg } from '../ui'
+import { ActionSelect, IconButton, Seg, Tab, TabList } from '../ui'
 
 type Mode = 'pack' | 'assemble'
 type Drag = { itemId?: string; placementId?: string; o: number; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
@@ -516,15 +516,15 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   return (
     <div className="plan">
         {(tb.length > 0 || trip.worn.length > 0) && (
-          <div className="bagstrip" role="tablist" aria-label="Bags on this trip">
+          <TabList className="bagstrip" label="Bags on this trip">
             {tb.map((b) => {
               const tab = (b: Bag) => {
                 const t = bagTotals(b, trip, items)
                 return (
-                  <button key={b.id} role="tab" aria-selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
+                  <Tab key={b.id} selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
                     <span className="name truncate">{b.name}</span>
                     {b.id !== bag?.id && <span className="num">{fmtW(t.total)}</span>}
-                  </button>
+                  </Tab>
                 )
               }
               const sh = shared.find((x) => x.bagIds.includes(b.id))
@@ -539,11 +539,11 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
                 </div>
               )
             })}
-            <button ref={wornRef} role="tab" aria-selected={worn} className={'bagtab wornt' + (wornHit ? ' hit' : '')} onClick={() => show('worn')} title="Drop an item here to wear it">
+            <Tab ref={wornRef} selected={worn} className={'bagtab wornt' + (wornHit ? ' hit' : '')} onClick={() => show('worn')} title="Drop an item here to wear it">
               <span className="name truncate">Worn</span>
               <span className="num">{trip.worn.length}</span>
-            </button>
-          </div>
+            </Tab>
+          </TabList>
         )}
       <div className="sheet" ref={sheetRef} tabIndex={0} onKeyDown={onKey} aria-label="Packing plan">
         {bag && layout && view === 'plan' && (
@@ -608,11 +608,11 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           </Suspense>
         )}
         {bag && shownComp && bag.compartments.length > 1 && view === 'plan' && (
-          <div className="ctabs seg" role="tablist" aria-label="Compartment on the sheet">
+          <TabList className="ctabs seg" label="Compartment on the sheet">
             {bag.compartments.map((c, i) => (
-              <button key={c.id} role="tab" aria-selected={c.id === shownComp.id} aria-pressed={c.id === shownComp.id} className={fills[c.id]?.over ? 'red' : ''} onClick={() => { setCompIdx(i); setSelected(null) }}>{c.name}</button>
+              <Tab key={c.id} selected={c.id === shownComp.id} aria-pressed={c.id === shownComp.id} className={fills[c.id]?.over ? 'red' : ''} onClick={() => { setCompIdx(i); setSelected(null) }}>{c.name}</Tab>
             ))}
-          </div>
+          </TabList>
         )}
         {/* Arranging happens in 3D, where height is visible: pick a compartment, drag an arrow, and it settles onto whatever is below it. */}
         {bag && bag.compartments.length > 1 && mode === 'pack' && (

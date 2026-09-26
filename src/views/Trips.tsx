@@ -5,7 +5,7 @@ import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
-import { ActionSelect, Field, FormCard, IconButton, PageHead, Seg } from '../ui'
+import { ActionSelect, Field, FormCard, IconButton, PageHead, Seg, Tab, TabList } from '../ui'
 
 
 
@@ -82,17 +82,17 @@ export function Trips({ state, api, go }: ViewProps) {
       <PageHead title="Trips" actions={<button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button>} />
       {/* Trips as sheet tabs across the top; the chosen trip gets the full width below. */}
       {state.trips.length > 0 ? (
-        <div className="trip-tabs cluster tight" role="tablist" aria-label="Trips">
+        <TabList className="trip-tabs cluster tight" label="Trips">
           {state.trips.map((t) => {
             const done = t.checklist.filter((c) => isPacked(c, t, state.items)).length
             return (
-              <button key={t.id} role="tab" type="button" className="bagtab" aria-selected={trip?.id === t.id} onClick={() => { setEditId(t.id); setEditing(false); setOpenRow(null); setMsg(null) }}>
+              <Tab key={t.id} selected={trip?.id === t.id} className="bagtab" onClick={() => { setEditId(t.id); setEditing(false); setOpenRow(null); setMsg(null) }}>
                 <span className="name truncate">{t.name}</span>
                 <span className="num">{fmtDate(t.start)} · {done} of {t.checklist.length}</span>
-              </button>
+              </Tab>
             )
           })}
-        </div>
+        </TabList>
       ) : <Blank art="list" title="No trips yet">A trip turns its dates, weather and plans into a checklist.<button className="btn primary" onClick={startNew}>Start the first one</button></Blank>}
       <div className="trip-body">
         {trip && (
