@@ -5,11 +5,13 @@ import { Inventory } from './views/Inventory'
 import { Bags } from './views/Bags'
 import { Trips } from './views/Trips'
 import { Data } from './views/Data'
+import { Seg } from './ui'
 
 const TABS = ['Plan', 'Inventory', 'Bags', 'Trips', 'Data'] as const
 export type Tab = (typeof TABS)[number]
 export type ViewProps = { state: State; api: Api; go: (t: Tab) => void }
 export type PlanView = 'plan' | '3d'
+const VIEWS: PlanView[] = ['plan', '3d']
 type Theme = 'system' | 'light' | 'dark'
 /** Earlier versions stored the paper names. */
 const OLD: Record<string, Theme> = { vellum: 'light', blueprint: 'dark' }
@@ -82,10 +84,7 @@ export default function App() {
             <select aria-label="Trip" value={trip.id} onChange={(e) => api.set({ activeTripId: e.target.value })}>
               {state.trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <div className="seg" role="group" aria-label="View">
-              <button aria-pressed={view === 'plan'} onClick={() => setView('plan')}>Plan</button>
-              <button aria-pressed={view === '3d'} onClick={() => setView('3d')}>3D</button>
-            </div>
+            <Seg label="View" options={VIEWS} value={view} onChange={setView} names={{ plan: 'Plan', '3d': '3D' }} />
             {themeSel}
           </div>
         ) : themeSel}

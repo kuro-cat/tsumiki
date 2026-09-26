@@ -5,6 +5,7 @@ import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
 import { CatIcon, Icon } from '../Icon'
+import { ActionSelect, IconButton, Seg } from '../ui'
 
 type Mode = 'pack' | 'assemble'
 type Drag = { itemId?: string; placementId?: string; o: number; px: number; py: number; sx: number; sy: number; rl: number; rt: number }
@@ -626,9 +627,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           </div>
         )}
         {bag && view === '3d' && (
-          <div className="cams seg" role="group" aria-label="Camera">
-            {CAM_VIEWS.map((v) => <button key={v} aria-pressed={cam.view === v} onClick={() => setCam((c) => ({ view: v, n: c.n + 1 }))}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>)}
-          </div>
+          <Seg label="Camera" className="cams" options={CAM_VIEWS} value={cam.view} onChange={(v) => setCam((c) => ({ view: v, n: c.n + 1 }))} />
         )}
         {bag && mode === 'pack' && (layered || view === '3d') && (
           <div className="cut">
@@ -642,11 +641,10 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
             <span className="sel-name"><CatIcon it={selPl.it} />{selPl.it.name}<span className="dim">{fmtDim(selPl.box)} cm</span></span>
             <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn<kbd>R</kbd></button>
             <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip<kbd>T</kbd></button>
-            <select className="act" aria-label={`Move ${selPl.it.name} to…`} value="" onChange={(e) => e.target.value && moveTo(selPl.p.id, e.target.value)}>
-              <option value="">Move to…</option>
+            <ActionSelect label={`Move ${selPl.it.name} to…`} placeholder="Move to…" onPick={(to) => moveTo(selPl.p.id, to)}>
               {tb.filter((b) => b.id !== bag?.id).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               <option value="worn">Wear it</option>
-            </select>
+            </ActionSelect>
             <button className="btn text" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Take out (Delete)"><Icon name="x" />Take out</button>
           </div>
         )}
@@ -674,7 +672,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
                   <CatIcon it={it} />
                   <span className="name"><span className="truncate">{it.name}{n > 1 ? ` × ${n}` : ''}</span></span>
                   <span className="num dim">{fmtW(it.weight * n)}</span>
-                  <button className="btn quiet" onClick={() => removeUnit(id)} aria-label={`Take off ${it.name}`} title="Take one off"><Icon name="minus" /></button>
+                  <IconButton icon="minus" label={`Take off ${it.name}`} title="Take one off" onClick={() => removeUnit(id)} />
                 </div>
               ) : null
             })}
@@ -685,10 +683,9 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           <div className="sheet-empty">
             <Blank art="bag" title="Choose a bag">The plan is drawn at the bag's inside size.</Blank>
             {bags.length ? (
-              <select aria-label="Bag" value="" onChange={(e) => { if (e.target.value) { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, e.target.value] })); show(e.target.value) } }}>
-                <option value="">Select a bag</option>
+              <ActionSelect label="Bag" placeholder="Select a bag" className="" onPick={(id) => { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, id] })); show(id) }}>
                 {bags.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtDim(mainOf(b))}</option>)}
-              </select>
+              </ActionSelect>
             ) : (
               <button className="btn primary" onClick={() => go('Bags')}>Add a bag <Icon name="arrow" /></button>
             )}
@@ -771,7 +768,7 @@ function InRow({ it, n, onMinus, onSelect, label }: { it: Item; n: number; onMin
       <CatIcon it={it} />
       {onSelect ? <button className="in-name truncate" onClick={onSelect}>{it.name}{n > 1 ? ` × ${n}` : ''}</button> : <span className="in-name truncate">{it.name}{n > 1 ? ` × ${n}` : ''}</span>}
       <span className="num dim">{fmtW(it.weight * n)}</span>
-      <button className="btn quiet" onClick={onMinus} aria-label={label} title="Take one out"><Icon name="minus" /></button>
+      <IconButton icon="minus" label={label} title="Take one out" onClick={onMinus} />
     </div>
   )
 }

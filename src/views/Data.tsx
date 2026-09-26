@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, sampleState, titleCase, type State } from '../store'
 import type { ViewProps } from '../App'
 import { AUTOPACK_ANIM_KEY, autopackAnimates } from './Plan'
+import { Field, PageHead, UnitInput } from '../ui'
 
 export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; red?: boolean; at?: 'sample' } | null>(null)
@@ -51,7 +52,7 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
 
   return (
     <section className="page">
-      <div className="page-head"><h1>Data</h1><span className="label">Stored in this browser only</span></div>
+      <PageHead title="Data" meta="Stored in this browser only" />
       <div className="data">
         {theme && (
           <section className="phone-only">
@@ -70,14 +71,14 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
         </section>
         <section>
           <h2>Claude API key</h2>
-          <label className="field"><span className="label">Key</span><input type="password" value={state.apiKey} onChange={(e) => api.set({ apiKey: e.target.value.trim() })} placeholder="sk-ant-…" autoComplete="off" /></label>
+          <Field label="Key"><input type="password" value={state.apiKey} onChange={(e) => api.set({ apiKey: e.target.value.trim() })} placeholder="sk-ant-…" autoComplete="off" /></Field>
           <p className="hint">Optional, for “Ask Claude for extras” on a trip. The key stays in this browser; requests go straight to Anthropic on your account.</p>
         </section>
         <section>
           <h2>Packed size by category</h2>
           <div className="packs">
             {CATEGORIES.map((c) => (
-              <label key={c} className="field"><span className="label">{titleCase(c)}</span><span className="unit"><input type="number" min={5} max={100} step={5} value={state.packsTo[c]} onChange={(e) => api.set({ packsTo: { ...state.packsTo, [c]: Number(e.target.value) } })} /><span className="dim">%</span></span></label>
+              <Field key={c} label={titleCase(c)}><UnitInput unit="%" min={5} max={100} step={5} value={state.packsTo[c]} onChange={(e) => api.set({ packsTo: { ...state.packsTo, [c]: Number(e.target.value) } })} /></Field>
             ))}
           </div>
           <p className="hint">How much of its volume a soft item takes once squashed into a bag. New items start from these.</p>
