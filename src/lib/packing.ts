@@ -11,6 +11,16 @@ export function fitOne(comps: Compartment[], it: Boxed, taken: Record<string, Pl
   return r.placed.length ? toPlacement(r.placed[0]) : null
 }
 
+/** A placed unit moved into another bag, placed as the trip will be once it has left; null when it doesn't fit there.
+ *  It keeps its placement id, so a container keeps what it holds. */
+export function moveInto(trip: Trip, items: Item[], placementId: string, to: Bag): Placement | null {
+  const pl = trip.placements.find((p) => p.id === placementId)
+  const it = pl && items.find((i) => i.id === pl.itemId)
+  if (!pl || !it || !isBoxed(it)) return null
+  const spot = fitOne(to.compartments, it, placedBoxes({ ...trip, placements: trip.placements.filter((p) => p.id !== placementId) }, items))
+  return spot && { ...spot, id: placementId }
+}
+
 /** Why a boxed item has no spot in the bag, and which other bag on the trip could take it. */
 export function noFitReason(bag: Bag, others: Bag[], it: Boxed, taken: Record<string, Placed[]>): string {
   const why = fitOne(bag.compartments, it) ? 'has no gap big enough left' : `is bigger than every compartment in ${bag.name}`

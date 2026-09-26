@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { autoPackInto, fitOne, looseInBag, noFitReason, unitsToPack } from './packing.ts'
+import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, unitsToPack } from './packing.ts'
 import type { Bag, CheckItem, ContainerItem, Item, RigidItem, SoftItem, Trip } from './model.ts'
 
 const rigid = (id: string, l: number, w: number, h: number, qty = 1): RigidItem => ({ id, name: id, category: 'gear', kind: 'rigid', l, w, h, up: false, weight: 100, qty })
@@ -63,4 +63,13 @@ test('autoPackInto places boxes first, fills a cube packed in the same run, and 
   // the first shirt goes into the cube it arrived with; the cube has no room for a second
   const cubeId = r.placements[0].id
   assert.deepEqual(r.loose.map((l) => l.home), [cubeId, 'b-main'])
+})
+
+test('moveInto takes a placed unit to another bag under the same id, so a cube keeps what it holds', () => {
+  const k = cube('k', 2), shirt = soft('shirt', 1), to = bag('b', 30, 20, 10)
+  const t = trip({ bagIds: ['a', 'b'], placements: [{ id: 'pk', itemId: 'k', compartmentId: 'a-main', x: 5, y: 5, z: 0, o: 0 }], loose: [{ id: 'l', itemId: 'shirt', home: 'pk' }] })
+  const moved = moveInto(t, [k, shirt], 'pk', to)
+  assert.deepEqual(moved && [moved.id, moved.itemId, moved.compartmentId, moved.x, moved.y], ['pk', 'k', 'b-main', 0, 0])
+  // nothing moves when it won't fit
+  assert.equal(moveInto(t, [k, shirt], 'pk', bag('tiny', 5, 5, 5)), null)
 })

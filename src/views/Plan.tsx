@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, sharedTotals, dropBag, tripBags, tripReady, isBoxed, orientationsOf, withoutPlacements, fmtDim, linkedItems, mainOf, newTrip, packedVolume, placedBoxes, uid, type Bag, type Item, type Loose, type Placement, type Worn } from '../store'
+import { bagHeight, bagTotals, sharedTotals, dropBag, tripBags, tripReady, isBoxed, orientationsOf, withoutPlacements, fmtDim, linkedItems, mainOf, newTrip, packedVolume, uid, type Bag, type Item, type Loose, type Placement, type Worn } from '../store'
 import { dropZ, faceName, fits, nextFace, oriented } from '../lib/pack'
-import { autoPackInto, fitOne, looseInBag, noFitReason, unitsToPack } from '../lib/packing'
+import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, unitsToPack } from '../lib/packing'
 import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
@@ -188,22 +188,20 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     } else api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, looseInBag(t, items, to, it)] }))
     say(`Packed ${it.name} in ${to.name}`)
   }
-  /** A placed item goes to another bag on the trip, or onto the traveler. */
+  /** A placed item goes to another bag on the trip, or onto the traveler. A packing cube moves with what it holds. */
   const moveTo = (id: string, dest: string) => {
     const pl = placedList.find((x) => x.p.id === id)
     if (!trip || !pl) return
-    let add: Placement | null = null
-    if (dest !== 'worn') {
-      // Placed against the trip as it will be once this unit has left; nothing changes if it won't fit.
+    if (dest === 'worn') {
+      api.snap(`Wearing ${pl.it.name}`)
+      api.patchTrip(trip.id, (t) => ({ ...withoutPlacements(t, new Set([id])), worn: [...t.worn, { id: uid(), itemId: pl.it.id }] }))
+    } else {
       const to = tb.find((b) => b.id === dest)
-      add = to ? fitOne(to.compartments, pl.it, placedBoxes({ ...trip, ...withoutPlacements(trip, new Set([id])) }, items)) : null
-      if (!to || !add) return say(`${pl.it.name} doesn't fit in ${to?.name ?? 'that bag'}.`, true)
+      const moved = to ? moveInto(trip, items, id, to) : null
+      if (!to || !moved) return say(`${pl.it.name} doesn't fit in ${to?.name ?? 'that bag'}.`, true)
+      api.snap(`Moved ${pl.it.name} to ${to.name}`)
+      api.patchTrip(trip.id, (t) => ({ placements: t.placements.map((p) => (p.id === id ? moved : p)) }))
     }
-    api.snap(dest === 'worn' ? `Wearing ${pl.it.name}` : `Moved ${pl.it.name} to ${tb.find((b) => b.id === dest)?.name}`)
-    api.patchTrip(trip.id, (t) => {
-      const r = withoutPlacements(t, new Set([id]))
-      return add ? { ...r, placements: [...r.placements, add] } : { ...r, worn: [...t.worn, { id: uid(), itemId: pl.it.id }] }
-    })
     setSelected(null)
   }
   const autoPackAll = () => {
