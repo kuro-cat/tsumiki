@@ -29,8 +29,12 @@
   --bmix: 100%;
   --floor: 30%;
   --tint: 32%;
+  /* Secondary text and empty bar segments on a colour block. */
+  --blk-dim: color-mix(in srgb, var(--ink) 72%, transparent);
+  --blk-track: rgb(255 255 255 / 0.45);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23152022' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%232f6f80' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5 5.5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --font: 'Archivo', system-ui, sans-serif;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --spring: cubic-bezier(0.34, 1.2, 0.64, 1);
@@ -65,6 +69,8 @@
   --on-red: #0f1a1c;
   --blk-base: #121718;
   --tint: 40%;
+  --blk-dim: color-mix(in srgb, var(--ink) 90%, transparent);
+  --blk-track: rgb(255 255 255 / 0.12);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e4ecec' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236fb3c4' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   color-scheme: dark;
@@ -178,7 +184,7 @@ select { appearance: none; -webkit-appearance: none; padding-right: 28px; backgr
 input[type='number'] { text-align: right; }
 /* Checkboxes are drawn like the checklist mark: a square with an ink edge that fills with the accent and a tick. */
 input[type='checkbox'] { appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin: 0; border: 1.5px solid var(--ink); background: var(--raise); cursor: pointer; transition: background var(--t) var(--ease), border-color var(--t) var(--ease); }
-input[type='checkbox']:checked { background: var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5 5.5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 13px no-repeat; border-color: var(--blue); }
+input[type='checkbox']:checked { background: var(--blue) var(--tick) center / 13px no-repeat; border-color: var(--blue); }
 input[type='checkbox']:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 /* A select that performs an action (its value stays empty) reads as a text action, not a field. */
 select.act { width: auto; field-sizing: content; color: var(--blue); font-weight: 500; background-color: transparent; border-color: transparent; background-image: var(--chevron-act); padding-left: 8px; }
@@ -189,7 +195,7 @@ select.act option, select.put option { color: var(--ink); background: var(--rais
 .chip:hover { border-color: var(--ink-2); }
 .chip:has(:checked) { border-color: var(--ink); background: var(--blue-soft); }
 .chip:has(input[type='checkbox'])::before { content: ''; width: 14px; height: 14px; border: 1.5px solid var(--ink); flex: none; transition: background var(--t) var(--ease), border-color var(--t); }
-.chip:has(input[type='checkbox']:checked)::before { background: var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5 5.5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; border-color: var(--blue); }
+.chip:has(input[type='checkbox']:checked)::before { background: var(--blue) var(--tick) center / 12px no-repeat; border-color: var(--blue); }
 .chip input { position: absolute; opacity: 0; width: 0; height: 0; }
 .chip:has(:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
 .chip:has(input:disabled) { cursor: default; }
@@ -432,21 +438,19 @@ select.put:disabled { opacity: 0.5; cursor: default; }
 .block header { display: flex; align-items: baseline; gap: 8px; }
 .block .bname { font-weight: 600; }
 .block .bpct { margin-left: auto; font-weight: 600; }
-.block .segs i { background: linear-gradient(to right, var(--ink) calc(var(--f) * 100%), rgb(255 255 255 / 0.45) 0); }
-:root[data-theme='dark'] .in-row .num, :root[data-theme='dark'] .block .dim, :root[data-theme='dark'] .blk-empty { color: color-mix(in srgb, var(--ink) 90%, transparent); }
-:root[data-theme='dark'] .block .segs i { background: linear-gradient(to right, var(--ink) calc(var(--f) * 100%), rgb(255 255 255 / 0.12) 0); }
+.block .segs i { background: linear-gradient(to right, var(--ink) calc(var(--f) * 100%), var(--blk-track) 0); }
 .block.over { box-shadow: inset 0 0 0 2px var(--red); }
 .block.over .bpct { color: var(--red); }
 .block .segs.over i { background: var(--red); }
-.block .dim { color: color-mix(in srgb, var(--ink) 72%, transparent); }
+.block .dim { color: var(--blk-dim); }
 .in-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 2px 0; }
 .in-row .cat, .block .cat.tinted { color: var(--ink); }
 .in-name { background: none; border: 0; padding: 4px 0; text-align: left; min-width: 0; font-size: var(--fs-m); color: inherit; }
 button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
-.in-row .num { color: color-mix(in srgb, var(--ink) 72%, transparent); font-size: var(--fs-s); }
+.in-row .num { color: var(--blk-dim); font-size: var(--fs-s); }
 .in-row .btn.quiet { color: var(--ink); }
 .in-row .btn.quiet:hover:not(:disabled) { background: rgb(255 255 255 / 0.4); }
-.blk-empty { font-size: var(--fs-s); color: color-mix(in srgb, var(--ink) 72%, transparent); padding: 6px 0 2px; }
+.blk-empty { font-size: var(--fs-s); color: var(--blk-dim); padding: 6px 0 2px; }
 .blk-act.btn.text { color: var(--ink); padding: 4px 6px; min-height: 28px; font-size: var(--fs-s); text-decoration: underline; text-underline-offset: 3px; }
 
 /* Trips */
