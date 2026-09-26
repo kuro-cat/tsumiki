@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, sampleState, titleCase, type State } from '../store'
 import type { ViewProps } from '../App'
-import { AUTOPACK_ANIM_KEY, autopackAnimates } from './Plan'
+import { autopackAnimates, setAutopackAnimates } from '../prefs'
 import { Field, PageHead, UnitInput } from '../ui'
 
 export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; red?: boolean; at?: 'sample' } | null>(null)
   const [anim, setAnim] = useState(autopackAnimates)
-  const toggleAnim = (on: boolean) => { setAnim(on); try { localStorage.setItem(AUTOPACK_ANIM_KEY, on ? 'on' : 'off') } catch { /* session-only */ } }
+  const toggleAnim = (on: boolean) => { setAnim(on); setAutopackAnimates(on) }
   const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length
 
   const exportJson = () => {

@@ -6,25 +6,22 @@ import { Bags } from './views/Bags'
 import { Trips } from './views/Trips'
 import { Data } from './views/Data'
 import { Seg } from './ui'
+import { readTheme, writeTheme, type Theme } from './prefs'
 
 const TABS = ['Plan', 'Inventory', 'Bags', 'Trips', 'Data'] as const
 export type Tab = (typeof TABS)[number]
 export type ViewProps = { state: State; api: Api; go: (t: Tab) => void }
 export type PlanView = 'plan' | '3d'
 const VIEWS: PlanView[] = ['plan', '3d']
-type Theme = 'system' | 'light' | 'dark'
-/** Earlier versions stored the paper names. */
-const OLD: Record<string, Theme> = { vellum: 'light', blueprint: 'dark' }
-const THEME_KEY = 'bin-pack.theme'
 
 /** Theme lives outside State so exports stay about packing. index.html applies it before first paint; this keeps it current. */
 function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => { try { const t = localStorage.getItem(THEME_KEY) ?? 'system'; return OLD[t] ?? (t as Theme) } catch { return 'system' } })
+  const [theme, setTheme] = useState<Theme>(readTheme)
   useEffect(() => {
     const mq = matchMedia('(prefers-color-scheme: dark)')
     const apply = () => { document.documentElement.dataset.theme = theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme }
     apply()
-    try { localStorage.setItem(THEME_KEY, theme) } catch { /* session-only */ }
+    writeTheme(theme)
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [theme])

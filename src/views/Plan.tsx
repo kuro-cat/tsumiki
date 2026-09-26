@@ -15,11 +15,9 @@ import { Schedule } from './plan/Schedule'
 import { BagStrip } from './plan/BagStrip'
 import { CompartmentBar, ItemBar } from './plan/SelectionBar'
 import { WornList } from './plan/WornList'
+import { autopackAnimates } from '../prefs'
 
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
-
-export const AUTOPACK_ANIM_KEY = 'bin-pack.autopack-anim'
-export const autopackAnimates = () => { try { return localStorage.getItem(AUTOPACK_ANIM_KEY) !== 'off' } catch { return true } }
 
 export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewProps & { view: PlanView; setView: (v: PlanView) => void; bagId: string | null; worn: boolean; show: (id: string) => void }) {
   const { items, bags } = state
