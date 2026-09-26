@@ -5,6 +5,7 @@ import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
+import { ActionSelect, Field, FormCard, IconButton, PageHead, Seg } from '../ui'
 
 
 
@@ -78,10 +79,7 @@ export function Trips({ state, api, go }: ViewProps) {
 
   return (
     <section className="page narrow">
-      <div className="page-head">
-        <h1>Trips</h1>
-        <div className="right"><button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button></div>
-      </div>
+      <PageHead title="Trips" actions={<button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button>} />
       {/* Trips as sheet tabs across the top; the chosen trip gets the full width below. */}
       {state.trips.length > 0 ? (
         <div className="trip-tabs cluster tight" role="tablist" aria-label="Trips">
@@ -113,51 +111,49 @@ export function Trips({ state, api, go }: ViewProps) {
                 </div>
               </div>
             ) : (
-            <form className="form" onSubmit={(e) => e.preventDefault()} aria-label="Trip details">
-              <div className="form-title"><h2>Edit trip</h2><button type="button" className="btn primary" onClick={() => setEditing(false)}>Done</button></div>
-              <label className="field s6"><span className="label">Name</span><input type="text" value={trip.name} onChange={(e) => patch({ name: e.target.value })} required /></label>
-              <label className="field s6"><span className="label">Destination</span><input type="text" value={trip.destination} onChange={(e) => patch({ destination: e.target.value })} placeholder="City, country" /></label>
-              <label className="field s6"><span className="label">Leave</span><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></label>
-              <label className="field s6"><span className="label">Return</span><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></label>
-              <div className="field s12"><span className="label">Bags</span>
+            <FormCard label="Trip details" title="Edit trip" head={<button type="button" className="btn primary" onClick={() => setEditing(false)}>Done</button>} actions={<>
+              <span className="hint">{nights(trip)} nights</span>
+              <div className="right"><button className="btn danger" type="button" onClick={remove}>Delete trip</button></div>
+            </>}>
+              <Field label="Name" span={6}><input type="text" value={trip.name} onChange={(e) => patch({ name: e.target.value })} required /></Field>
+              <Field label="Destination" span={6}><input type="text" value={trip.destination} onChange={(e) => patch({ destination: e.target.value })} placeholder="City, country" /></Field>
+              <Field label="Leave" span={6}><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></Field>
+              <Field label="Return" span={6}><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></Field>
+              <Field label="Bags" span={12} group>
                 <div className="tripbags">
                   {tripBags(trip, state.bags).map((b) => {
                     const others = state.bags.filter((x) => x.id !== b.id && !trip.bagIds.includes(x.id))
+                    const swap = (id: string) => {
+                      const to = state.bags.find((x) => x.id === id)
+                      if (!to) return
+                      api.snap(`Swapped ${b.name} for ${to.name}`)
+                      api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((x) => (x === b.id ? to.id : x)), ...repack(b, to, t, state.items), ...bagLeaves(t, b.id, to.id) }))
+                    }
                     return (
                       <div key={b.id} className="tripbag">
                         <span className="name truncate">{b.name}</span>
                         <span className="dim">{inBag(b, trip).placements.length + inBag(b, trip).loose.length} items</span>
-                        <select className="act" aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) { api.snap(`Swapped ${b.name} for ${to.name}`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items), ...bagLeaves(t, b.id, to.id) })) } }}>
-                          <option value="">Swap for…</option>
+                        <ActionSelect label={`Swap ${b.name} for`} placeholder="Swap for…" disabled={!others.length} onPick={swap}>
                           {others.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                        </select>
-                        <button className="btn quiet" type="button" onClick={() => { api.snap(`Took ${b.name} off the trip`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) })) }} aria-label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule"><Icon name="x" /></button>
+                        </ActionSelect>
+                        <IconButton icon="x" label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule" onClick={() => { api.snap(`Took ${b.name} off the trip`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) })) }} />
                       </div>
                     )
                   })}
                   {state.bags.some((b) => !trip.bagIds.includes(b.id)) ? (
-                    <select className="act" aria-label="Add a bag" value="" onChange={(e) => e.target.value && patch({ bagIds: [...trip.bagIds, e.target.value] })}>
-                      <option value="">Add a bag…</option>
+                    <ActionSelect label="Add a bag" placeholder="Add a bag…" onPick={(id) => patch({ bagIds: [...trip.bagIds, id] })}>
                       {state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
+                    </ActionSelect>
                   ) : !trip.bagIds.length && <span className="hint">No bags yet. Add one under Bags.</span>}
                   <SharedLimits trip={trip} bags={tripBags(trip, state.bags)} onChange={(shared) => { if (shared.length < (trip.shared?.length ?? 0)) api.snap('Removed the shared limit'); patch({ shared }) }} />
                 </div>
-              </div>
-              <div className="field s12"><span className="label">Weather</span>
-                <div className="seg" role="group" aria-label="Weather">{CLIMATES.map((c) => <button key={c} type="button" aria-pressed={trip.climate === c} onClick={() => patch({ climate: c })}>{titleCase(c)}</button>)}</div>
-              </div>
-              <div className="field s12"><span className="label">Kind of trip</span>
-                <div className="seg" role="group" aria-label="Kind of trip">{KINDS.map((k) => <button key={k} type="button" aria-pressed={trip.kind === k} onClick={() => patch({ kind: k })}>{titleCase(k)}</button>)}</div>
-              </div>
-              <div className="field s12"><span className="label">Activities</span>
+              </Field>
+              <Field label="Weather" span={12} group><Seg label="Weather" options={CLIMATES} value={trip.climate} onChange={(climate) => patch({ climate })} /></Field>
+              <Field label="Kind of trip" span={12} group><Seg label="Kind of trip" options={KINDS} value={trip.kind} onChange={(kind) => patch({ kind })} /></Field>
+              <Field label="Activities" span={12} group>
                 <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{titleCase(a)}</label>)}</div>
-              </div>
-              <div className="form-actions">
-                <span className="hint">{nights(trip)} nights</span>
-                <div className="right"><button className="btn danger" type="button" onClick={remove}>Delete trip</button></div>
-              </div>
-            </form>
+              </Field>
+            </FormCard>
             )}
 
             <div className="checklist">
@@ -172,24 +168,22 @@ export function Trips({ state, api, go }: ViewProps) {
                 {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
               </div>
               {draft && (
-                <form className="form" onSubmit={addEntry} aria-label="Add to the checklist">
-                  <div className="form-title"><h2>Add to the list</h2><button type="button" className="btn quiet" onClick={() => setDraft(null)} aria-label="Close"><Icon name="x" /></button></div>
-                  <label className="field s6"><span className="label">Name</span><input type="text" autoFocus value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Gift for the hosts" required /></label>
-                  <label className="field s4"><span className="label">Category</span><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></label>
-                  <label className="field s2"><span className="label">Quantity</span><input type="number" min={1} step={1} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} required /></label>
-                  <label className="field s6"><span className="label">Linked item</span>
+                <FormCard label="Add to the checklist" title="Add to the list" onSubmit={addEntry} onClose={() => setDraft(null)} actions={<>
+                  <button className="btn primary" type="submit" disabled={!draft.label.trim()}>Add to the list</button>
+                  <button className="btn text" type="button" onClick={() => setDraft(null)}>Cancel</button>
+                </>}>
+                  <Field label="Name" span={6}><input type="text" autoFocus value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Gift for the hosts" required /></Field>
+                  <Field label="Category" span={4}><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
+                  <Field label="Quantity" span={2}><input type="number" min={1} step={1} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} required /></Field>
+                  <Field label="Linked item" span={6}>
                     <select value={draft.link} onChange={(e) => { const it = state.items.find((i) => i.id === e.target.value); setDraft({ ...draft, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>
                       <option value="">Match by name</option>
                       {[...state.items].sort((a, b) => a.name.localeCompare(b.name)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
                       <option value="*none">Nothing I own (tick it by hand)</option>
                     </select>
-                  </label>
-                  <label className="field s6"><span className="label">Note <span className="dim">optional</span></span><input type="text" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="Buy at the airport" /></label>
-                  <div className="form-actions">
-                    <button className="btn primary" type="submit" disabled={!draft.label.trim()}>Add to the list</button>
-                    <button className="btn text" type="button" onClick={() => setDraft(null)}>Cancel</button>
-                  </div>
-                </form>
+                  </Field>
+                  <Field label={<>Note <span className="dim">optional</span></>} span={6}><input type="text" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="Buy at the airport" /></Field>
+                </FormCard>
               )}
               <div className="table">
                 {trip.checklist.map((c) => {
@@ -250,7 +244,7 @@ function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onCha
             })}
           </span>
           <label className="unit"><input type="number" min={0.1} step={0.1} value={s.limit / 1000} onChange={(e) => edit(s.id, { limit: Math.round(Number(e.target.value) * 1000) })} aria-label="Shared limit in kg" required /><span className="dim">kg</span></label>
-          <button className="btn quiet" type="button" onClick={() => onChange(shared.filter((x) => x.id !== s.id))} aria-label="Remove shared limit"><Icon name="x" /></button>
+          <IconButton icon="x" label="Remove shared limit" onClick={() => onChange(shared.filter((x) => x.id !== s.id))} />
         </div>
       ))}
       {free.length >= 2 && (
