@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import { CLIMATES, KINDS, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Trip } from '../store'
+import { CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, type Bag, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
@@ -104,11 +104,11 @@ export function Trips({ state, api, go }: ViewProps) {
                       <div key={b.id} className="tripbag">
                         <span className="name">{b.name}</span>
                         <span className="dim">{inBag(b, trip).placements.length + inBag(b, trip).loose.length} items</span>
-                        <select aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items) })) }}>
+                        <select className="act" aria-label={`Swap ${b.name} for`} value="" disabled={!others.length} onChange={(e) => { const to = state.bags.find((x) => x.id === e.target.value); if (to) api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.map((id) => (id === b.id ? to.id : id)), ...repack(b, to, t, state.items), ...bagLeaves(t, b.id, to.id) })) }}>
                           <option value="">Swap for…</option>
                           {others.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                         </select>
-                        <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t) }))} aria-label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule"><Icon name="x" /></button>
+                        <button className="btn quiet" type="button" onClick={() => api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) }))} aria-label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule"><Icon name="x" /></button>
                       </div>
                     )
                   })}
@@ -118,6 +118,7 @@ export function Trips({ state, api, go }: ViewProps) {
                       {state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                   ) : !trip.bagIds.length && <span className="hint">No bags yet. Add one under Bags.</span>}
+                  <SharedLimits trip={trip} bags={tripBags(trip, state.bags)} onChange={(shared) => patch({ shared })} />
                 </div>
               </div>
               <div className="field s6"><span className="label">Weather</span>
@@ -177,5 +178,38 @@ export function Trips({ state, api, go }: ViewProps) {
         )}
       </div>
     </section>
+  )
+}
+
+/** A trip's Shared Limits: which of its bags each one covers, and the limit in kg. A bag is in at most one, and each covers at least two. */
+function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onChange: (s: SharedLimit[]) => void }) {
+  const shared = trip.shared ?? []
+  const free = bags.filter((b) => !shared.some((s) => s.bagIds.includes(b.id)))
+  const edit = (id: string, patch: Partial<SharedLimit>) => onChange(shared.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+  return (
+    <>
+      {shared.map((s) => (
+        <div key={s.id} className="shared-edit" role="group" aria-label="Shared limit">
+          <span className="label">Shared</span>
+          <span className="radios">
+            {bags.map((b) => {
+              const on = s.bagIds.includes(b.id)
+              const taken = !on && !free.includes(b)
+              const last = on && s.bagIds.length <= 2
+              return (
+                <label key={b.id} className="chip" title={taken ? 'Already in another shared limit' : last ? 'A shared limit covers at least two bags' : undefined}>
+                  <input type="checkbox" checked={on} disabled={taken || last} onChange={() => edit(s.id, { bagIds: trip.bagIds.filter((id) => (id === b.id ? !on : s.bagIds.includes(id))) })} />{b.name}
+                </label>
+              )
+            })}
+          </span>
+          <label className="unit"><input type="number" min={0.1} step={0.1} value={s.limit / 1000} onChange={(e) => edit(s.id, { limit: Math.round(Number(e.target.value) * 1000) })} aria-label="Shared limit in kg" required /><span className="dim">kg</span></label>
+          <button className="btn quiet" type="button" onClick={() => onChange(shared.filter((x) => x.id !== s.id))} aria-label="Remove shared limit"><Icon name="x" /></button>
+        </div>
+      ))}
+      {free.length >= 2 && (
+        <button className="btn text share-add" type="button" onClick={() => onChange([...shared, { id: uid(), bagIds: free.slice(0, 2).map((b) => b.id), limit: 10000 }])}><Icon name="plus" />Share a limit</button>
+      )}
+    </>
   )
 }

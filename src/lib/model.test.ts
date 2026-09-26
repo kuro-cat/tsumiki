@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bagTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { bagLeaves, bagTotals, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -100,4 +100,35 @@ test('checklist entries link by keyword until pinned, and pack by quantity', () 
   assert.deepEqual(linkedItems(pair, items).map((i) => i.id), ['s', 'k'])
   // pinned to none is not in inventory even though keywords would match
   assert.deepEqual(linkedItems({ ...pair, itemIds: [] }, items), [])
+})
+
+test('a weighed bag is judged on its Actual Weight, a Shared Limit on the sum of Totals', () => {
+  const book: Item = { id: 'i', name: 'Book', category: 'misc', kind: 'rigid', l: 10, w: 10, h: 2, up: false, weight: 500, qty: 1 }
+  const comp = (id: string) => ({ id, name: 'Main', l: 30, w: 20, h: 10, x: 0, y: 0, z: 0 })
+  const a: Bag = { id: 'a', name: 'A', empty: 1000, limit: 2000, compartments: [comp('ca')] }
+  const b: Bag = { id: 'b', name: 'B', empty: 800, limit: null, compartments: [comp('cb')] }
+  const base: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['a', 'b'], checklist: [{ id: 'e', label: 'Book', category: 'misc', qty: 1, match: [], itemIds: ['i'], packed: false, source: 'manual' }], loose: [], worn: [], placements: [{ id: 'p', itemId: 'i', compartmentId: 'ca', x: 0, y: 0, z: 0, o: 0 }] }
+  // unweighed: the Estimate is the Total
+  const est = bagTotals(a, base, [book])
+  assert.deepEqual([est.estimate, est.actual, est.total, est.margin], [1500, null, 1500, 500])
+  // weighed: the Actual Weight replaces it, the Estimate stays for comparison
+  const trip: Trip = { ...base, weighed: { a: 2100 }, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 3000 }] }
+  const w = bagTotals(a, trip, [book])
+  assert.deepEqual([w.estimate, w.total, w.margin, w.wState], [1500, 2100, -100, 'over'])
+  assert.equal(tripReady(trip, [a, b], [book]), false)
+  // the Shared Limit sums the weighed A and the estimated B: 2100 + 800
+  assert.deepEqual(sharedTotals(trip, [a, b], [book]).map((s) => [s.total, s.over]), [[2900, false]])
+  const light: Trip = { ...trip, weighed: { a: 1900 } }
+  assert.equal(tripReady(light, [a, b], [book]), true)
+  assert.equal(tripReady({ ...light, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 2500 }] }, [a, b], [book]), false)
+})
+
+test('a bag leaving a trip takes its Actual Weight and its place in a Shared Limit with it', () => {
+  const trip = { weighed: { a: 2100, b: 900 }, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 3000 }] } as Trip
+  // swapped: the new bag starts unweighed but takes the old bag's place in the Shared Limit
+  assert.deepEqual(bagLeaves(trip, 'a', 'c'), { weighed: { b: 900 }, shared: [{ id: 's', bagIds: ['c', 'b'], limit: 3000 }] })
+  // removed: a Shared Limit left with one bag is gone
+  assert.deepEqual(bagLeaves(trip, 'a'), { weighed: { b: 900 }, shared: [] })
+  // trips from before weighing existed have neither field
+  assert.deepEqual(bagLeaves({} as Trip, 'a'), { weighed: {}, shared: [] })
 })

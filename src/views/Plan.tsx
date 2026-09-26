@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, containerFill, dropBag, tripBags, tripReady, wornCount, wornWeight, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, linkedItems, looseVolumes, mainOf, newTrip, entryUnits, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
+import { bagHeight, bagTotals, sharedTotals, containerFill, dropBag, tripBags, tripReady, wornCount, wornWeight, fillOf, isBoxed, orientationsOf, placedContainers, roomiestHome, withoutPlacements, fmtDate, fmtDim, fmtSize, fmtVol, fmtW, isPacked, linkedItems, looseVolumes, mainOf, newTrip, entryUnits, nights, packedCount, packedVolume, placedBoxes, uid, type Boxed, type Compartment, type Item, type Loose, type Placement, type Worn } from '../store'
 import { autoPackBins, dropZ, faceName, fits, nextFace, oriented, volume, type Placed } from '../lib/pack'
 import type { PlanView, ViewProps } from '../App'
 import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
@@ -116,6 +116,9 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
   const done = trip ? trip.checklist.filter((c) => isPacked(c, trip, items)).length : 0
   const totalChecks = trip?.checklist.length ?? 0
   const complete = !!trip && tripReady(trip, bags, items)
+  const shared = trip ? sharedTotals(trip, bags, items) : []
+  const myShare = bag ? shared.find((x) => x.bagIds.includes(bag.id)) : undefined
+  const weigh = (g: number | null) => trip && bag && api.patchTrip(trip.id, (t) => { const { [bag.id]: _old, ...rest } = t.weighed ?? {}; return { weighed: g == null ? rest : { ...rest, [bag.id]: g } } })
 
   const matchedIds = useMemo(
     () => new Set(trip ? trip.checklist.flatMap((c) => linkedItems(c, items).map((i) => i.id)) : []),
@@ -526,7 +529,7 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
           </div>
         )}
         {bag && narrow && !tbOpen ? (
-          <button className={'tb strip' + (tot!.over || tot!.wState === 'over' ? ' red' : '')} aria-label="Title block, tap to expand" aria-expanded={false} onClick={() => setTbOpen(true)}>
+          <button className={'tb strip' + (tot!.over || tot!.wState === 'over' || myShare?.over ? ' red' : '')} aria-label="Title block, tap to expand" aria-expanded={false} onClick={() => setTbOpen(true)}>
             <span className="name">{bag.name}</span>
             <span className="num">{fmtW(tot!.total)}{tot!.limit != null ? ` / ${fmtW(tot!.limit)}` : ''}</span>
             <span className="num">{Math.round(tot!.fill * 100)} %</span>
@@ -539,11 +542,18 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
             <div className="cell scale"><span className="label">Scale</span>{layout && <ScaleBar s={layout.s} />}</div>
             <i className="brk" aria-hidden="true" />
             <div className="cell rule items"><span className="label">Items · {tot!.count}</span><span className="v num">{fmtW(tot!.itemsW)}</span></div>
-            <div className="cell total"><span className="label">Total</span><span className="v num">{fmtW(tot!.total)}</span></div>
+            <TotalCell tot={tot!} onWeigh={weigh} />
             <div className="cell"><span className="label">Limit</span><span className="v num">{tot!.limit == null ? '—' : fmtW(tot!.limit)}</span></div>
             <div className="cell margin"><span className="label">Margin</span><span className={'v num' + (tot!.margin != null && tot!.margin < 0 ? ' red' : '')}>{tot!.margin == null ? '—' : (tot!.margin < 0 ? '−' : '') + fmtW(Math.abs(tot!.margin))}</span></div>
             <div className="cell fill"><span className="label">Fill</span><span className={'v num' + (tot!.over ? ' red' : '')}>{Math.round(tot!.fill * 100)} %</span></div>
             <div className="cell"><span className="label">Weight</span><span className="v state"><StateMark s={tot!.wState} />{tot!.wState}</span></div>
+            {myShare && (
+              <div className={'cell shared' + (myShare.over ? ' over' : '')}>
+                <span className="label">Shared</span>
+                <span className="sub">{myShare.members.map((b) => b.name).join(' + ')}</span>
+                <span className="v num state">{fmtW(myShare.total)} / {fmtW(myShare.limit)}<StateMark s={myShare.wState} /></span>
+              </div>
+            )}
             <div className="gauges" role="group" aria-label="Fill by compartment">
               {bag.compartments.map((c) => {
                 const f = fills[c.id]
@@ -587,14 +597,28 @@ export function Plan({ state, api, go, view, bagId, worn, show }: ViewProps & { 
         {(tb.length > 0 || trip.worn.length > 0) && (
           <div className="bagstrip" role="tablist" aria-label="Bags on this trip">
             {tb.map((b) => {
-              const t = bagTotals(b, trip, items)
+              const tab = (b: typeof tb[number]) => {
+                const t = bagTotals(b, trip, items)
+                return (
+                  <button key={b.id} role="tab" aria-selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
+                    <span className="name">{b.name}</span>
+                    <span className="num">{fmtW(t.total)}</span>
+                    <StateMark s={t.wState} />
+                    <span className="num dim">{Math.round(t.fill * 100)} %</span>
+                  </button>
+                )
+              }
+              const sh = shared.find((x) => x.bagIds.includes(b.id))
+              if (!sh) return tab(b)
+              // A Shared Limit draws once, at its first bag in trip order, with its bags gathered beside it.
+              const members = tb.filter((x) => sh.bagIds.includes(x.id))
+              if (members[0].id !== b.id) return null
               return (
-                <button key={b.id} role="tab" aria-selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
-                  <span className="name">{b.name}</span>
-                  <span className="num">{fmtW(t.total)}</span>
-                  <StateMark s={t.wState} />
-                  <span className="num dim">{Math.round(t.fill * 100)} %</span>
-                </button>
+                <div key={sh.id} className={'share' + (sh.over ? ' over' : '')} role="presentation">
+                  <div className="share-tabs">{members.map(tab)}</div>
+                  <i className="brace" aria-hidden="true" />
+                  <span className="share-cap"><span className="label">Shared</span><span className="num">{fmtW(sh.total)} / {fmtW(sh.limit)}</span><StateMark s={sh.wState} /></span>
+                </div>
               )
             })}
             <button ref={wornRef} role="tab" aria-selected={worn} className={'bagtab wornt' + (wornHit ? ' hit' : '')} onClick={() => show('worn')} title="Drop an item here to wear it">
@@ -745,6 +769,37 @@ function ScaleBar({ s }: { s: number }) {
 }
 
 /** Four weight states as line marks, so colour is never the only signal. */
+/** TOTAL says where its number comes from, and is where the bag is weighed: the value becomes a kg field in place. */
+function TotalCell({ tot, onWeigh }: { tot: ReturnType<typeof bagTotals>; onWeigh: (g: number | null) => void }) {
+  const [edit, setEdit] = useState<string | null>(null)
+  const weighed = tot.actual != null
+  const over = tot.limit != null && tot.total > tot.limit
+  const commit = () => {
+    const kg = Number(edit)
+    if (edit != null) onWeigh(edit.trim() === '' ? null : kg > 0 ? Math.round(kg * 1000) : tot.actual)
+    setEdit(null)
+  }
+  // Keys stay in the field: the sheet reads Backspace, R and T as commands on the selected item.
+  return (
+    <div className="cell total" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <span className="label">Total · {weighed ? 'weighed' : 'est.'}</span>
+      {edit != null ? (
+        <span className="unit weigh">
+          <input type="number" inputMode="decimal" min={0} step={0.01} autoFocus value={edit} placeholder={(tot.estimate / 1000).toFixed(2)} aria-label="Actual weight in kg"
+            onChange={(e) => setEdit(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.dataset.cancel = '1'; if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur() }}
+            onBlur={(e) => (e.currentTarget.dataset.cancel ? setEdit(null) : commit())} />
+          <span className="dim">kg</span>
+        </span>
+      ) : (
+        <span className={'v num' + (over ? ' red' : '')}>{fmtW(tot.total)}</span>
+      )}
+      {weighed && edit == null && <span className="sub num">est. {fmtW(tot.estimate)}</span>}
+      {edit == null && <button type="button" className="btn text weigh-act" onClick={() => setEdit(weighed ? String(tot.actual! / 1000) : '')}>{weighed ? 'Reweigh' : 'Weigh'}</button>}
+    </div>
+  )
+}
+
 function StateMark({ s }: { s: string }) {
   const red = 'var(--red)', ink = 'var(--ink)'
   return (

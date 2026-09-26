@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, defaultUp, dropBag, orientationsOf, withLink, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutPlacements, isoDate, mainOf, newBag, newCompartment, rotateCompartment, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -105,7 +105,7 @@ export function useStore() {
     })),
     removeBag: (id: string) => setState((s) => {
       const bag = s.bags.find((b) => b.id === id)
-      return { ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (bag && t.bagIds.includes(id) ? { ...t, bagIds: t.bagIds.filter((x) => x !== id), ...dropBag(bag, t) } : t)) }
+      return { ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (bag && t.bagIds.includes(id) ? { ...t, bagIds: t.bagIds.filter((x) => x !== id), ...dropBag(bag, t), ...bagLeaves(t, id) } : t)) }
     }),
     moveBag: (from: number, to: number) => setState((s) => { const bags = [...s.bags]; const [b] = bags.splice(from, 1); bags.splice(to, 0, b); return { ...s, bags } }),
     patchCompartment: (bagId: string, compId: string, patch: Partial<Compartment>) =>

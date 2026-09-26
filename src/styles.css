@@ -271,6 +271,16 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 .tb .cell.wide .v { text-align: left; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .tb .cell.wide .sub { overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .tb .cell.total .v { font-weight: 600; }
+/* Weighing happens in TOTAL: a text action under the value, and the value becomes a kg field in place. */
+.tb .weigh-act { justify-self: end; padding: 1px 4px; margin-right: -4px; font-size: 11px; }
+.tb .unit.weigh { justify-content: flex-end; }
+.tb .unit.weigh input { width: 76px; padding: 0 0 1px; font-size: 14px; font-weight: 600; }
+.tb .cell.total .sub { text-align: right; }
+/* SHARED spans the block under the numbers: members at left, sum / limit and its mark at right. */
+.tb .cell.shared { grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; border-left: 0; border-top: 1px solid var(--rule); }
+.tb .cell.shared .sub { overflow: hidden; text-overflow: ellipsis; }
+.tb .cell.shared .v { font-size: 13px; align-self: center; }
+.tb .cell.shared.over .v { color: var(--red); }
 .tb .sub { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 .state { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .state svg { display: block; }
@@ -498,14 +508,33 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 720px; }
 
 /* Several bags per trip */
-.bagstrip { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.bagstrip { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+/* A Shared Limit gathers its bags over a bracket drawn like a dimension string, with the sum lettered beneath. */
+.share { display: grid; gap: 4px; }
+/* Stacked, so the bracket spans its own bags and never the whole strip. */
+.share-tabs { display: grid; justify-items: stretch; gap: 4px; }
+.share-tabs .bagtab { justify-content: space-between; }
+.share .brace { position: relative; height: 1px; margin-top: 2px; background: var(--ink); }
+.share .brace::before, .share .brace::after { content: ''; position: absolute; top: -4px; width: 1px; height: 9px; background: var(--ink); transform: rotate(45deg); }
+.share .brace::before { left: 0; } .share .brace::after { right: 0; }
+.share-cap { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; }
+.share.over .brace, .share.over .brace::before, .share.over .brace::after { background: var(--red); }
+.share.over .share-cap, .share.over .share-cap .label { color: var(--red); }
 .bagtab { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: none; color: var(--ink-2); padding: 3px 8px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color var(--t), color var(--t); }
 .bagtab .name { font-weight: 500; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bagtab:hover { color: var(--ink); }
 .bagtab[aria-selected='true'] { border-color: var(--ink); color: var(--ink); }
 .bagtab.red { color: var(--red); border-color: var(--red); }
 .tripbags { display: grid; gap: 6px; }
-.tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(120px, 180px) auto; gap: 10px; align-items: center; padding: 4px 0 4px 8px; border-left: 2px solid var(--rule); }
+.tripbags { gap: 0; }
+.tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--rule-2); }
+.tripbags > select.act, .tripbags > .share-add { justify-self: start; margin-top: 4px; }
+.shared-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid var(--rule-2); }
+.shared-edit .radios { flex: 1 1 auto; }
+.shared-edit .unit { width: 96px; }
+.chip:has(input:disabled) { cursor: default; }
+.chip:has(input:disabled:not(:checked)) { color: var(--ink-3); border-style: dashed; }
+.chip:has(input:disabled:not(:checked)):hover { border-color: var(--rule); }
 .tripbag .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trow.bag .grip { display: flex; color: var(--ink-3); cursor: grab; touch-action: none; }
 .trow.bag .grip:hover { color: var(--ink); }

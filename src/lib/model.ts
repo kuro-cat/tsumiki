@@ -24,6 +24,8 @@ export type Placement = { id: string; itemId: string; compartmentId: string; x: 
 export type Worn = { id: string; itemId: string }
 /** A soft item's home on a trip: one entry per unit, no position. home is a compartment id or the placement id of a container. */
 export type Loose = { id: string; itemId: string; home: string }
+/** Two or more of a trip's bags judged together against one limit, in grams. A bag is in at most one. */
+export type SharedLimit = { id: string; bagIds: string[]; limit: number }
 export type Climate = 'hot' | 'mild' | 'cold' | 'mixed'
 export const CLIMATES: Climate[] = ['hot', 'mild', 'cold', 'mixed']
 export type TripKind = 'city' | 'beach' | 'outdoor' | 'business'
@@ -34,6 +36,9 @@ export type Trip = {
   id: string; name: string; destination: string; start: string; end: string
   climate: Climate; kind: TripKind; activities: string[]
   bagIds: string[]; checklist: CheckItem[]; placements: Placement[]; loose: Loose[]; worn: Worn[]; sample?: boolean
+  /** Actual Weight in grams by bag id, for the bags that have been weighed. */
+  weighed?: Record<string, number>
+  shared?: SharedLimit[]
 }
 export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
 
@@ -100,7 +105,7 @@ export type PlacedContainer = { id: string; compartmentId: string; it: Container
 export function placedContainers(trip: Trip, items: Item[]): PlacedContainer[] {
   return trip.placements.flatMap((p) => { const it = items.find((i) => i.id === p.itemId); return it?.kind === 'container' ? [{ id: p.id, compartmentId: p.compartmentId, it }] : [] })
 }
-export const tripBags = (trip: Trip, bags: Bag[]) => trip.bagIds.flatMap((id) => bags.filter((b) => b.id === id))
+export const tripBags = (trip: Pick<Trip, 'bagIds'>, bags: Bag[]) => trip.bagIds.flatMap((id) => bags.filter((b) => b.id === id))
 /** Placements and loose entries that live in one bag of a trip. */
 export function inBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'> {
   const comps = new Set(bag.compartments.map((c) => c.id))
@@ -110,25 +115,41 @@ export function inBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'> 
 }
 export type WeightState = 'no limit' | 'over' | 'near limit' | 'balanced' | 'light'
 export const weightState = (total: number, limit: number | null): WeightState => (limit == null ? 'no limit' : total / limit > 1 ? 'over' : total / limit > 0.85 ? 'near limit' : total / limit >= 0.5 ? 'balanced' : 'light')
-/** What the title block and bag strip report for one bag on a trip. */
+/** What the title block and bag strip report for one bag on a trip. total is the Actual Weight when weighed, else the Estimate. */
 export function bagTotals(bag: Bag, trip: Trip, items: Item[]) {
   const { placements, loose } = inBag(bag, trip)
   const find = (id: string) => items.find((i) => i.id === id)
   const itemsW = placements.reduce((a, p) => a + (find(p.itemId)?.weight ?? 0), 0) + loose.reduce((a, l) => a + (find(l.itemId)?.weight ?? 0), 0)
-  const total = bag.empty + itemsW
+  const estimate = bag.empty + itemsW
+  const actual = trip.weighed?.[bag.id] ?? null
+  const total = actual ?? estimate
   const boxes = placedBoxes(trip, items), lv = looseVolumes(trip, items)
   const rigidVol = placements.reduce((a, p) => { const it = find(p.itemId); return a + (it && isBoxed(it) ? volume(it) : 0) }, 0)
   const looseVol = loose.reduce((a, l) => { const it = find(l.itemId); return a + (it?.kind === 'soft' ? packedVolume(it) : 0) }, 0)
   const pids = new Set(placements.map((p) => p.id))
   const over = bag.compartments.some((c) => fillOf(c, boxes[c.id] ?? [], lv[c.id] ?? 0).over) || placedContainers(trip, items).some((c) => pids.has(c.id) && containerFill(c.it, lv[c.id] ?? 0).over)
-  return { count: placements.length + loose.length, itemsW, total, limit: bag.limit, margin: bag.limit == null ? null : bag.limit - total, wState: weightState(total, bag.limit), fill: (rigidVol + looseVol) / bagVolume(bag), over }
+  return { count: placements.length + loose.length, itemsW, estimate, actual, total, limit: bag.limit, margin: bag.limit == null ? null : bag.limit - total, wState: weightState(total, bag.limit), fill: (rigidVol + looseVol) / bagVolume(bag), over }
 }
-/** The trip is ready to travel: checklist packed, something in the bags, every bag under its limit, nothing over volume. */
+/** Each Shared Limit of a trip against the sum of its bags' Totals. */
+export function sharedTotals(trip: Trip, bags: Bag[], items: Item[]) {
+  return (trip.shared ?? []).map((s) => {
+    const members = tripBags(s, bags)
+    const total = members.reduce((a, b) => a + bagTotals(b, trip, items).total, 0)
+    return { ...s, members, total, wState: weightState(total, s.limit), over: total > s.limit }
+  })
+}
+/** The trip's weighed and shared records once bag `from` leaves it. With `to`, the swapped-in bag takes its place in its Shared Limit; a Shared Limit left with one bag is gone. */
+export function bagLeaves(trip: Trip, from: string, to?: string): Pick<Trip, 'weighed' | 'shared'> {
+  const { [from]: _gone, ...weighed } = trip.weighed ?? {}
+  const shared = (trip.shared ?? []).map((s) => ({ ...s, bagIds: s.bagIds.flatMap((id) => (id !== from ? [id] : to ? [to] : [])) })).filter((s) => s.bagIds.length > 1)
+  return { weighed, shared }
+}
+/** The trip is ready to travel: checklist packed, something in the bags, every bag and Shared Limit under its limit, nothing over volume. */
 export function tripReady(trip: Trip, bags: Bag[], items: Item[]) {
   const tb = tripBags(trip, bags)
   if (!tb.length || !trip.checklist.length || !trip.checklist.every((c) => isPacked(c, trip, items))) return false
   const totals = tb.map((b) => bagTotals(b, trip, items))
-  return (totals.some((t) => t.count > 0) || trip.worn.length > 0) && totals.every((t) => !t.over && (t.limit == null || t.total <= t.limit))
+  return (totals.some((t) => t.count > 0) || trip.worn.length > 0) && totals.every((t) => !t.over && (t.limit == null || t.total <= t.limit)) && sharedTotals(trip, bags, items).every((s) => !s.over)
 }
 /** Fill of one container: contents against capacity. */
 export function containerFill(it: ContainerItem, looseVol: number) {
