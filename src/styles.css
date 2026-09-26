@@ -36,14 +36,10 @@
   --spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --t: 180ms;
   --top-h: 52px;
-  /* Square everywhere: the drafting sheet's one inheritance outside the drawing. */
   /* Type sizes: small print, secondary, controls, body, heading, page title, readout. */
   --fs-xs: 12px; --fs-s: 13px; --fs-m: 14px; --fs-base: 15px; --fs-l: 18px; --fs-xl: 26px; --fs-readout: 44px;
   --on-red: #ffffff;
   --blk-base: var(--paper);
-  --r: 0;
-  --r-s: 0;
-  --r-xs: 0;
   color-scheme: light;
 }
 /* Night sea: the same palette in the dark. Blocks sink into the ground so light text stays readable on them. */
@@ -88,7 +84,8 @@ body {
 ::selection { background: var(--blue-soft); color: var(--ink); }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
-input, select, button, textarea { font: inherit; color: inherit; caret-color: var(--blue); }
+/* Square everywhere: the drafting sheet's one inheritance outside the drawing. */
+input, select, button, textarea { font: inherit; color: inherit; caret-color: var(--blue); border-radius: 0; }
 button { cursor: pointer; }
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 h1 { font-size: var(--fs-xl); letter-spacing: -0.02em; }
@@ -99,7 +96,7 @@ a { color: var(--blue); text-underline-offset: 3px; }
 
 .label { font-size: var(--fs-s); line-height: 1.3; color: var(--ink-2); font-weight: 500; }
 /* Section caps: condensed, tracked, in full ink. Used sparingly: section and readout names, table headers. */
-.caps, .sec h3, .ro-head .label, .trow.head .sort, .trow.head > .label { font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-s); font-weight: 600; color: var(--ink); }
+.sec h3, .ro-head .label, .trow.head .sort, .trow.head > .label { font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-s); font-weight: 600; color: var(--ink); }
 .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .dim { color: var(--ink-2); font-size: var(--fs-s); }
 .muted { color: var(--ink-2); }
@@ -133,7 +130,7 @@ a { color: var(--blue); text-underline-offset: 3px; }
 /* Keys: every button is a key that presses down. */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
-  min-height: 36px; padding: 7px 14px; border-radius: var(--r-s);
+  min-height: 36px; padding: 7px 14px;
   background: var(--raise); color: var(--ink); border: 1px solid var(--ink);
   font-size: var(--fs-m); font-weight: 500; line-height: 1.2;
   transition: background var(--t) var(--ease), color var(--t) var(--ease), border-color var(--t) var(--ease), transform 90ms var(--ease), box-shadow 90ms var(--ease);
@@ -165,7 +162,7 @@ a { color: var(--blue); text-underline-offset: 3px; }
 
 /* Fields are square boxes; focus draws the edge in ink, and keyboard focus adds the blue outline. */
 input[type='text'], input[type='number'], input[type='date'], input[type='password'], input[type='search'], select, textarea {
-  background: var(--raise); border: 1px solid var(--rule); border-radius: var(--r-s);
+  background: var(--raise); border: 1px solid var(--rule);
   padding: 7px 10px; min-width: 0; width: 100%; min-height: 36px;
   transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
@@ -184,10 +181,10 @@ select.act { width: auto; field-sizing: content; color: var(--blue); font-weight
 select.act:hover:not(:disabled) { background-color: var(--blue-soft); }
 select.act option, select.put option { color: var(--ink); background: var(--raise); font-size: var(--fs-m); }
 
-.chip { position: relative; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: var(--raise); border-radius: var(--r-s); padding: 6px 12px; font-size: var(--fs-m); cursor: pointer; transition: border-color var(--t), background var(--t); }
+.chip { position: relative; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: var(--raise); padding: 6px 12px; font-size: var(--fs-m); cursor: pointer; transition: border-color var(--t), background var(--t); }
 .chip:hover { border-color: var(--ink-2); }
 .chip:has(:checked) { border-color: var(--ink); background: var(--blue-soft); }
-.chip:has(input[type='checkbox'])::before { content: ''; width: 14px; height: 14px; border: 1.5px solid var(--ink); border-radius: var(--r-xs); flex: none; transition: background var(--t) var(--ease), border-color var(--t); }
+.chip:has(input[type='checkbox'])::before { content: ''; width: 14px; height: 14px; border: 1.5px solid var(--ink); flex: none; transition: background var(--t) var(--ease), border-color var(--t); }
 .chip:has(input[type='checkbox']:checked)::before { background: var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5 5.5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; border-color: var(--blue); }
 .chip input { position: absolute; opacity: 0; width: 0; height: 0; }
 .chip:has(:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
@@ -199,11 +196,11 @@ button.chip:hover { border-color: var(--ink); background: var(--blue-soft); }
 button.chip .dim { font-weight: 400; }
 .chip.sw-chip { padding: 6px 8px; }
 .chip.on { border-color: var(--ink); background: var(--blue-soft); }
-.chip input[type='color'] { position: static; opacity: 1; width: 16px; height: 16px; padding: 0; border: 1px solid var(--rule); border-radius: var(--r-xs); background: none; cursor: pointer; }
+.chip input[type='color'] { position: static; opacity: 1; width: 16px; height: 16px; padding: 0; border: 1px solid var(--rule); background: none; cursor: pointer; }
 .chip input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
-.chip input[type='color']::-webkit-color-swatch, .chip input[type='color']::-moz-color-swatch { border: 0; border-radius: var(--r-xs); }
-.sw { display: inline-block; width: 14px; height: 14px; border-radius: var(--r-xs); background: var(--sw, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent); flex: none; }
-.tag { font-size: var(--fs-xs); font-weight: 500; color: var(--ink-2); background: var(--paper-2); border-radius: var(--r-xs); padding: 1px 7px; line-height: 1.5; white-space: nowrap; }
+.chip input[type='color']::-webkit-color-swatch, .chip input[type='color']::-moz-color-swatch { border: 0; }
+.sw { display: inline-block; width: 14px; height: 14px; background: var(--sw, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent); flex: none; }
+.tag { font-size: var(--fs-xs); font-weight: 500; color: var(--ink-2); background: var(--paper-2); padding: 1px 7px; line-height: 1.5; white-space: nowrap; }
 .tag.blue { color: var(--blue); background: var(--blue-soft); }
 .tag.red { color: var(--red); background: var(--red-soft); }
 /* Category pictograms: the main way to scan a list. */
@@ -319,7 +316,7 @@ kbd { font: inherit; font-size: var(--fs-xs); color: var(--ink-2); border: 1px s
 .sheet-empty select { width: 240px; }
 
 .ghost {
-  position: fixed; z-index: 20; pointer-events: none; border-radius: var(--r-xs);
+  position: fixed; z-index: 20; pointer-events: none;
   border: 1.5px dotted var(--blue); background: color-mix(in srgb, var(--blue-soft) 80%, transparent); color: var(--blue);
   font-size: var(--fs-s); font-weight: 500; line-height: 1.25; padding: 4px 6px; overflow: hidden; white-space: nowrap;
 }
@@ -378,18 +375,16 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .weigh { display: flex; align-items: baseline; gap: 6px; }
 .weigh input { font-size: var(--fs-xl); font-weight: 600; min-height: 48px; max-width: 150px; }
 .weigh .u { font-size: var(--fs-l); color: var(--ink-2); }
-.ro-share { grid-column: 1 / -1; display: grid; gap: 6px; font-size: var(--fs-m); color: var(--ink-2); padding: 10px 12px; background: var(--paper); border-radius: var(--r-s); }
+.ro-share { grid-column: 1 / -1; display: grid; gap: 6px; font-size: var(--fs-m); color: var(--ink-2); padding: 10px 12px; background: var(--paper); }
 .ro-share b { color: var(--ink); }
 .ro-share.over, .ro-share.over b { color: var(--red); }
 /* Segmented bars: count the segments to see how much room is left. The fill eases in script (Segments), one ratio for the whole bar;
    during an autopack batch the schedule stretches its length to the batch's. */
 .segs { display: flex; gap: 3px; margin-top: 6px; }
-.segs i { flex: 1; height: 10px; border-radius: var(--r-xs); background: linear-gradient(to right, var(--blue) calc(var(--f) * 100%), var(--paper-2) 0); }
+.segs i { flex: 1; height: 10px; background: linear-gradient(to right, var(--blue) calc(var(--f) * 100%), var(--paper-2) 0); }
 .segs.small i { height: 6px; }
 .segs.over i { background: var(--red); }
 .sch-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 4px 0 16px; border-bottom: 1px solid var(--rule-2); }
-.sch-actions .checks { margin-left: auto; font-size: var(--fs-m); color: var(--ink-2); }
-.sch-actions .checks .num { color: var(--ink); font-weight: 600; }
 .sec { padding-top: 20px; }
 .sec h3 { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .sec .count { font-stretch: 100%; letter-spacing: 0; font-size: var(--fs-s); font-weight: 600; color: var(--paper); background: var(--ink); padding: 0 7px; }
@@ -400,7 +395,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .all-done { display: flex; align-items: center; gap: 8px; padding: 16px 12px; margin-top: 16px; background: var(--blue-soft); color: var(--blue); font-weight: 600; }
 .row {
   display: grid; grid-template-columns: 16px 20px minmax(0, 1fr) auto auto; gap: 10px; align-items: center;
-  padding: 8px 8px 8px 4px; margin: 0 -8px 0 -4px; border-radius: var(--r-s);
+  padding: 8px 8px 8px 4px; margin: 0 -8px 0 -4px;
   transition: background var(--t) var(--ease);
 }
 .row:hover { background: var(--paper); }
@@ -484,7 +479,7 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .links .chip { padding: 2px 4px 2px 10px; font-size: var(--fs-s); cursor: default; gap: 2px; }
 .links.guess .chip { border-style: dashed; }
-.links .chip button { display: flex; border: 0; background: none; color: var(--ink-2); padding: 3px; border-radius: var(--r-xs); cursor: pointer; }
+.links .chip button { display: flex; border: 0; background: none; color: var(--ink-2); padding: 3px; cursor: pointer; }
 .links .chip button:hover { color: var(--ink); background: var(--paper-2); }
 .links select { font-size: var(--fs-s); min-height: 30px; }
 .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -511,7 +506,7 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cswatch select { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; min-height: 0; cursor: pointer; }
 .cswatch:has(:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
 .comp .cin.x { margin-left: 12px; }
-.cin { display: flex; align-items: center; gap: 6px; background: var(--raise); border: 1px solid var(--rule); border-radius: var(--r-s); padding: 0 8px; min-height: 36px; transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease); cursor: text; }
+.cin { display: flex; align-items: center; gap: 6px; background: var(--raise); border: 1px solid var(--rule); padding: 0 8px; min-height: 36px; transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease); cursor: text; }
 .cin:focus-within { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .cin > .label { color: var(--ink-3); flex: none; font-size: var(--fs-xs); }
 .cin input[type='number'] { border: 0; background: none; padding: 0; min-height: 0; box-shadow: none; }
@@ -598,4 +593,3 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
-.check-row .count.red { color: var(--red); }
