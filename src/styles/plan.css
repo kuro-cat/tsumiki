@@ -8,15 +8,13 @@
 .scene canvas { touch-action: none; display: block; }
 .sheet .it { transition: transform var(--t) var(--ease); }
 .sheet .it rect { cursor: grab; }
-/* A dropped item settles with a small bounce; its colour comes up a beat later. */
+/* A dropped item settles with a small bounce, in its colour from the start. */
 .sheet .it .body { --from: translate(160px, 0); transform-box: fill-box; transform-origin: center; }
 .sheet .it.settle .body { animation: settle 300ms var(--spring) both; animation-delay: var(--d, 0ms); }
-.sheet .it.settle rect.ink, .sheet .it.settle text { animation: fadein 300ms var(--ease) both; animation-delay: calc(var(--d, 0ms) + 80ms); }
 @keyframes settle { from { transform: translateY(-10px) scale(1.04); opacity: 0; } 60% { transform: translateY(1px) scale(1); opacity: 1; } }
 /* Arrive: an autopack batch comes in one item at a time, 90 ms apart, each from its own schedule row. Off via the Data page. */
 .sheet .it.arrive .body { animation: arrive 340ms var(--spring) both; animation-delay: var(--d, 0ms); }
 @keyframes arrive { from { transform: var(--from); opacity: 0; } }
-@keyframes fadein { from { opacity: 0; } }
 .sheet text { font-family: var(--font); pointer-events: none; }
 .sheet .comp rect.frame.grab { cursor: grab; }
 .sheet .comp text.cname { font-size: var(--fs-m); font-weight: 600; fill: var(--ink); }
