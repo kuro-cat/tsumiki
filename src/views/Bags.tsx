@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { BLOCKS, bagVolume, blockKey, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, type Bag, type Compartment } from '../store'
+import { BLOCKS, CATEGORIES, bagVolume, blockKey, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, titleCase, type Bag, type Category, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
 import { useSort } from './Sort'
@@ -18,6 +18,8 @@ const main = (b: Bag) => b.compartments[0]
 type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
 const AXIS: Record<Num, string> = { l: 'L', w: 'W', h: 'D', x: 'X', y: 'Y', z: 'Z' }
 const AXIS_NAME: Record<Num, string> = { l: 'length', w: 'width', h: 'depth', x: 'X position', y: 'Y position', z: 'Z position' }
+// Edges are the plan's: the side of the drawing that sits against the traveler's back.
+const HEAVY: [NonNullable<Bag['heavy']> | '', string][] = [['', 'Anywhere'], ['low', 'Low'], ['top', 'Low, against the top edge'], ['bottom', 'Low, against the bottom edge'], ['left', 'Low, against the left edge'], ['right', 'Low, against the right edge']]
 
 export function Bags({ state, api }: ViewProps) {
   const ed = useEditor(blank)
@@ -25,6 +27,7 @@ export function Bags({ state, api }: ViewProps) {
   const set = <K extends keyof Bag>(k: K, v: Bag[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setComp = (id: string, patch: Partial<Compartment>) => set('compartments', form.compartments.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   const numC = (id: string, k: Num) => (e: ChangeEvent<HTMLInputElement>) => setComp(id, { [k]: Number(e.target.value) })
+  const toggleTakes = (c: Compartment, cat: Category) => { const t = c.takes?.includes(cat) ? c.takes.filter((x) => x !== cat) : [...(c.takes ?? []), cat]; setComp(c.id, { takes: t.length ? t : undefined }) }
   const addComp = () => {
     const last = form.compartments[form.compartments.length - 1]
     set('compartments', [...form.compartments, newCompartment(`Pocket ${form.compartments.length}`, 20, 12, 5, last ? last.x + last.l + 2 : 0, 0, 0)])
@@ -99,6 +102,9 @@ export function Bags({ state, api }: ViewProps) {
           <Field label="Name" span={6}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></Field>
           <Field label="Empty weight" span={3}><UnitInput unit="kg" min={0} step={0.05} value={form.empty / 1000} onChange={(e) => set('empty', Math.round(Number(e.target.value) * 1000))} required /></Field>
           <Field label="Weight limit" span={3}><UnitInput unit="kg" min={0} step={0.5} value={form.limit == null ? '' : form.limit / 1000} onChange={(e) => set('limit', e.target.value === '' ? null : Math.round(Number(e.target.value) * 1000))} placeholder="none" /></Field>
+          <Field label={<>Heavy items<span className="dim">where Auto-pack puts them</span></>} span={6}>
+            <select value={form.heavy ?? ''} onChange={(e) => set('heavy', (e.target.value || undefined) as Bag['heavy'])}>{HEAVY.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select>
+          </Field>
           <Field label={<>Compartments<span className="dim">inside size in {lenUnit()}; X Y Z is where it sits</span></>} span={12} group>
             <div className="comps">
               {form.compartments.map((c, i) => (
@@ -117,6 +123,12 @@ export function Bags({ state, api }: ViewProps) {
                     </label>
                   ))}
                   <IconButton icon="x" label={`Remove ${c.name}`} onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'} />
+                  <details className="takes">
+                    <summary>Auto-pack puts in it: {c.takes?.length ? c.takes.map(titleCase).join(', ') : 'anything'}</summary>
+                    <div className="cluster tight">
+                      {CATEGORIES.map((cat) => <label key={cat} className="chip"><input type="checkbox" checked={!!c.takes?.includes(cat)} onChange={() => toggleTakes(c, cat)} />{titleCase(cat)}</label>)}
+                    </div>
+                  </details>
                 </div>
               ))}
             </div>

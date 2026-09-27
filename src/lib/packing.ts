@@ -1,5 +1,5 @@
 import { autoPackBins, type Placed } from './pack.ts'
-import { entryUnits, fmtDim, isBoxed, lenUnit, linkedItems, looseVolumes, orientationsOf, packedCount, packedVolume, placedBoxes, placedContainers, roomiestHome, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type SoftItem, type Trip } from './model.ts'
+import { entryUnits, fmtDim, isBoxed, lenUnit, linkedItems, looseVolumes, orientationsOf, packedCount, packedVolume, placedBoxes, placedContainers, roomiestHome, takers, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type SoftItem, type Trip } from './model.ts'
 
 /** An autopack result as a Placement. A key is an item id, with ':n' after it when several units of one item pack together. */
 export const toPlacement = (x: { key: string; binId: string; p: Placed; o: number }): Placement =>
@@ -57,10 +57,12 @@ export function unitsToPack(trip: Trip, items: Item[]): Item[] {
   })
 }
 
-/** Packs units into a bag around what is already there: boxes first, then each soft unit into the roomiest home as the bag fills. */
+/** Packs units into a bag around what is already there: boxes first, then each soft unit into the roomiest home as the bag fills.
+ *  Each unit goes only in compartments that take its category, and heavy items go where the bag says. A box no compartment takes is left out;
+ *  a soft unit no compartment takes goes in the roomiest anyway, since soft items always have a home. */
 export function autoPackInto(trip: Trip, items: Item[], bag: Bag, units: Item[]) {
-  const boxes = units.flatMap((it, i) => (isBoxed(it) ? [{ key: `${it.id}:${i}`, box: it, os: orientationsOf(it) }] : []))
-  const res = autoPackBins(bag.compartments, boxes, placedBoxes(trip, items))
+  const boxes = units.flatMap((it, i) => (isBoxed(it) ? [{ key: `${it.id}:${i}`, box: it, os: orientationsOf(it), weight: it.weight, bins: takers(bag, it.category).map((c) => c.id) }] : []))
+  const res = autoPackBins(bag.compartments, boxes, placedBoxes(trip, items), bag.heavy)
   const placements = res.placed.map(toPlacement)
   const next = { ...trip, placements: [...trip.placements, ...placements] }
   const taken = placedBoxes(next, items), cubes = bagContainers(next, items, bag)
@@ -68,7 +70,8 @@ export function autoPackInto(trip: Trip, items: Item[], bag: Bag, units: Item[])
   const loose = units.flatMap((it): Loose[] => {
     if (it.kind !== 'soft') return []
     const pv = packedVolume(it)
-    const home = roomiestHome(bag, cubes, taken, vols, pv)
+    const allowed = takers(bag, it.category)
+    const home = roomiestHome(allowed.length ? { ...bag, compartments: allowed } : bag, cubes, taken, vols, pv)
     vols[home] = (vols[home] ?? 0) + pv
     return [{ id: uid(), itemId: it.id, home }]
   })

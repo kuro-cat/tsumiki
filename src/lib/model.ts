@@ -1,4 +1,4 @@
-import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, dropZ, fillHeight, fits, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
+import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, dropZ, fillHeight, fits, freeVolume, oriented, volume, type Box, type Heavy, type Placed } from './pack.ts'
 import { fmtDim, lenUnit } from './units.ts'
 export * from './units.ts'
 
@@ -17,13 +17,15 @@ export type Item = RigidItem | SoftItem | ContainerItem
 /** Anything with a placement: rigid items and containers. */
 export type Boxed = RigidItem | ContainerItem
 export const isBoxed = (i: Item): i is Boxed => i.kind !== 'soft'
-/** One box-shaped space inside a bag. x, y, z is where the traveler assembled it relative to the bag; Main is first. color is a block key, absent for the default by position. */
-export type Compartment = { id: string; name: string; l: number; w: number; h: number; x: number; y: number; z: number; color?: BlockKey }
+/** One box-shaped space inside a bag. x, y, z is where the traveler assembled it relative to the bag; Main is first. color is a block key, absent for the default by position.
+ *  takes lists the categories Auto-pack may put in it; absent or empty takes anything. Packing by hand ignores it. */
+export type Compartment = { id: string; name: string; l: number; w: number; h: number; x: number; y: number; z: number; color?: BlockKey; takes?: Category[] }
 /** The block colours a compartment can wear, by CSS token. Compartments default to the first four by position. */
 export const BLOCKS = [['b1', 'Spruce'], ['b2', 'Moss'], ['b3', 'Lake'], ['b4', 'Bark'], ['b5', 'Fern'], ['b6', 'Slate sea']] as const
 export type BlockKey = (typeof BLOCKS)[number][0]
 export const blockKey = (c: Pick<Compartment, 'color'>, i: number): BlockKey => c.color ?? BLOCKS[i % 4][0]
-export type Bag = { id: string; name: string; empty: number; limit: number | null; compartments: Compartment[]; sample?: boolean }
+/** heavy is where Auto-pack puts heavy items (see pack.ts); absent packs by size alone. */
+export type Bag = { id: string; name: string; empty: number; limit: number | null; compartments: Compartment[]; heavy?: Heavy; sample?: boolean }
 /** o is the orientation index, see pack.ts. */
 export type Placement = { id: string; itemId: string; compartmentId: string; x: number; y: number; z: number; o: number }
 /** One unit on the traveler's body: counts as packed, takes no bag space and no bag weight. */
@@ -247,6 +249,8 @@ export function fillOf(c: Box, boxes: Placed[], looseVol: number) {
   return { height: fillHeight(c, boxes, looseVol), free, ratio: free > 0 ? looseVol / free : looseVol > 0 ? Infinity : 0, over: looseVol > free + 1e-6 }
 }
 /** The compartment with the most room left for soft items, after rigid boxes and loose volume already there. */
+/** The compartments Auto-pack may put an item of this category in. */
+export const takers = (bag: Bag, category: Category) => bag.compartments.filter((c) => !c.takes?.length || c.takes.includes(category))
 export function roomiest(bag: Bag, boxes: Record<string, Placed[]>, loose: Record<string, number>): Compartment {
   return bag.compartments.reduce((best, c) => (freeVolume(c, boxes[c.id] ?? []) - (loose[c.id] ?? 0) > freeVolume(best, boxes[best.id] ?? []) - (loose[best.id] ?? 0) ? c : best))
 }

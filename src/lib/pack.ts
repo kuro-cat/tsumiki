@@ -35,8 +35,9 @@ export function fits(bin: Box, placed: Placed[], p: Placed): boolean {
   return !placed.some((q) => overlaps(p, q))
 }
 
-/** Best free spot for one box in one bin: lowest resting height, then the earliest allowed orientation (as measured before tipped), then nearest the origin. */
-export function bestSpot(bin: Box, placed: Placed[], box: Box, os: number[] = UPRIGHT): Spot | null {
+/** Best free spot for one box in one bin: lowest resting height, then the earliest allowed orientation (as measured before tipped), then nearest the origin,
+ *  along y first (the plan's top edge), or along x first with `xFirst` (its left edge). */
+export function bestSpot(bin: Box, placed: Placed[], box: Box, os: number[] = UPRIGHT, xFirst = false): Spot | null {
   let best: { p: Placed; o: number; i: number } | null = null
   const cands = [{ x: 0, y: 0 }, ...placed.flatMap((p) => [{ x: p.x + p.l, y: p.y }, { x: p.x, y: p.y + p.w }, { x: p.x, y: p.y }])]
   for (let i = 0; i < os.length; i++) {
@@ -45,14 +46,20 @@ export function bestSpot(bin: Box, placed: Placed[], box: Box, os: number[] = UP
       const z = dropZ(placed, { ...c, l: d.l, w: d.w })
       const p: Placed = { ...d, x: c.x, y: c.y, z }
       if (!fits(bin, placed, p)) continue
-      if (!best || z < best.p.z || (z === best.p.z && (i < best.i || (i === best.i && (p.y < best.p.y || (p.y === best.p.y && p.x < best.p.x)))))) best = { p, o, i }
+      const [a, b, ba, bb] = xFirst ? [p.x, p.y, best?.p.x, best?.p.y] : [p.y, p.x, best?.p.y, best?.p.x]
+      if (!best || z < best.p.z || (z === best.p.z && (i < best.i || (i === best.i && (a < ba! || (a === ba && b < bb!)))))) best = { p, o, i }
     }
   }
   return best ? { p: best.p, o: best.o } : null
 }
 
-type Want<K> = { key: K; box: Box; os?: number[] }
+/** bins limits which bins a box may go in (all when absent); weight orders boxes when heavy items go low. */
+type Want<K> = { key: K; box: Box; os?: number[]; weight?: number; bins?: string[] }
 const byVolume = <K>(boxes: Want<K>[]) => [...boxes].sort((a, b) => volume(b.box) - volume(a.box) || b.box.h - a.box.h)
+/** A plan edge of a bin: which side of a bag sits against the traveler's back. */
+export type Side = 'top' | 'bottom' | 'left' | 'right'
+/** Where heavy items go: low (heaviest first, so each settles as low as it can), or low and against one edge. Absent packs by size alone. */
+export type Heavy = 'low' | Side
 
 /**
  * Places boxes into one bin around any already-fixed placements.
@@ -72,19 +79,23 @@ export function autoPack<K>(bin: Box, boxes: Want<K>[], fixed: Placed[] = []) {
 
 export const freeVolume = (bin: Box, placed: Placed[]) => volume(bin) - placed.reduce((a, p) => a + volume(p), 0)
 
-/** Places boxes across several bins. Tightest fit wins: lowest resting height, then the bin with the least free volume. */
-export function autoPackBins<K, B extends Box & { id: string }>(bins: B[], boxes: Want<K>[], fixed: Record<string, Placed[]> = {}) {
-  const placed: Record<string, Placed[]> = Object.fromEntries(bins.map((b) => [b.id, [...(fixed[b.id] ?? [])]]))
+/** Places boxes across several bins. Tightest fit wins: lowest resting height, then the bin with the least free volume.
+ *  With `heavy`, heaviest first; against the bottom or right edge the bins are packed mirrored, so bestSpot only ever leans top or left. */
+export function autoPackBins<K, B extends Box & { id: string }>(bins: B[], boxes: Want<K>[], fixed: Record<string, Placed[]> = {}, heavy?: Heavy) {
+  const flip = (bin: Box, p: Placed): Placed => (heavy === 'bottom' ? { ...p, y: bin.w - p.y - p.w } : heavy === 'right' ? { ...p, x: bin.l - p.x - p.l } : p)
+  const placed: Record<string, Placed[]> = Object.fromEntries(bins.map((b) => [b.id, (fixed[b.id] ?? []).map((p) => flip(b, p))]))
   const out: (Spot & { key: K; binId: string })[] = []
   const unplaced: K[] = []
-  for (const { key, box, os } of byVolume(boxes)) {
+  const order = heavy ? [...boxes].sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0) || volume(b.box) - volume(a.box)) : byVolume(boxes)
+  for (const { key, box, os, bins: only } of order) {
     let best: { bin: B; s: Spot } | null = null
     for (const bin of bins) {
-      const s = bestSpot(bin, placed[bin.id], box, os)
+      if (only && !only.includes(bin.id)) continue
+      const s = bestSpot(bin, placed[bin.id], box, os, heavy === 'left' || heavy === 'right')
       if (!s) continue
       if (!best || s.p.z < best.s.p.z || (s.p.z === best.s.p.z && freeVolume(bin, placed[bin.id]) < freeVolume(best.bin, placed[best.bin.id]))) best = { bin, s }
     }
-    if (best) { placed[best.bin.id].push(best.s.p); out.push({ key, binId: best.bin.id, ...best.s }) } else unplaced.push(key)
+    if (best) { placed[best.bin.id].push(best.s.p); out.push({ key, binId: best.bin.id, o: best.s.o, p: flip(best.bin, best.s.p) }) } else unplaced.push(key)
   }
   return { placed: out, unplaced }
 }

@@ -73,3 +73,13 @@ test('moveInto takes a placed unit to another bag under the same id, so a cube k
   // nothing moves when it won't fit
   assert.equal(moveInto(t, [k, shirt], 'pk', bag('tiny', 5, 5, 5)), null)
 })
+
+test('autoPackInto keeps each unit to compartments that take its category', () => {
+  const b: Bag = { ...bag('b', 50, 30, 20), compartments: [{ id: 'main', name: 'Main', l: 50, w: 30, h: 20, x: 0, y: 0, z: 0 }, { id: 'sleeve', name: 'Sleeve', l: 36, w: 26, h: 3, x: 0, y: 0, z: 0, takes: ['electronics'] }] }
+  const brush: RigidItem = { ...rigid('brush', 20, 4, 3), category: 'toiletries' }, laptop: RigidItem = { ...rigid('laptop', 31, 22, 2), category: 'electronics' }
+  const r = autoPackInto(trip(), [brush, laptop], b, [brush, laptop])
+  assert.deepEqual(Object.fromEntries(r.placements.map((p) => [p.itemId, p.compartmentId])), { brush: 'main', laptop: 'sleeve' })
+  // a soft unit goes where it's taken even when another compartment has more room
+  const big: Bag = { ...b, compartments: [b.compartments[0], { ...b.compartments[1], l: 60, w: 40, h: 30, takes: ['toiletries'] }] }
+  assert.equal(autoPackInto(trip(), [soft('shirt', 1)], big, [soft('shirt', 1)]).loose[0].home, 'main')
+})

@@ -14,6 +14,9 @@
 .cswatch:has(:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
 .comp .cin.x { margin-left: 12px; }
 .comp .btn { justify-self: end; }
+.comp .takes { grid-column: 1 / -1; margin-top: -2px; }
+.comp .takes summary { color: var(--ink-2); font-size: var(--fs-s); cursor: pointer; width: fit-content; }
+.comp .takes .cluster { padding-top: 8px; }
 
 @media (max-width: 600px) {
   .comps { gap: 16px; }

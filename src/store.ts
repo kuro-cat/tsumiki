@@ -52,8 +52,8 @@ export function sampleState(): State {
     rigid('Book', 'misc', 20, 13, 3, 350),
   ]
   const backpack: Bag = {
-    id: uid(), name: 'Travel backpack 40 L', empty: 1400, limit: 10000, sample: S,
-    compartments: [newCompartment('Main', 50, 32, 20, 0, 0, 3), newCompartment('Laptop sleeve', 36, 26, 3, 7, 3, 0)],
+    id: uid(), name: 'Travel backpack 40 L', empty: 1400, limit: 10000, heavy: 'low', sample: S,
+    compartments: [newCompartment('Main', 50, 32, 20, 0, 0, 3), { ...newCompartment('Laptop sleeve', 36, 26, 3, 7, 3, 0), takes: ['electronics', 'documents'] }],
   }
   const daypack: Bag = { ...newBag('Daypack 18 L', 42, 26, 16, 600, null), sample: S }
   const bags: Bag[] = [backpack, daypack, { ...newBag('Checked suitcase', 68, 46, 26, 3800, 23000), sample: S }]

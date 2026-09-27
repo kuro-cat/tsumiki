@@ -87,3 +87,28 @@ test('at equal resting height the as-measured orientation wins', () => {
   const r = autoPack({ l: 40, w: 40, h: 40 }, [{ key: 1, box: { l: 30, w: 20, h: 10 }, os: ALL_ORIENTATIONS }])
   assert.equal(r.placed[0].o, 0)
 })
+
+test('heavy items go in first and low; against an edge they lean to it', () => {
+  const bin = { id: 'm', l: 20, w: 20, h: 20 }
+  const boxes = [{ key: 'light', box: { l: 20, w: 20, h: 10 }, weight: 100 }, { key: 'heavy', box: { l: 20, w: 20, h: 5 }, weight: 900 }]
+  const z = (r: ReturnType<typeof autoPackBins<string, typeof bin>>, k: string) => r.placed.find((x) => x.key === k)!.p.z
+  // by size the bigger, lighter box goes first and ends up underneath
+  assert.equal(z(autoPackBins([bin], boxes), 'heavy'), 10)
+  assert.equal(z(autoPackBins([bin], boxes, {}, 'low'), 'heavy'), 0)
+  const small = [{ key: 'a', box: { l: 5, w: 5, h: 5 }, weight: 500 }]
+  const at = (heavy: Parameters<typeof autoPackBins>[3]) => { const p = autoPackBins([bin], small, {}, heavy).placed[0].p; return [p.x, p.y] }
+  assert.deepEqual(at('top'), [0, 0])
+  assert.deepEqual(at('bottom'), [0, 15])
+  assert.deepEqual(at('right'), [15, 0])
+  // mirrored packing still works around what is already there
+  const fixed = { m: [{ l: 20, w: 5, h: 20, x: 0, y: 15, z: 0 }] }
+  assert.deepEqual(autoPackBins([bin], small, fixed, 'bottom').placed[0].p.y, 10)
+})
+
+test('a box goes only in the bins it may use', () => {
+  const bins = [{ id: 'sleeve', l: 30, w: 20, h: 3 }, { id: 'main', l: 50, w: 30, h: 20 }]
+  const thin = { l: 20, w: 4, h: 3 }
+  assert.equal(autoPackBins(bins, [{ key: 'a', box: thin }]).placed[0].binId, 'sleeve')
+  assert.equal(autoPackBins(bins, [{ key: 'a', box: thin, bins: ['main'] }]).placed[0].binId, 'main')
+  assert.deepEqual(autoPackBins(bins, [{ key: 'a', box: thin, bins: [] }]).unplaced, ['a'])
+})
