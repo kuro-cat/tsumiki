@@ -213,6 +213,23 @@ export function withoutItem(trip: Trip, itemId: string): Trip {
   })
   return { ...trip, checklist, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== itemId), worn: trip.worn.filter((w) => w.itemId !== itemId) }
 }
+/** A copy for a repeat trip: same bags, checklist and packing under new ids, a week from today for the same number of nights.
+ *  Hand ticks and Actual Weights stay with the old trip; Shared Limits keep their bags, which are shared, not copied. */
+export function duplicateTrip(trip: Trip, today: Date): Trip {
+  const { weighed: _weighed, sample: _sample, ...rest } = trip
+  const pids = new Map(trip.placements.map((p) => [p.id, uid()]))
+  const fresh = <T extends { id: string }>(x: T): T => ({ ...x, id: uid() })
+  const start = new Date(today); start.setDate(start.getDate() + 7)
+  const end = new Date(start); end.setDate(end.getDate() + Math.round((Date.parse(trip.end) - Date.parse(trip.start)) / 86400000))
+  return {
+    ...rest, id: uid(), name: `${trip.name} copy`, start: isoDate(start), end: isoDate(end),
+    checklist: trip.checklist.map((c) => ({ ...c, id: uid(), packed: false })),
+    placements: trip.placements.map((p) => ({ ...p, id: pids.get(p.id)! })),
+    loose: trip.loose.map((l) => ({ ...l, id: uid(), home: pids.get(l.home) ?? l.home })),
+    worn: trip.worn.map(fresh),
+    ...(trip.shared ? { shared: trip.shared.map(fresh) } : {}),
+  }
+}
 /** Removes placements and, for containers, what they hold. */
 export function withoutPlacements(t: Trip, ids: Set<string>): Pick<Trip, 'placements' | 'loose'> {
   return { placements: t.placements.filter((p) => !ids.has(p.id)), loose: t.loose.filter((l) => !ids.has(l.home)) }

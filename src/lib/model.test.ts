@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { afterBagEdit, bagLeaves, withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { afterBagEdit, bagLeaves, duplicateTrip,withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -232,4 +232,24 @@ test('a compartment made smaller re-seats what no longer fits, and takes out wha
   // three items and room for two: the one that overhangs comes out
   const full = tripOf({ bagIds: ['bag'], placements: [at('pa', 'a', 0), at('pc', 'c', 10), at('pb', 'b', 20)] })
   assert.deepEqual(afterBagEdit(full, before, { ...before, compartments: [{ ...before.compartments[0], l: 20 }] }, items).placements.map((p) => p.id), ['pa', 'pc'])
+})
+
+test('a duplicated trip copies bags, checklist and packing under new ids, without hand ticks or Actual Weights', () => {
+  const t = tripOf({ name: 'Oslo', start: '2026-01-01', end: '2026-01-05', climate: 'cold', activities: ['hiking'], bagIds: ['b', 'd'], sample: true,
+    checklist: [{ id: 'e', label: 'Jacket', category: 'clothing', qty: 2, match: ['jacket'], itemIds: ['s'], packed: true, source: 'rule' }],
+    placements: [{ id: 'p1', itemId: 'k', compartmentId: 'c', x: 0, y: 0, z: 0, o: 0 }],
+    loose: [{ id: 'l1', itemId: 's', home: 'p1' }, { id: 'l2', itemId: 's', home: 'c' }], worn: [{ id: 'w', itemId: 'h' }],
+    weighed: { b: 9000 }, shared: [{ id: 'sh', bagIds: ['b', 'd'], limit: 12000 }] })
+  const c = duplicateTrip(t, new Date(2026, 2, 1, 12))
+  assert.equal(c.name, 'Oslo copy')
+  // four nights, starting a week from today
+  assert.deepEqual([c.start, c.end], ['2026-03-08', '2026-03-12'])
+  assert.deepEqual([c.bagIds, c.climate, c.activities, c.sample, c.weighed], [['b', 'd'], 'cold', ['hiking'], undefined, undefined])
+  const ids = [c.id, c.checklist[0].id, c.placements[0].id, ...c.loose.map((l) => l.id), c.worn[0].id, c.shared![0].id]
+  assert.ok(ids.every((id) => !['t', 'e', 'p1', 'l1', 'l2', 'w', 'sh'].includes(id)))
+  assert.deepEqual([c.checklist[0].packed, c.checklist[0].itemIds, c.checklist[0].qty], [false, ['s'], 2])
+  // the soft unit in the cube follows the cube's new placement
+  assert.deepEqual(c.loose.map((l) => l.home), [c.placements[0].id, 'c'])
+  assert.deepEqual([c.shared![0].bagIds, c.shared![0].limit], [['b', 'd'], 12000])
+  assert.equal(packedCount(c, 's'), 2)
 })

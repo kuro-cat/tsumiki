@@ -71,6 +71,10 @@ export function Trips({ state, api, go }: ViewProps) {
   }
   const toggleAct = (a: string) => trip && patch({ activities: trip.activities.includes(a) ? trip.activities.filter((x) => x !== a) : [...trip.activities, a] })
   const open = () => { if (trip) { api.set({ activeTripId: trip.id }); go('Plan') } }
+  const duplicate = () => {
+    const t = trip && api.duplicateTrip(trip.id)
+    if (t) { setEditId(t.id); setOpenRow(null); setMsg(null) }
+  }
   const remove = () => {
     if (!trip) return
     api.removeTrip(trip.id)
@@ -108,6 +112,7 @@ export function Trips({ state, api, go }: ViewProps) {
                 <div className="cluster">
                   <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
                   <button className="btn" type="button" onClick={() => setEditing(true)}>Edit trip</button>
+                  <button className="btn" type="button" onClick={duplicate}>Duplicate</button>
                 </div>
               </div>
             ) : (

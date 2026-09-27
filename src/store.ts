@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { toPlacement } from './lib/packing'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, orientationsOf, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTrip, orientationsOf, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -138,6 +138,15 @@ export function useStore() {
       return { ...s, bags: upsert(s.bags, { ...r.bag, compartments: settleCompartments(r.bag.compartments) }), trips: r.trips }
     }),
     upsertTrip: (t: Trip) => setState((s) => ({ ...s, trips: upsert(s.trips, t), activeTripId: s.activeTripId ?? t.id })),
+    /** Copies a trip for a repeat journey and makes the copy active; Undo takes the copy away. */
+    duplicateTrip: (id: string) => {
+      const s = now.current, t = s.trips.find((x) => x.id === id)
+      if (!t) return null
+      const copy = duplicateTrip(t, new Date())
+      api.snap(`Copied ${t.name}`)
+      setState({ ...s, trips: [...s.trips, copy], activeTripId: copy.id })
+      return copy
+    },
     removeTrip: (id: string) => { api.snap(`Deleted ${name(now.current.trips, id)}`); setState((s) => { const trips = s.trips.filter((t) => t.id !== id); return { ...s, trips, activeTripId: s.activeTripId === id ? trips[0]?.id ?? null : s.activeTripId } }) },
     patchTrip: (id: string, patch: Partial<Trip> | ((t: Trip) => Partial<Trip>)) =>
       setState((s) => ({ ...s, trips: s.trips.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t)) })),
