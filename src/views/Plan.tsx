@@ -4,7 +4,7 @@ import { dropZ, faceName, fits, nextFace, oriented } from '../lib/pack'
 import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, unitsToPack } from '../lib/packing'
 import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
-import { CAM_VIEWS, type CamView, type SceneComp } from './Scene3D'
+import type { CamView, SceneComp } from './Scene3D'
 import { Icon } from '../Icon'
 import { ActionSelect, Seg, Tab, TabList } from '../ui'
 import { FILL_MS, useSheetSize, useTransient } from './plan/hooks'
@@ -18,6 +18,7 @@ import { WornList } from './plan/WornList'
 import { autopackAnimates } from '../prefs'
 
 const Scene3D = lazy(() => import('./Scene3D').then((m) => ({ default: m.Scene3D })))
+const CAM_VIEWS: CamView[] = ['iso', 'top', 'front', 'side']
 
 export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewProps & { view: PlanView; setView: (v: PlanView) => void; bagId: string | null; worn: boolean; show: (id: string) => void }) {
   const { items, bags } = state

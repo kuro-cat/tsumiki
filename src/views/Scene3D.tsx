@@ -15,7 +15,6 @@ export type Arrange = { selected: string | null; onSelect: (id: string | null) =
 export type SceneItem = { id: string; box: Placed; selected: boolean; color?: string }
 export type SceneComp = { c: Compartment; boxes: SceneItem[]; fill: { height: number; over: boolean } }
 export type CamView = 'iso' | 'top' | 'front' | 'side'
-export const CAM_VIEWS: CamView[] = ['iso', 'top', 'front', 'side']
 const DIRS: Record<CamView, [number, number, number]> = { iso: [1, 0.85, 1], top: [0, 1, 0.001], front: [0, 0.001, 1], side: [1, 0.001, 0] }
 const eps = 1e-6
 /** Theme tokens as THREE colors, read from the document so the scene follows data-theme. */
