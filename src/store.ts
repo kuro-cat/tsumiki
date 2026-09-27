@@ -24,7 +24,9 @@ export function sampleState(): State {
     container('Packing cube, M', 30, 20, 10, 120, 5.4),
     soft('T-shirt', 'clothing', 1.7, 150, 4),
     soft('Jeans', 'clothing', 4, 600),
-    soft('Shorts', 'clothing', 1.6, 220, 2),
+    soft('Chinos', 'clothing', 3, 450),
+    soft('Shorts', 'clothing', 1.6, 220, 3),
+    soft('Pyjamas', 'clothing', 1.2, 250),
     soft('Underwear', 'clothing', 0.5, 70, 6),
     soft('Socks, pair', 'clothing', 0.3, 60, 6),
     soft('Light jacket', 'clothing', 5, 420),
@@ -33,10 +35,14 @@ export function sampleState(): State {
     rigid('Sandals', 'footwear', 27, 12, 8, 380),
     rigid('Toiletry kit', 'toiletries', 22, 12, 8, 500),
     rigid('Sunscreen', 'toiletries', 15, 6, 4, 210),
+    rigid('Toothbrush and toothpaste', 'toiletries', 20, 4, 3, 90),
+    rigid('Deodorant', 'toiletries', 12, 5, 4, 120),
+    rigid('Medication and first aid', 'toiletries', 14, 10, 4, 150),
     rigid('Laptop 13"', 'electronics', 31, 22, 2, 1400),
     rigid('Phone charger', 'electronics', 8, 5, 3, 120),
     rigid('Power bank', 'electronics', 15, 7, 2, 350),
     rigid('Camera', 'electronics', 12, 8, 7, 500),
+    rigid('Camera battery and SD cards', 'electronics', 8, 6, 2, 80),
     rigid('Headphones', 'electronics', 18, 16, 6, 260),
     rigid('Passport', 'documents', 13, 9, 1, 40),
     rigid('Wallet', 'documents', 11, 9, 2, 120),
@@ -57,7 +63,8 @@ export function sampleState(): State {
     id: uid(), name: 'Lisbon', destination: 'Lisbon, Portugal', start: isoDate(start), end: isoDate(end),
     climate: 'hot', kind: 'city', activities: ['photography'], bagIds: [backpack.id, daypack.id], checklist: [], placements: [], loose: [], worn: [], sample: S,
   }
-  trip.checklist = suggest({ nights: 5, climate: trip.climate, kind: trip.kind, activities: trip.activities }).map((c) => ({ ...withLink(c, items), id: uid(), packed: false }))
+  // Every entry can be met from the sample inventory, so Auto-pack can finish the trip. The daypack is the day bag, so that entry starts ticked.
+  trip.checklist = suggest({ nights: 5, climate: trip.climate, kind: trip.kind, activities: trip.activities }).map((c) => ({ ...withLink(c, items), id: uid(), packed: c.label === 'Day bag' }))
   const byName = (n: string) => items.find((x) => x.name === n)!
   const pre = ['Laptop 13"', 'Toiletry kit', 'Sneakers, pair', 'Camera', 'Packing cube, M'].map((n, i) => ({ key: `${byName(n).id}:${i}`, box: byName(n) as Boxed, os: orientationsOf(byName(n) as Boxed) }))
   trip.placements = autoPackBins(backpack.compartments, pre).placed.map(toPlacement)
