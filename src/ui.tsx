@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type ComponentProps, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
-import { converts, fromShown, shownMin, shownStep, shownUnit, titleCase, toShown } from './store'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ChangeEvent, type ComponentProps, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { converts, fromShown, lenUnit, shownMin, shownStep, shownUnit, titleCase, toShown } from './store'
 import { Icon } from './Icon'
 
 /** A labelled field on the form's 12-column grid. `group` makes it a div, for a set of controls one label can't wrap. */
@@ -22,9 +22,93 @@ export function MeasureInput({ unit, value, onChange, onBlur, min, step, ...inpu
     onBlur={(e) => { setDraft(null); onBlur?.(e) }} />
 }
 
-/** A number input with its unit after it. */
+/** Pointer-down handler that scrubs a number: every 6 px sideways is one step (ten with Shift), kept within min and max.
+ *  It reports like an input would, with the metric value in target.value. */
+export function scrubber({ value, min, max, step, disabled, onChange }: Pick<InputHTMLAttributes<HTMLInputElement>, 'value' | 'min' | 'max' | 'step' | 'disabled' | 'onChange'>) {
+  return (e: PointerEvent<HTMLElement>) => {
+    if (disabled || !onChange || e.button !== 0) return
+    e.preventDefault()
+    const el = e.currentTarget, x0 = e.clientX, v0 = Number(value) || 0, st = Number(step) || 1
+    el.setPointerCapture(e.pointerId)
+    const move = (m: globalThis.PointerEvent) => {
+      let v = Number((v0 + Math.round((m.clientX - x0) / 6) * st * (m.shiftKey ? 10 : 1)).toFixed(4))
+      if (min != null && min !== '') v = Math.max(Number(min), v)
+      if (max != null && max !== '') v = Math.min(Number(max), v)
+      onChange({ target: { value: String(v) } } as ChangeEvent<HTMLInputElement>)
+    }
+    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up) }
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up)
+  }
+}
+
+/** A number field with its unit inside the frame. Drag the unit sideways to change the value; arrows and typing work too. */
 export function UnitInput({ unit, ...input }: { unit: string } & InputHTMLAttributes<HTMLInputElement>) {
-  return <span className="unit"><MeasureInput unit={unit} {...input} /><span className="dim">{shownUnit(unit)}</span></span>
+  return <span className="unit"><MeasureInput unit={unit} {...input} /><span className="dim scrub" onPointerDown={scrubber(input)} title="Drag to change" aria-hidden="true">{shownUnit(unit)}</span></span>
+}
+
+type Axis = 'l' | 'w' | 'h'
+/** Length, width and height in one frame, read the way sizes are written: 50 × 32 × 20 cm. onChange gives each axis its handler. */
+export function SizeInput({ label, value, names = { l: 'length', w: 'width', h: 'height' }, min = 0.5, step = 0.5, onChange }: {
+  label: string; value: Record<Axis, number>; names?: Record<Axis, string>; min?: number; step?: number; onChange: (k: Axis) => (e: ChangeEvent<HTMLInputElement>) => void
+}) {
+  return (
+    <span className="size" role="group" aria-label={label}>
+      {(['l', 'w', 'h'] as const).map((k, i) => (
+        <Fragment key={k}>{i > 0 && <span className="x" aria-hidden="true">×</span>}<MeasureInput unit="cm" min={min} step={step} value={value[k]} onChange={onChange(k)} aria-label={`${label} ${names[k]}`} required /></Fragment>
+      ))}
+      <span className="dim">{lenUnit()}</span>
+    </span>
+  )
+}
+
+/** A whole number with − and + keys either side. */
+export function Stepper({ label, value, min = 1, max, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (n: number) => void }) {
+  const clamp = (n: number) => Math.min(max ?? Infinity, Math.max(min, Math.round(n) || min))
+  return (
+    <span className="stepper" role="group" aria-label={label}>
+      <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= min} onClick={() => onChange(clamp(value - 1))}><Icon name="minus" /></button>
+      <input type="number" min={min} max={max} step={1} value={value} onChange={(e) => onChange(clamp(Number(e.target.value)))} aria-label={label} />
+      <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={max != null && value >= max} onClick={() => onChange(clamp(value + 1))}><Icon name="plus" /></button>
+    </span>
+  )
+}
+
+/** A range slider with its value read out beside it; the filled part of the track is the value. */
+export function Slider({ label, value, min, max, step, unit, onChange }: { label: string; value: number; min: number; max: number; step: number; unit: string; onChange: (n: number) => void }) {
+  return (
+    <span className="slider" style={{ '--pct': `${((value - min) / (max - min)) * 100}%` } as CSSProperties}>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} aria-valuetext={`${value} ${unit}`} />
+      <output>{value}<span className="dim">{unit}</span></output>
+    </span>
+  )
+}
+
+/** A key that opens a small panel below it. Outside clicks and Escape close it; Escape and close() give focus back to the key. */
+export function Popover({ label, face, className, children }: { label: string; face: ReactNode; className?: string; children: (close: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [end, setEnd] = useState(false)
+  const ref = useRef<HTMLDivElement>(null), key = useRef<HTMLButtonElement>(null)
+  // A panel that would run past the form (or the screen) opens aligned to the key's right edge instead.
+  useLayoutEffect(() => {
+    const pop = ref.current?.querySelector<HTMLElement>('.pop')
+    if (!open || !pop || !ref.current) return
+    const room = (ref.current.closest('.form') ?? document.documentElement).getBoundingClientRect().right
+    setEnd(ref.current.getBoundingClientRect().left + pop.offsetWidth > room - 8)
+  }, [open])
+  const close = () => { setOpen(false); key.current?.focus() }
+  useEffect(() => {
+    if (!open) return
+    const down = (e: globalThis.PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); key.current?.focus() } }
+    window.addEventListener('pointerdown', down); window.addEventListener('keydown', esc)
+    return () => { window.removeEventListener('pointerdown', down); window.removeEventListener('keydown', esc) }
+  }, [open])
+  return (
+    <div className={'popover' + (className ? ` ${className}` : '')} ref={ref}>
+      <button ref={key} type="button" className="pop-key" aria-label={label} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)}>{face}<Icon name="chev" /></button>
+      {open && <div className={'pop' + (end ? ' end' : '')} role="dialog" aria-label={label}>{children(close)}</div>}
+    </div>
+  )
 }
 
 export function IconButton({ icon, label, ...button }: { icon: ComponentProps<typeof Icon>['name']; label: string } & ButtonHTMLAttributes<HTMLButtonElement>) {

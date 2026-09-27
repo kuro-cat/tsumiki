@@ -5,28 +5,24 @@
 .trow.bag.drop-before { box-shadow: inset 0 2px 0 var(--blue); }
 .trow.bag.drop-after { box-shadow: inset 0 -2px 0 var(--blue); }
 
-/* Compartments: cells with the axis lettered in, so no header row is needed. */
-.comps { display: grid; gap: 8px; margin-bottom: 8px; }
-.comp { display: grid; grid-template-columns: minmax(0, 1fr) 48px repeat(6, 72px) 32px; gap: 8px; align-items: center; }
-/* The compartment's colour: a swatch of its block with a chevron, the select itself laid invisibly over it. */
-.cswatch { position: relative; height: 36px; border: 1px solid var(--ink); background: color-mix(in srgb, var(--blk) var(--bmix), var(--paper)) var(--chevron) no-repeat right 6px bottom 6px / 8px 5px; cursor: pointer; }
-.cswatch select { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; min-height: 0; cursor: pointer; }
-.cswatch:has(:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
-.comp .cin.x { margin-left: 12px; }
+/* Compartments: name, colour, size in one frame, remove; position and what Auto-pack puts there fold away beneath. */
+.comps { display: grid; gap: 12px; margin-bottom: 8px; }
+.comp { display: grid; grid-template-columns: minmax(0, 1fr) auto 240px 32px; gap: 8px; align-items: center; }
 .comp .btn { justify-self: end; }
-.comp .takes { grid-column: 1 / -1; margin-top: -2px; }
-.comp .takes summary { color: var(--ink-2); font-size: var(--fs-s); cursor: pointer; width: fit-content; }
-.comp .takes .cluster { padding-top: 8px; }
+.comp-more { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: -2px; }
+.comp-more details[open] { flex-basis: 100%; }
+.comp-more summary { color: var(--ink-2); font-size: var(--fs-s); cursor: pointer; width: fit-content; }
+.comp-more summary:hover { color: var(--ink); }
+.comp-more .cluster { padding-top: 8px; }
+.comp .pos .cin { width: 96px; }
 .heavy { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .heavy select { width: auto; }
 
 @media (max-width: 600px) {
   .comps { gap: 16px; }
-  .comp { grid-template-columns: repeat(3, minmax(0, 1fr)) 32px; gap: 8px; }
-  .comp > input[type='text'] { grid-column: 1 / 3; }
-  .comp .cswatch { grid-column: 3; grid-row: 1; }
-  .comp .btn { grid-column: 4; grid-row: 1; }
-  .comp .cin.x { grid-column: 1; margin-left: 0; }
+  .comp { grid-template-columns: minmax(0, 1fr) auto 32px; }
+  .comp .size { grid-column: 1 / -1; grid-row: 2; }
+  .heavy { margin-left: 0; }
 }
 @media (pointer: coarse) {
   .trow.bag .grip { padding: 8px 4px; margin: -8px 0; }

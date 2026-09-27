@@ -1,10 +1,11 @@
 import { useEffect, useEffectEvent, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { BLOCKS, CATEGORIES, bagVolume, blockKey, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, titleCase, type Bag, type Category, type Compartment } from '../store'
+import { BLOCKS, CATEGORIES, bagVolume, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, titleCase, type Bag, type Category, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
 import { useSort } from './Sort'
 import { Blank } from './Blank'
-import { Field, FormCard, IconButton, MeasureInput, PageHead, UnitInput, useEditor } from '../ui'
+import { Field, FormCard, IconButton, MeasureInput, PageHead, SizeInput, UnitInput, useEditor } from '../ui'
+import { ColourPick, type Swatch } from '../pickers'
 
 const blank = (): Bag => ({ ...newBag('', 50, 32, 20, 1200, null) })
 const PRESETS = [
@@ -15,6 +16,8 @@ const PRESETS = [
 ]
 const COLS = { '--cols': 'minmax(0, 2fr) 150px 90px 90px 90px 60px' } as CSSProperties
 const main = (b: Bag) => b.compartments[0]
+/** A compartment's colour choices: Auto (its colour by position) and the six blocks. */
+const blockSwatches = (i: number): Swatch[] => [{ value: '', name: `Auto (${BLOCKS[i % 4][1]})`, paint: `var(--${BLOCKS[i % 4][0]})` }, ...BLOCKS.map(([k, n]) => ({ value: k, name: n, paint: `var(--${k})` }))]
 type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
 const AXIS: Record<Num, string> = { l: 'L', w: 'W', h: 'D', x: 'X', y: 'Y', z: 'Z' }
 const AXIS_NAME: Record<Num, string> = { l: 'length', w: 'width', h: 'depth', x: 'X position', y: 'Y position', z: 'Z position' }
@@ -102,30 +105,33 @@ export function Bags({ state, api }: ViewProps) {
           <Field label="Name" span={6}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></Field>
           <Field label="Empty weight" span={3}><UnitInput unit="kg" min={0} step={0.05} value={form.empty / 1000} onChange={(e) => set('empty', Math.round(Number(e.target.value) * 1000))} required /></Field>
           <Field label="Weight limit" span={3}><UnitInput unit="kg" min={0} step={0.5} value={form.limit == null ? '' : form.limit / 1000} onChange={(e) => set('limit', e.target.value === '' ? null : Math.round(Number(e.target.value) * 1000))} placeholder="none" /></Field>
-          <Field label={<>Compartments<span className="dim">inside size in {lenUnit()}; X Y Z is where it sits</span></>} span={12} group>
+          <Field label="Compartments" span={12} group>
             <div className="comps">
               {form.compartments.map((c, i) => (
                 <div key={c.id} className="comp">
                   <input type="text" value={c.name} onChange={(e) => setComp(c.id, { name: e.target.value })} aria-label="Compartment name" placeholder={i === 0 ? 'Main' : 'Pocket'} />
-                  <label className="cswatch" style={{ '--blk': `var(--${blockKey(c, i)})` } as CSSProperties} title="Colour on the plan">
-                    <select value={c.color ?? ''} onChange={(e) => setComp(c.id, { color: (e.target.value || undefined) as Compartment['color'] })} aria-label={`${c.name || 'Compartment'} colour`}>
-                      <option value="">Auto ({BLOCKS[i % 4][1]})</option>
-                      {BLOCKS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-                    </select>
-                  </label>
-                  {(['l', 'w', 'h', 'x', 'y', 'z'] as Num[]).map((k) => (
-                    <label key={k} className={'cin' + (k === 'x' ? ' x' : '')}>
-                      <span className="label">{AXIS[k]}</span>
-                      <MeasureInput unit="cm" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
-                    </label>
-                  ))}
+                  <ColourPick label={`${c.name || 'Compartment'} colour`} value={c.color ?? ''} swatches={blockSwatches(i)} onChange={(v) => setComp(c.id, { color: (v || undefined) as Compartment['color'] })} />
+                  <SizeInput label={c.name || 'Compartment'} value={c} names={AXIS_NAME} min={1} onChange={(k) => numC(c.id, k)} />
                   <IconButton icon="x" label={`Remove ${c.name}`} onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'} />
+                  <div className="comp-more">
+                  <details className="pos">
+                    <summary>Position: {c.x}, {c.y}, {c.z}</summary>
+                    <div className="cluster tight">
+                      {(['x', 'y', 'z'] as Num[]).map((k) => (
+                        <label key={k} className="cin">
+                          <span className="label">{AXIS[k]}</span>
+                          <MeasureInput unit="cm" min={0} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                   <details className="takes">
                     <summary>Auto-pack: {c.takes?.length ? c.takes.map(titleCase).join(', ') : 'anything'}</summary>
                     <div className="cluster tight">
                       {CATEGORIES.map((cat) => <label key={cat} className="chip"><input type="checkbox" checked={!!c.takes?.includes(cat)} onChange={() => toggleTakes(c, cat)} />{titleCase(cat)}</label>)}
                     </div>
                   </details>
+                  </div>
                 </div>
               ))}
             </div>

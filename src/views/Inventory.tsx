@@ -4,7 +4,11 @@ import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
 import { useSort, type Col } from './Sort'
-import { Field, FormCard, PageHead, Seg, UnitInput, useEditor } from '../ui'
+import { Field, FormCard, PageHead, Seg, SizeInput, Slider, Stepper, UnitInput, useEditor } from '../ui'
+import { ColourPick, type Swatch } from '../pickers'
+
+const SWATCH_NAMES = ['Clay', 'Ochre', 'Olive', 'Teal', 'Blue', 'Slate', 'Bark', 'Sand']
+const ITEM_SWATCHES: Swatch[] = [{ value: '', name: 'No colour', paint: 'transparent' }, ...SWATCHES.map((c, i) => ({ value: c, name: SWATCH_NAMES[i] ?? c, paint: c }))]
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
 type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean; capacity: number; autoCap: boolean }
@@ -62,33 +66,23 @@ export function Inventory({ state, api }: ViewProps) {
           {editing && <div className="right"><button className="btn danger" type="button" onClick={() => { api.removeItem(form.id); ed.close() }}>Delete item</button></div>}
         </>}>
           <Field label="Name" span={4}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Rain jacket" required /></Field>
-          <Field label="Category" span={2}><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
+          <Field label="Category" span={3}><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
           <Field label="Kind" span={3} group><Seg label="Kind" options={KIND_OPTIONS} value={form.kind} onChange={(k) => set('kind', k)} /></Field>
+          <Field label="Colour" span={2} group><ColourPick label="Item colour" value={form.color} swatches={ITEM_SWATCHES} custom onChange={(c) => set('color', c)} /></Field>
           <Field label="Weight" span={2}><UnitInput unit="g" min={1} step={1} value={form.weight} onChange={num('weight')} required /></Field>
-          <Field label="Qty" span={1}><input type="number" min={1} step={1} value={form.qty} onChange={num('qty')} required /></Field>
+          <Field label="Qty" span={2} group><Stepper label="Quantity" value={form.qty} onChange={(n) => set('qty', n)} /></Field>
           {form.kind !== 'soft' ? (
             <>
-              <Field label="Length" span={2}><UnitInput unit="cm" min={0.5} step={0.5} value={form.l} onChange={num('l')} required /></Field>
-              <Field label="Width" span={2}><UnitInput unit="cm" min={0.5} step={0.5} value={form.w} onChange={num('w')} required /></Field>
-              <Field label="Height" span={2}><UnitInput unit="cm" min={0.5} step={0.5} value={form.h} onChange={num('h')} required /></Field>
+              <Field label="Size" span={4} group><SizeInput label="Size" value={form} onChange={num} /></Field>
               <Field label="Orientation" span={2} group><label className="chip"><input type="checkbox" checked={form.up} onChange={(e) => set('up', e.target.checked)} />This side up</label></Field>
               {form.kind === 'container' && <Field label="Holds" span={2}><UnitInput unit="L" min={0.1} step={0.1} value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value), autoCap: false }))} required /></Field>}
             </>
           ) : (
             <>
-              <Field label="Volume" span={3}><UnitInput unit="L" min={0.1} step={0.1} value={form.volume} onChange={num('volume')} required /></Field>
-              <Field label="Packed size" span={3}><UnitInput unit="%" min={5} max={100} step={5} value={form.packsTo} onChange={num('packsTo')} required /></Field>
+              <Field label="Volume" span={2}><UnitInput unit="L" min={0.1} step={0.1} value={form.volume} onChange={num('volume')} required /></Field>
+              <Field label="Packed size" span={6} group><PackedSize value={form.packsTo} onChange={(n) => set('packsTo', n)} /></Field>
             </>
           )}
-          <Field label="Colour" span={12} group>
-            <div className="radios" role="radiogroup" aria-label="Item colour">
-              <label className="chip"><input type="radio" name="color" checked={!form.color} onChange={() => set('color', '')} />None</label>
-              {SWATCHES.map((c) => (
-                <label key={c} className="chip sw-chip" title={c}><input type="radio" name="color" checked={form.color === c} onChange={() => set('color', c)} aria-label={`Colour ${c}`} /><i className="sw" style={{ '--sw': c } as CSSProperties} /></label>
-              ))}
-              <label className={'chip' + (form.color && !SWATCHES.includes(form.color) ? ' on' : '')}><input type="color" value={form.color || '#888888'} onChange={(e) => set('color', e.target.value)} aria-label="Custom colour" />Custom</label>
-            </div>
-          </Field>
         </FormCard>
       )}
       <div>
@@ -108,5 +102,19 @@ export function Inventory({ state, api }: ViewProps) {
         </div>
       </div>
     </section>
+  )
+}
+
+/** Packed size as a slider, with the stuffed volume drawn as a square inside the loose one. */
+function PackedSize({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const side = 28 * Math.sqrt(value / 100)
+  return (
+    <span className="packed">
+      <svg width={32} height={32} viewBox="0 0 32 32" aria-hidden="true">
+        <rect x={2} y={2} width={28} height={28} className="loose" />
+        <rect x={2} y={30 - side} width={side} height={side} className="stuffed" />
+      </svg>
+      <Slider label="Packed size" value={value} min={5} max={100} step={5} unit="%" onChange={onChange} />
+    </span>
   )
 }

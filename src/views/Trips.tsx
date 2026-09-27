@@ -5,7 +5,11 @@ import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
-import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
+import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Stepper, Tab, TabList, UnitInput } from '../ui'
+import { DateRange } from '../pickers'
+import { Bike, Briefcase, Camera, MountainSnow, Signpost, Tent, Timer, WavesLadder, Wine, type LucideIcon } from 'lucide-react'
+
+const ACT_ICON: Record<(typeof ACTIVITIES)[number], LucideIcon> = { hiking: Signpost, swimming: WavesLadder, running: Timer, photography: Camera, camping: Tent, 'formal event': Wine, work: Briefcase, cycling: Bike, skiing: MountainSnow }
 
 
 
@@ -117,14 +121,14 @@ export function Trips({ state, api, go }: ViewProps) {
               </div>
             ) : (
             <FormCard label="Trip details" title="Edit trip" head={<button type="button" className="btn primary" onClick={() => setEditing(false)}>Done</button>} actions={<>
-              <span className="hint">{nights(trip)} nights</span>
               <div className="right"><button className="btn danger" type="button" onClick={remove}>Delete trip</button></div>
             </>}>
-              <Field label="Name" span={6}><input type="text" value={trip.name} onChange={(e) => patch({ name: e.target.value })} required /></Field>
-              <Field label="Destination" span={6}><input type="text" value={trip.destination} onChange={(e) => patch({ destination: e.target.value })} placeholder="City, country" /></Field>
-              <Field label="Leave" span={6}><input type="date" value={trip.start} onChange={(e) => patch({ start: e.target.value })} /></Field>
-              <Field label="Return" span={6}><input type="date" value={trip.end} min={trip.start} onChange={(e) => patch({ end: e.target.value })} /></Field>
-              <Field label="Bags" span={12} group>
+              <h3 className="form-sec">When &amp; where</h3>
+              <Field label="Name" span={4}><input type="text" value={trip.name} onChange={(e) => patch({ name: e.target.value })} required /></Field>
+              <Field label="Destination" span={4}><input type="text" value={trip.destination} onChange={(e) => patch({ destination: e.target.value })} placeholder="City, country" /></Field>
+              <Field label="Dates" span={4} group><DateRange start={trip.start} end={trip.end} onChange={(start, end) => patch({ start, end })} /></Field>
+              <h3 className="form-sec">Bags</h3>
+              <div className="field s12">
                 <div className="tripbags">
                   {tripBags(trip, state.bags).map((b) => {
                     const others = state.bags.filter((x) => x.id !== b.id && !trip.bagIds.includes(x.id))
@@ -153,11 +157,12 @@ export function Trips({ state, api, go }: ViewProps) {
                   ) : !trip.bagIds.length && <span className="hint">No bags yet. Add one under Bags.</span>}
                   <SharedLimits trip={trip} bags={tripBags(trip, state.bags)} onChange={(shared) => { if (shared.length < (trip.shared?.length ?? 0)) api.snap('Removed the shared limit'); patch({ shared }) }} />
                 </div>
-              </Field>
-              <Field label="Weather" span={12} group><Seg label="Weather" options={CLIMATES} value={trip.climate} onChange={(climate) => patch({ climate })} /></Field>
-              <Field label="Kind of trip" span={12} group><Seg label="Kind of trip" options={KINDS} value={trip.kind} onChange={(kind) => patch({ kind })} /></Field>
+              </div>
+              <h3 className="form-sec">Conditions</h3>
+              <Field label="Weather" span={6} group><Seg label="Weather" options={CLIMATES} value={trip.climate} onChange={(climate) => patch({ climate })} /></Field>
+              <Field label="Kind of trip" span={6} group><Seg label="Kind of trip" options={KINDS} value={trip.kind} onChange={(kind) => patch({ kind })} /></Field>
               <Field label="Activities" span={12} group>
-                <div className="radios">{ACTIVITIES.map((a) => <label key={a} className="chip"><input type="checkbox" checked={trip.activities.includes(a)} onChange={() => toggleAct(a)} />{titleCase(a)}</label>)}</div>
+                <div className="radios">{ACTIVITIES.map((a) => { const I = ACT_ICON[a]; return <button key={a} type="button" className="chip ichip" aria-pressed={trip.activities.includes(a)} onClick={() => toggleAct(a)}><I size={18} strokeWidth={1.75} aria-hidden="true" />{titleCase(a)}</button> })}</div>
               </Field>
             </FormCard>
             )}
@@ -182,7 +187,7 @@ export function Trips({ state, api, go }: ViewProps) {
                 </>}>
                   <Field label="Name" span={6}><input type="text" autoFocus value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Gift for the hosts" required /></Field>
                   <Field label="Category" span={4}><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
-                  <Field label="Quantity" span={2}><input type="number" min={1} step={1} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: Number(e.target.value) })} required /></Field>
+                  <Field label="Quantity" span={2} group><Stepper label="Quantity" value={draft.qty} onChange={(qty) => setDraft({ ...draft, qty })} /></Field>
                   <Field label="Linked item" span={6}>
                     <select value={draft.link} onChange={(e) => { const it = state.items.find((i) => i.id === e.target.value); setDraft({ ...draft, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>
                       <option value="">Match by name</option>
