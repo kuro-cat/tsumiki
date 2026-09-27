@@ -46,7 +46,7 @@ kbd { font: inherit; font-size: var(--fs-xs); color: var(--ink-2); border: 1px s
 .notice.arrange { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); animation-name: rise; }
 @keyframes rise { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .sheet-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; padding: 24px; }
-.sheet-empty select { width: 240px; }
+.sheet-empty .menu { width: 240px; }
 
 .ghost {
   position: fixed; z-index: 20; pointer-events: none;
@@ -131,13 +131,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 /* The add key: + packs at the best spot in one tap; the chevron joined to it opens Put in… for a compartment, another bag, or wearing it. */
 .addkey { display: inline-flex; }
 .row .btn.add { width: 38px; min-height: 34px; padding: 0; }
-select.put { width: 26px; min-height: 34px; padding: 0; margin-left: -1px; color: transparent; background-image: var(--chevron); background-repeat: no-repeat; background-position: center; }
-select.put {
-  appearance: none; -webkit-appearance: none;
-  background-color: var(--raise); border: 1px solid var(--ink); cursor: pointer;
-}
-select.put:hover:not(:disabled) { background-color: var(--paper-2); }
-select.put:disabled { opacity: 0.5; cursor: default; }
+.menu.put .pop-key { width: 26px; min-height: 34px; padding: 0; margin-left: -1px; justify-content: center; border-color: var(--ink); }
+.menu.put .pop-key:hover:not(:disabled) { background: var(--paper-2); }
+.menu.put .pop-key:disabled { opacity: 0.5; }
+.menu.put .pop.end, .menu.put .pop { min-width: 220px; }
 
 /* Colour blocks: one per compartment, containers nested inside. */
 .block { background: color-mix(in srgb, var(--blk) var(--bmix), var(--blk-base)); border: 1px solid color-mix(in srgb, var(--blk) 65%, var(--ink)); padding: 10px 12px 8px; margin-bottom: 10px; animation: open 220ms var(--ease) both; }
@@ -192,5 +189,5 @@ button.in-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   .row .grip { padding: 8px 2px; margin: -8px 0; }
 }
 @media (pointer: coarse) {
-  select.put, .row .btn.add { min-height: 40px; }
+  .menu.put .pop-key, .row .btn.add { min-height: 40px; }
 }

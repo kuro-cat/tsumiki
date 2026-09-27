@@ -33,20 +33,20 @@
 .links.guess .chip { border-style: dashed; }
 .links .chip button { display: flex; border: 0; background: none; color: var(--ink-2); padding: 3px; cursor: pointer; }
 .links .chip button:hover { color: var(--ink); background: var(--paper-2); }
-.links select { font-size: var(--fs-s); min-height: 30px; }
+.links .menu .pop-key { font-size: var(--fs-s); min-height: 30px; }
 .tripbags { display: grid; gap: 0; }
 .tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule-2); }
 .tripbag .name { font-weight: 500; }
 .tripbag .reserve { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .tripbag .reserve .unit { width: 110px; }
-.tripbags > select.act, .tripbags > .share-add { justify-self: start; margin-top: 6px; }
+.tripbags > .menu, .tripbags > .share-add { justify-self: start; margin-top: 6px; }
 .shared-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-2); }
 .shared-edit .radios { flex: 1 1 auto; }
 .shared-edit .unit { width: 110px; }
 
 @media (max-width: 600px) {
   .tripbags .tripbag { grid-template-columns: minmax(0, 1fr) max-content; grid-template-areas: 'name count' 'swap remove'; }
-  .tripbags .tripbag .name { grid-area: name; } .tripbags .tripbag .dim { grid-area: count; } .tripbags .tripbag select { grid-area: swap; justify-self: start; min-width: 0; } .tripbags .tripbag .btn { grid-area: remove; justify-self: end; }
+  .tripbags .tripbag .name { grid-area: name; } .tripbags .tripbag .dim { grid-area: count; } .tripbags .tripbag > .menu { grid-area: swap; justify-self: start; min-width: 0; } .tripbags .tripbag .btn { grid-area: remove; justify-self: end; }
 }
 @media (pointer: coarse) {
   .links .chip button { padding: 6px; }

@@ -6,7 +6,7 @@ import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import type { CamView, SceneComp } from './Scene3D'
 import { Icon } from '../Icon'
-import { ActionSelect, Seg, Tab, TabList } from '../ui'
+import { Menu, Seg, Tab, TabList } from '../ui'
 import { FILL_MS, useSheetSize, useTransient } from './plan/hooks'
 import { NARROW, eps, planLayout, usePackData, type Mode, type PL } from './plan/data'
 import { DragGhost, useDrag, type Drag, type Dropped, type Ghost } from './plan/drag'
@@ -311,9 +311,8 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           <div className="sheet-empty">
             <Blank art="bag" title="Choose a bag">The plan is drawn at the bag's inside size.</Blank>
             {bags.length ? (
-              <ActionSelect label="Bag" placeholder="Select a bag" className="" onPick={(id) => { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, id] })); show(id) }}>
-                {bags.map((b) => <option key={b.id} value={b.id}>{b.name} · {fmtDim(mainOf(b))}</option>)}
-              </ActionSelect>
+              <Menu label="Bag" placeholder="Select a bag" className="field" onPick={(id) => { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, id] })); show(id) }}
+                items={bags.map((b) => ({ value: b.id, label: b.name, hint: fmtDim(mainOf(b)) }))} />
             ) : (
               <button className="btn primary" onClick={() => go('Bags')}>Add a bag <Icon name="arrow" /></button>
             )}

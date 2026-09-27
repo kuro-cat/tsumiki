@@ -4,7 +4,7 @@ import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { useSort } from './Sort'
 import { Blank } from './Blank'
-import { Field, FormCard, IconButton, MeasureInput, PageHead, SizeInput, UnitInput, useEditor } from '../ui'
+import { Choice, Field, FormCard, IconButton, MeasureInput, PageHead, SizeInput, UnitInput, useEditor } from '../ui'
 import { ColourPick, type Swatch } from '../pickers'
 
 const blank = (): Bag => ({ ...newBag('', 50, 32, 20, 1200, null) })
@@ -16,6 +16,17 @@ const PRESETS = [
 ]
 const COLS = { '--cols': 'minmax(0, 2fr) 150px 90px 90px 90px 60px' } as CSSProperties
 const main = (b: Bag) => b.compartments[0]
+/** Where heavy items go, drawn: scattered for anywhere, an arrow to the floor for low, a heavy bar on the chosen edge of the plan. */
+function HeavyGlyph({ v }: { v: NonNullable<Bag['heavy']> | '' }) {
+  const bar = { top: 'M3 3.5h10', bottom: 'M3 12.5h10', left: 'M3.5 3v10', right: 'M12.5 3v10' }[v as 'top']
+  return (
+    <svg className="glyph" width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeLinecap="round" aria-hidden="true">
+      {v === '' ? <><circle cx={5} cy={5} r={1} fill="currentColor" stroke="none" /><circle cx={11} cy={7} r={1} fill="currentColor" stroke="none" /><circle cx={6.5} cy={11} r={1} fill="currentColor" stroke="none" /></>
+        : v === 'low' ? <path d="M8 2.5v8M5 7.5l3 3 3-3M3 13.5h10" strokeWidth={1.5} strokeLinejoin="round" />
+        : <><rect x={2.5} y={2.5} width={11} height={11} strokeWidth={1} /><path d={bar} strokeWidth={3} /></>}
+    </svg>
+  )
+}
 /** A compartment's colour choices: Auto (its colour by position) and the six blocks. */
 const blockSwatches = (i: number): Swatch[] => [{ value: '', name: `Auto (${BLOCKS[i % 4][1]})`, paint: `var(--${BLOCKS[i % 4][0]})` }, ...BLOCKS.map(([k, n]) => ({ value: k, name: n, paint: `var(--${k})` }))]
 type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
@@ -137,9 +148,9 @@ export function Bags({ state, api }: ViewProps) {
             </div>
             <div className="cluster">
               <button type="button" className="btn text" onClick={addComp}><Icon name="plus" />Add compartment</button>
-              <label className="heavy"><span className="label">Heavy items</span>
-                <select value={form.heavy ?? ''} onChange={(e) => set('heavy', (e.target.value || undefined) as Bag['heavy'])} title="Where Auto-pack puts heavy items. An edge is the side against your back.">{HEAVY.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select>
-              </label>
+              <div className="heavy" title="Where Auto-pack puts heavy items. An edge is the side against your back."><span className="label">Heavy items</span>
+                <Choice label="Heavy items" value={form.heavy ?? ''} onChange={(v) => set('heavy', (v || undefined) as Bag['heavy'])} options={HEAVY.map(([v, n]) => ({ value: v, label: n, icon: <HeavyGlyph v={v} /> }))} />
+              </div>
             </div>
           </Field>
         </FormCard>

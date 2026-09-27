@@ -7,7 +7,7 @@ import { suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
-import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
+import { Field, Menu, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
 import { DateRange } from '../pickers'
 
 
@@ -83,7 +83,7 @@ export function Trips({ state, api, go }: ViewProps) {
   return (
     <section className="page narrow">
       <PageHead title={mode === 'trips' ? 'Trips' : 'Templates'} meta={<Seg label="Show" options={['trips', 'templates'] as const} value={mode} onChange={setMode} />} actions={mode === 'trips' ? <>
-        {state.templates.length > 0 && <ActionSelect label="New trip from a template" placeholder="From template…" onPick={fromTemplate}>{state.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</ActionSelect>}
+        {state.templates.length > 0 && <Menu label="New trip from a template" placeholder="From template…" onPick={fromTemplate} items={state.templates.map((t) => ({ value: t.id, label: t.name, hint: `${t.entries.length} items` }))} />}
         <button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button>
       </> : <button className="btn primary" onClick={() => { const t = { id: uid(), name: 'New template', entries: [] }; api.upsertTemplate(t); setTplId(t.id) }}><Icon name="plus" />New template</button>} />
       {mode === 'templates' ? <Templates state={state} api={api} startTrip={fromTemplate} openId={tplId} setOpenId={setTplId} /> : <>
@@ -142,18 +142,14 @@ export function Trips({ state, api, go }: ViewProps) {
                       <div key={b.id} className="tripbag">
                         <span className="name truncate">{b.name}</span>
                         <span className="dim">{inBag(b, trip).placements.length + inBag(b, trip).loose.length} items</span>
-                        <ActionSelect label={`Swap ${b.name} for`} placeholder="Swap for…" disabled={!others.length} onPick={swap}>
-                          {others.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                        </ActionSelect>
+                        <Menu label={`Swap ${b.name} for`} placeholder="Swap for…" onPick={swap} items={others.map((x) => ({ value: x.id, label: x.name }))} />
                         <IconButton icon="x" label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule" onClick={() => { api.snap(`Took ${b.name} off the trip`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) })) }} />
                         <Reserve bag={b} trip={trip} onChange={(reserve) => patch({ reserve })} />
                       </div>
                     )
                   })}
                   {state.bags.some((b) => !trip.bagIds.includes(b.id)) ? (
-                    <ActionSelect label="Add a bag" placeholder="Add a bag…" onPick={(id) => patch({ bagIds: [...trip.bagIds, id] })}>
-                      {state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </ActionSelect>
+                    <Menu label="Add a bag" placeholder="Add a bag…" onPick={(id) => patch({ bagIds: [...trip.bagIds, id] })} items={state.bags.filter((b) => !trip.bagIds.includes(b.id)).map((b) => ({ value: b.id, label: b.name }))} />
                   ) : !trip.bagIds.length && <span className="hint">No bags yet. Add one under Bags.</span>}
                   <SharedLimits trip={trip} bags={tripBags(trip, state.bags)} onChange={(shared) => { if (shared.length < (trip.shared?.length ?? 0)) api.snap('Removed the shared limit'); patch({ shared }) }} />
                 </div>
@@ -177,7 +173,7 @@ export function Trips({ state, api, go }: ViewProps) {
               <div className="cluster">
                 {!draft && <button className="btn primary" type="button" onClick={() => setDraft(true)}><Icon name="plus" />Add</button>}
                 <button className="btn" type="button" onClick={regenerate}>Suggest from trip</button>
-                {state.templates.length > 0 && <ActionSelect label="Add a template to the list" placeholder="Add a template…" onPick={(id) => {
+                {state.templates.length > 0 && <Menu label="Add a template to the list" placeholder="Add a template…" items={state.templates.map((t) => ({ value: t.id, label: t.name, hint: `${t.entries.length} items` }))} onPick={(id) => {
                   const t = state.templates.find((x) => x.id === id)
                   if (!t) return
                   const next = addTemplate(trip.checklist, t, state.items)
@@ -186,7 +182,7 @@ export function Trips({ state, api, go }: ViewProps) {
                   api.snap(`Added ${n} from ${t.name}`)
                   patch({ checklist: next })
                   setMsg(null)
-                }}>{state.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</ActionSelect>}
+                }} />}
                 <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking Claude…' : 'Ask Claude for extras'}</button>
                 {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
               </div>

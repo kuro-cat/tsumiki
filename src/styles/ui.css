@@ -29,7 +29,8 @@
 .tab:hover { color: var(--ink); border-bottom-color: var(--rule); }
 .tab[aria-current] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
 .ctl { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.ctl select { width: auto; max-width: 240px; }
+.ctl .trip-pick { width: auto; }
+.ctl .trip-pick .pop-key { max-width: 240px; }
 .theme { width: auto; }
 .top > .theme { margin-left: auto; }
 .ctl .theme { flex: none; }
@@ -84,10 +85,6 @@ input[type='number'] { text-align: right; }
 input[type='checkbox'] { appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin: 0; border: 1.5px solid var(--ink); background: var(--raise); cursor: pointer; transition: background var(--t) var(--ease), border-color var(--t) var(--ease); }
 input[type='checkbox']:checked { background: var(--blue) var(--tick) center / 13px no-repeat; border-color: var(--blue); }
 input[type='checkbox']:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-/* A select that performs an action (its value stays empty) reads as a text action, not a field. */
-select.act { width: auto; field-sizing: content; color: var(--blue); font-weight: 500; background-color: transparent; border-color: transparent; background-image: var(--chevron-act); padding-left: 8px; }
-select.act:hover:not(:disabled) { background-color: var(--blue-soft); }
-select.act option, select.put option { color: var(--ink); background: var(--raise); font-size: var(--fs-m); }
 
 .chip { position: relative; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule); background: var(--raise); padding: 6px 12px; font-size: var(--fs-m); cursor: pointer; transition: border-color var(--t), background var(--t); }
 .chip:hover { border-color: var(--ink-2); }
@@ -193,17 +190,28 @@ input[type='range']:focus-visible { outline: 2px solid var(--blue); outline-offs
 .hue input[type='range']::-moz-range-track { height: 12px; }
 .hue input[type='range']::-webkit-slider-thumb { margin-top: -4px; }
 
-/* Category: the key shows the pictogram and name and fills its field; the panel lists every category. */
-.catpick { width: 100%; }
-.catpick .pop-key { width: 100%; justify-content: space-between; }
-.cat-face { display: inline-flex; align-items: center; gap: 8px; }
-.catpick .pop { min-width: 100%; padding: 6px; gap: 0; }
-.cat-list { display: grid; }
-.cat-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; background: none; color: var(--ink); text-align: left; cursor: pointer; font-size: var(--fs-m); transition: background var(--t); }
-.cat-opt:hover { background: var(--paper-2); }
-.cat-opt[aria-checked='true'] { border-color: var(--ink); background: var(--blue-soft); }
-.cat-opt[aria-checked='true'] .cat { color: var(--blue); }
-.cat-opt:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+/* Dropdowns. A Choice holds a value and fills its field; a Menu runs an action and reads as a text action. Both list options the same way. */
+.pop-key:disabled { color: var(--ink-3); cursor: default; opacity: 0.7; }
+.choice { width: 100%; }
+.choice.theme, .choice.trip-pick { width: auto; }
+.choice .pop-key { width: 100%; justify-content: space-between; min-width: 0; }
+.choice-face { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.choice .pop, .menu .pop { padding: 6px; gap: 0; }
+.choice .pop { min-width: 100%; }
+.menu.act .pop-key { border-color: transparent; background: transparent; color: var(--blue); font-weight: 500; padding: 0 8px; gap: 6px; }
+.menu.act .pop-key:hover:not(:disabled), .menu.act .pop-key[aria-expanded='true'] { background: var(--blue-soft); border-color: transparent; }
+.menu.act .pop-key > svg:last-child { color: currentColor; }
+.menu.field .pop-key { min-width: 240px; justify-content: space-between; }
+.opts { display: grid; min-width: 200px; max-height: min(60vh, 360px); overflow-y: auto; overscroll-behavior: contain; }
+.opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; background: none; color: var(--ink); text-align: left; cursor: pointer; font-size: var(--fs-m); white-space: nowrap; transition: background var(--t); }
+.opt:hover { background: var(--paper-2); }
+.opt .dim { margin-left: auto; padding-left: 16px; font-size: var(--fs-s); color: var(--ink-2); }
+.opt[aria-selected='true'] { border-color: var(--ink); background: var(--blue-soft); }
+.opt[aria-selected='true'] svg { color: var(--blue); }
+.opt:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.opt-group { padding: 8px 10px 4px; font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-xs); font-weight: 600; color: var(--ink-2); }
+.opt-group:not(:first-child) { border-top: 1px solid var(--rule-2); margin-top: 4px; }
+.glyph { flex: none; color: var(--ink-2); }
 
 /* The trip's dates: one key that reads the range, a square month grid beneath it. */
 .dates .pop-key { width: 100%; justify-content: space-between; }
@@ -311,7 +319,8 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
   .field.s4 { grid-column: span 6; }
   .field.s6 { grid-column: span 12; }
   .ctl { margin-left: 0; padding-bottom: 10px; width: 100%; }
-  .ctl select { flex: 1 1 0; max-width: none; min-width: 0; }
+  .ctl .trip-pick { flex: 1 1 0; min-width: 0; }
+  .ctl .trip-pick .pop-key { max-width: none; width: 100%; }
 }
 @media (max-width: 600px) {
   .top { padding: 6px 12px 0; gap: 0 8px; }

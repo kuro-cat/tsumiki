@@ -21,7 +21,7 @@
 .takes-icons .cat { width: 16px; height: 16px; }
 .comp .pos .cin { width: 96px; }
 .heavy { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.heavy select { width: auto; }
+.heavy .choice { width: auto; min-width: 210px; }
 
 /* Between phone and desktop the number columns tighten and names wrap rather than being cut. */
 @media (min-width: 601px) and (max-width: 900px) {

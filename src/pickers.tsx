@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { CatIcon, Icon } from './Icon'
 import { CATEGORIES, titleCase, type Category } from './store'
-import { Popover } from './ui'
+import { Choice, Popover, type Opt } from './ui'
 
 /** A swatch choice: its value, a name for screen readers and tooltips, and the CSS colour it paints. */
 export type Swatch = { value: string; name: string; paint: string }
@@ -50,22 +50,10 @@ export function ColourPick({ label, value, swatches, custom, onChange }: { label
   )
 }
 
-/** A category key showing its pictogram and name; the panel lists every category the same way. */
-export function CategoryPick({ value, onChange, label = 'Category' }: { value: Category; onChange: (c: Category) => void; label?: string }) {
-  return (
-    <Popover label={label} className="catpick" face={<span className="cat-face"><CatIcon it={{ category: value }} />{titleCase(value)}</span>}>
-      {(close) => (
-        <div className="cat-list" role="radiogroup" aria-label={label}>
-          {CATEGORIES.map((c) => (
-            <button key={c} type="button" role="radio" aria-checked={c === value} autoFocus={c === value} className="cat-opt" onClick={() => { onChange(c); close() }}>
-              <CatIcon it={{ category: c }} />{titleCase(c)}
-            </button>
-          ))}
-        </div>
-      )}
-    </Popover>
-  )
-}
+const CATEGORY_OPTS: Opt<Category>[] = CATEGORIES.map((c) => ({ value: c, label: titleCase(c), icon: <CatIcon it={{ category: c }} /> }))
+/** Category as a dropdown of pictograms and names. */
+export const CategoryPick = ({ value, onChange, label = 'Category' }: { value: Category; onChange: (c: Category) => void; label?: string }) =>
+  <Choice label={label} value={value} options={CATEGORY_OPTS} onChange={onChange} />
 
 // Dates as local calendar days: 'YYYY-MM-DD' in and out, never through UTC, so a day never slips across midnight.
 const day = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }

@@ -84,7 +84,7 @@ export function Slider({ label, value, min, max, step, unit, onChange }: { label
 }
 
 /** A key that opens a small panel below it. Outside clicks and Escape close it; Escape and close() give focus back to the key. */
-export function Popover({ label, face, className, children }: { label: string; face: ReactNode; className?: string; children: (close: () => void) => ReactNode }) {
+export function Popover({ label, face, className, disabled, children }: { label: string; face: ReactNode; className?: string; disabled?: boolean; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false)
   const [end, setEnd] = useState(false)
   const ref = useRef<HTMLDivElement>(null), key = useRef<HTMLButtonElement>(null)
@@ -104,8 +104,8 @@ export function Popover({ label, face, className, children }: { label: string; f
     return () => { window.removeEventListener('pointerdown', down); window.removeEventListener('keydown', esc) }
   }, [open])
   return (
-    <div className={'popover' + (className ? ` ${className}` : '')} ref={ref}>
-      <button ref={key} type="button" className="pop-key" aria-label={label} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)}>{face}<Icon name="chev" /></button>
+    <div className={'popover' + (className ? ` ${className}` : '')} ref={ref} onBlur={(e) => { if (open && e.relatedTarget && !ref.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
+      <button ref={key} type="button" className="pop-key" aria-label={label} aria-expanded={open} aria-haspopup="dialog" disabled={disabled} onClick={() => setOpen((o) => !o)}>{face}<Icon name="chev" /></button>
       {open && <div className={'pop' + (end ? ' end' : '')} role="dialog" aria-label={label}>{children(close)}</div>}
     </div>
   )
@@ -149,15 +149,54 @@ export function Seg<T extends string>({ label, options, value, onChange, names, 
   )
 }
 
-/** A select used as a menu: it always shows the placeholder, and picking an option runs onPick. */
-export function ActionSelect({ label, placeholder, onPick, disabled, className = 'act', children }: {
-  label: string; placeholder: string; onPick: (value: string) => void; disabled?: boolean; className?: string; children: ReactNode
-}) {
+/** Arrow keys, Home and End move focus through a dropdown's options. */
+const listKeys = (e: KeyboardEvent<HTMLElement>) => {
+  const opts = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[data-opt]:not(:disabled)')]
+  const i = opts.indexOf(document.activeElement as HTMLButtonElement)
+  const n = e.key === 'ArrowDown' ? i + 1 : e.key === 'ArrowUp' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? opts.length - 1 : null
+  if (n == null || !opts.length) return
+  e.preventDefault()
+  opts[(n + opts.length) % opts.length].focus()
+}
+
+/** One choice in a dropdown: what it's called, and optionally a pictogram before it and a note after it. `group` starts a new heading in a menu. */
+export type Opt<T extends string = string> = { value: T; label: string; icon?: ReactNode; hint?: string; group?: string }
+
+/** A dropdown that holds a value: the key shows the current option, the panel lists them all. */
+export function Choice<T extends string>({ label, value, options, onChange, className }: { label: string; value: T; options: Opt<T>[]; onChange: (v: T) => void; className?: string }) {
+  const cur = options.find((o) => o.value === value)
   return (
-    <select className={className} aria-label={label} value="" disabled={disabled} onChange={(e) => e.target.value && onPick(e.target.value)}>
-      <option value="">{placeholder}</option>
-      {children}
-    </select>
+    <Popover label={`${label}: ${cur?.label ?? 'none'}`} className={'choice' + (className ? ` ${className}` : '')} face={<span className="choice-face">{cur?.icon}<span className="truncate">{cur?.label}</span></span>}>
+      {(close) => (
+        <div className="opts" role="listbox" aria-label={label} onKeyDown={listKeys}>
+          {options.map((o) => (
+            <button key={o.value} type="button" role="option" data-opt aria-selected={o.value === value} autoFocus={o.value === value} className="opt" onClick={() => { onChange(o.value); close() }}>
+              {o.icon}<span className="opt-label">{o.label}</span>{o.hint && <span className="dim">{o.hint}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </Popover>
+  )
+}
+
+/** A dropdown that runs an action: the key shows what it does, and picking an item calls onPick. Disabled when there's nothing to pick. */
+export function Menu({ label, placeholder, items, onPick, disabled, className = 'act' }: { label: string; placeholder?: ReactNode; items: Opt[]; onPick: (value: string) => void; disabled?: boolean; className?: string }) {
+  return (
+    <Popover label={label} disabled={disabled || !items.length} className={'menu' + (className ? ` ${className}` : '')} face={placeholder && <span className="truncate">{placeholder}</span>}>
+      {(close) => (
+        <div className="opts" role="menu" aria-label={label} onKeyDown={listKeys}>
+          {items.map((it, i) => (
+            <Fragment key={it.value}>
+              {it.group && it.group !== items[i - 1]?.group && <span className="opt-group" role="presentation">{it.group}</span>}
+              <button type="button" role="menuitem" data-opt autoFocus={i === 0} className="opt" onClick={() => { close(); onPick(it.value) }}>
+                {it.icon}<span className="opt-label">{it.label}</span>{it.hint && <span className="dim">{it.hint}</span>}
+              </button>
+            </Fragment>
+          ))}
+        </div>
+      )}
+    </Popover>
   )
 }
 

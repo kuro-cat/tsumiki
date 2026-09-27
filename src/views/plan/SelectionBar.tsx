@@ -1,7 +1,7 @@
 import { fmtDim, lenUnit, type Bag, type Compartment } from '../../store'
 import type { Api } from '../../store'
 import { CatIcon, Icon } from '../../Icon'
-import { ActionSelect, MeasureInput } from '../../ui'
+import { MeasureInput, Menu } from '../../ui'
 import type { PL } from './data'
 
 /** Actions on the selected item: turn, tip, move to another bag or wear it, take it out. */
@@ -14,10 +14,8 @@ export function ItemBar({ selPl, bag, tb, rotatePl, tipPl, moveTo, removePl, set
       <span className="sel-name"><CatIcon it={selPl.it} />{selPl.it.name}<span className="dim">{fmtDim(selPl.box)} {lenUnit()}</span></span>
       <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn<kbd>R</kbd></button>
       <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip<kbd>T</kbd></button>
-      <ActionSelect label={`Move ${selPl.it.name} to…`} placeholder="Move to…" onPick={(to) => moveTo(selPl.p.id, to)}>
-        {tb.filter((b) => b.id !== bag?.id).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        <option value="worn">Wear it</option>
-      </ActionSelect>
+      <Menu label={`Move ${selPl.it.name} to…`} placeholder="Move to…" onPick={(to) => moveTo(selPl.p.id, to)}
+        items={[...tb.filter((b) => b.id !== bag?.id).map((b) => ({ value: b.id, label: b.name })), { value: 'worn', label: 'Wear it' }]} />
       <button className="btn text" onClick={() => { removePl(selPl.p.id); setSelected(null) }} title="Take out (Delete)"><Icon name="x" />Take out</button>
     </div>
   )

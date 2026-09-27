@@ -5,7 +5,8 @@ import { Inventory } from './views/Inventory'
 import { Bags } from './views/Bags'
 import { Trips } from './views/Trips'
 import { Data } from './views/Data'
-import { Seg } from './ui'
+import { Choice, Seg, type Opt } from './ui'
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { readTheme, readUnits, writeTheme, writeUnits, type Theme } from './prefs'
 import { setUnits, type Units } from './lib/units'
 
@@ -15,6 +16,7 @@ export type ViewProps = { state: State; api: Api; go: (t: Tab) => void }
 export type PlanView = 'plan' | '3d'
 const VIEWS: PlanView[] = ['plan', '3d']
 const UNITS: Units[] = ['metric', 'imperial']
+const THEMES: Opt<Theme>[] = [{ value: 'system', label: 'System', icon: <Monitor size={16} aria-hidden="true" /> }, { value: 'light', label: 'Light', icon: <Sun size={16} aria-hidden="true" /> }, { value: 'dark', label: 'Dark', icon: <Moon size={16} aria-hidden="true" /> }]
 
 /** Theme lives outside State so exports stay about packing. index.html applies it before first paint; this keeps it current. */
 function useTheme() {
@@ -71,13 +73,7 @@ export default function App() {
   const worn = shown === 'worn'
   const bagId = worn ? null : tb.find((b) => b.id === shown)?.id ?? tb[0]?.id ?? null
 
-  const themeSel = (
-    <select className="theme" aria-label="Theme" value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
-      <option value="system">System</option>
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-    </select>
-  )
+  const themeSel = <Choice label="Theme" className="theme" value={theme} onChange={setTheme} options={THEMES} />
   return (
     <div className="app">
       <header className="top">
@@ -89,9 +85,7 @@ export default function App() {
         </nav>
         {tab === 'Plan' && trip ? (
           <div className="ctl">
-            <select aria-label="Trip" value={trip.id} onChange={(e) => api.set({ activeTripId: e.target.value })}>
-              {state.trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <Choice label="Trip" className="trip-pick" value={trip.id} onChange={(id) => api.set({ activeTripId: id })} options={state.trips.map((t) => ({ value: t.id, label: t.name }))} />
             <Seg label="View" options={VIEWS} value={view} onChange={setView} names={{ plan: 'Plan', '3d': '3D' }} />
             {themeSel}
           </div>

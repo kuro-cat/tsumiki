@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { withLink, type Category, type CheckItem, type Item } from '../store'
-import { Field, FormCard, Stepper } from '../ui'
+import { Choice, Field, FormCard, Stepper } from '../ui'
+import { CatIcon } from '../Icon'
 import { CategoryPick } from '../pickers'
 
 export type NewEntry = Omit<CheckItem, 'id' | 'packed' | 'source'>
@@ -23,12 +24,12 @@ export function EntryForm({ items, onAdd, onClose }: { items: Item[]; onAdd: (e:
       <Field label="Name" span={6}><input type="text" autoFocus value={d.label} onChange={(e) => setD({ ...d, label: e.target.value })} placeholder="Gift for the hosts" required /></Field>
       <Field label="Category" span={4} group><CategoryPick value={d.category} onChange={(category) => setD({ ...d, category })} /></Field>
       <Field label="Quantity" span={2} group><Stepper label="Quantity" value={d.qty} onChange={(qty) => setD({ ...d, qty })} /></Field>
-      <Field label="Linked item" span={6}>
-        <select value={d.link} onChange={(e) => { const it = items.find((i) => i.id === e.target.value); setD({ ...d, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>
-          <option value="">Match by name</option>
-          {[...items].sort((a, b) => a.name.localeCompare(b.name)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-          <option value="*none">Nothing I own (tick it by hand)</option>
-        </select>
+      <Field label="Linked item" span={6} group>
+        <Choice label="Linked item" value={d.link} onChange={(link) => { const it = items.find((i) => i.id === link); setD({ ...d, link, ...(it ? { category: it.category } : {}) }) }} options={[
+          { value: '', label: 'Match by name' },
+          ...[...items].sort((a, b) => a.name.localeCompare(b.name)).map((i) => ({ value: i.id, label: i.name, icon: <CatIcon it={i} /> })),
+          { value: '*none', label: 'Nothing I own', hint: 'tick it by hand' },
+        ]} />
       </Field>
       <Field label={<>Note <span className="dim">optional</span></>} span={6}><input type="text" value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} placeholder="Buy at the airport" /></Field>
     </FormCard>

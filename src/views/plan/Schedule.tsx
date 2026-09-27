@@ -3,7 +3,7 @@ import { bagTotals, bagVolume, fmtVol, fmtW, fromShown, linkedItems, packedCount
 import { volume } from '../../lib/pack'
 import type { Tab } from '../../App'
 import { CatIcon, Icon } from '../../Icon'
-import { IconButton } from '../../ui'
+import { IconButton, Menu } from '../../ui'
 import { Blank } from '../Blank'
 import { FILL_MS, useTween } from './hooks'
 import { compBlock, type Mode, type PackData } from './data'
@@ -41,12 +41,11 @@ export function Schedule({ trip, bag, items, tb, data, tot, myShare, fillMs, dra
   const addKey = (it: Item, remaining: number) => (
     <span className="addkey">
       <button className="btn key add" onClick={() => placeOne(it)} disabled={!remaining || !bag} aria-label={`Pack ${it.name}`} title={it.kind === 'soft' ? 'Add where there is most room' : 'Place at the best free spot'}><Icon name="plus" /></button>
-      <select className="put" aria-label={`Put ${it.name} in…`} value="" disabled={!remaining} onChange={(e) => putIn(it, e.target.value)}>
-        <option value="" disabled hidden>▾</option>
-        {bag && (it.kind === 'soft' ? homes : bag.compartments.map((c) => ({ id: c.id, name: c.name, free: fills[c.id].free - (looseBy[c.id] ?? 0) }))).map((h) => <option key={h.id} value={h.id}>{h.name}{it.kind === 'soft' ? ` · ${fmtVol(Math.max(0, h.free))} free` : ''}</option>)}
-        {tb.filter((b) => b.id !== bag?.id).map((b) => <option key={b.id} value={`bag:${b.id}`}>In {b.name}</option>)}
-        <option value="worn">Wear it</option>
-      </select>
+      <Menu label={`Put ${it.name} in…`} className="put" disabled={!remaining} onPick={(v) => putIn(it, v)} items={[
+        ...(bag ? (it.kind === 'soft' ? homes : bag.compartments.map((c) => ({ id: c.id, name: c.name, free: 0 }))).map((h) => ({ value: h.id, label: h.name, group: bag.name, ...(it.kind === 'soft' ? { hint: `${fmtVol(Math.max(0, h.free))} free` } : {}) })) : []),
+        ...tb.filter((b) => b.id !== bag?.id).map((b) => ({ value: `bag:${b.id}`, label: b.name, group: 'Another bag' })),
+        { value: 'worn', label: 'Wear it', group: 'On you' },
+      ]} />
     </span>
   )
 
