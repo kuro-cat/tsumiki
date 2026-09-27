@@ -39,7 +39,11 @@ export const CLIMATES: Climate[] = ['hot', 'mild', 'cold', 'mixed']
 export type TripKind = 'city' | 'beach' | 'outdoor' | 'business'
 export const KINDS: TripKind[] = ['city', 'beach', 'outdoor', 'business']
 /** itemIds is the Link: absent means unpinned (keywords guess live), present means pinned, [] means not in inventory. */
-export type CheckItem = { id: string; label: string; category: Category; qty: number; match: string[]; itemIds?: string[]; packed: boolean; source: 'rule' | 'ai' | 'manual'; note?: string }
+export type CheckItem = { id: string; label: string; category: Category; qty: number; match: string[]; itemIds?: string[]; packed: boolean; source: 'rule' | 'ai' | 'manual' | 'template'; note?: string }
+/** One line of a Template: a checklist entry without packed state or where it came from. */
+export type TemplateEntry = Pick<CheckItem, 'id' | 'label' | 'category' | 'qty' | 'match' | 'itemIds' | 'note'>
+/** A reusable checklist, such as "7-day spring": its entries, plus the weather, kind and activities a trip from it starts with. The length lives in the name only. */
+export type Template = { id: string; name: string; entries: TemplateEntry[]; climate?: Climate; kind?: TripKind; activities?: string[]; sample?: boolean }
 export type Trip = {
   id: string; name: string; destination: string; start: string; end: string
   climate: Climate; kind: TripKind; activities: string[]
@@ -50,7 +54,7 @@ export type Trip = {
   /** Reserve by bag id: room kept free for the way home, volume in cm³ and weight in grams. */
   reserve?: Record<string, { volume: number; weight: number }>
 }
-export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
+export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; templates: Template[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
 
 export const DEFAULT_PACKS_TO: Record<Category, number> = { clothing: 60, footwear: 100, toiletries: 90, electronics: 100, documents: 100, gear: 100, misc: 100 }
 export const defaultKind = (c: Category): Kind => (c === 'clothing' ? 'soft' : 'rigid')
@@ -66,7 +70,7 @@ export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 export const nights = (t: { start: string; end: string }) => Math.max(1, Math.round((Date.parse(t.end) - Date.parse(t.start)) / 86400000))
 const keywordItems = (c: Pick<CheckItem, 'match'>, items: Item[]) => items.filter((i) => c.match.some((k) => i.name.toLowerCase().includes(k)))
 /** The items a checklist entry stands for: its pinned Link, else every item a keyword matches. */
-export const linkedItems = (c: CheckItem, items: Item[]) => (c.itemIds ? items.filter((i) => c.itemIds!.includes(i.id)) : keywordItems(c, items))
+export const linkedItems = (c: Pick<CheckItem, 'match' | 'itemIds'>, items: Item[]) => (c.itemIds ? items.filter((i) => c.itemIds!.includes(i.id)) : keywordItems(c, items))
 /** Pins the keyword guess at creation when it finds anything; otherwise the entry stays unpinned and keeps guessing. */
 export const withLink = <C extends Omit<CheckItem, 'id' | 'packed'>>(c: C, items: Item[]): C => { const g = keywordItems(c, items); return g.length ? { ...c, itemIds: g.map((i) => i.id) } : c }
 export const wornCount = (trip: Trip, itemId: string) => trip.worn.filter((w) => w.itemId === itemId).length
@@ -222,6 +226,25 @@ export function withoutItem(trip: Trip, itemId: string): Trip {
   })
   return { ...trip, checklist, placements: r.placements, loose: r.loose.filter((l) => l.itemId !== itemId), worn: trip.worn.filter((w) => w.itemId !== itemId) }
 }
+/** A template's entries as a trip's checklist, unpacked. A Link to items since deleted falls back to guessing by name. */
+export function fromTemplate(t: Template, items: Item[]): CheckItem[] {
+  return t.entries.map(({ id: _id, itemIds, ...e }) => {
+    const kept = itemIds?.filter((id) => items.some((i) => i.id === id))
+    const base = { ...e, id: uid(), packed: false, source: 'template' as const }
+    return itemIds && (kept!.length || !itemIds.length) ? { ...base, itemIds: kept } : withLink(base, items)
+  })
+}
+/** A template added to a trip's list: entries the trip already has, by name, are kept as they are; the rest are added after them. */
+export function addTemplate(checklist: CheckItem[], t: Template, items: Item[]): CheckItem[] {
+  const has = new Set(checklist.map((c) => c.label.trim().toLowerCase()))
+  return [...checklist, ...fromTemplate(t, items).filter((c) => !has.has(c.label.trim().toLowerCase()))]
+}
+/** A trip's list saved as a template, with the trip's weather, kind and activities as its defaults. Hand ticks and packing stay with the trip. */
+export function toTemplate(trip: Trip, name: string): Template {
+  return { id: uid(), name, climate: trip.climate, kind: trip.kind, activities: [...trip.activities], entries: trip.checklist.map(({ label, category, qty, match, itemIds, note }) => ({ id: uid(), label, category, qty, match, ...(itemIds ? { itemIds } : {}), ...(note ? { note } : {}) })) }
+}
+export const duplicateTemplate = ({ sample: _s, ...t }: Template): Template => ({ ...t, id: uid(), name: `${t.name} copy`, entries: t.entries.map((e) => ({ ...e, id: uid() })) })
+
 /** A copy for a repeat trip: same bags, checklist and packing under new ids, a week from today for the same number of nights.
  *  Hand ticks and Actual Weights stay with the old trip; Shared Limits keep their bags, which are shared, not copied. */
 export function duplicateTrip(trip: Trip, today: Date): Trip {

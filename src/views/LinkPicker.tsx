@@ -3,7 +3,7 @@ import { Icon } from '../Icon'
 import { ActionSelect } from '../ui'
 
 /** Chips for an entry's linked items plus a select to add one. Any change pins the Link; 'none' pins it empty. */
-export function LinkPicker({ entry, items, onChange }: { entry: CheckItem; items: Item[]; onChange: (itemIds: string[]) => void }) {
+export function LinkPicker({ entry, items, onChange }: { entry: Pick<CheckItem, 'label' | 'match' | 'itemIds'>; items: Item[]; onChange: (itemIds: string[]) => void }) {
   const linked = linkedItems(entry, items)
   const ids = linked.map((i) => i.id)
   const rest = items.filter((i) => !ids.includes(i.id)).sort((a, b) => a.name.localeCompare(b.name))

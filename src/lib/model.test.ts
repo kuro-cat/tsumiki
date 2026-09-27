@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { afterBagEdit, bagLeaves, duplicateTrip,withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { addTemplate, afterBagEdit, bagLeaves, duplicateTemplate, duplicateTrip, fromTemplate, toTemplate, type Template,withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -279,4 +279,37 @@ test('a duplicated trip copies bags, checklist and packing under new ids, withou
   assert.deepEqual(c.loose.map((l) => l.home), [c.placements[0].id, 'c'])
   assert.deepEqual([c.shared![0].bagIds, c.shared![0].limit], [['b', 'd'], 12000])
   assert.equal(packedCount(c, 's'), 2)
+})
+
+test('a template becomes an unpacked list: pinned links kept, links to deleted items guessed again by name', () => {
+  const socks: Item = { id: 'socks', name: 'Socks, pair', category: 'clothing', kind: 'soft', volume: 0.3, packsTo: 60, weight: 60, qty: 6 }
+  const tpl: Template = { id: 'tp', name: '7-day spring', entries: [
+    { id: 'e1', label: 'Socks', category: 'clothing', qty: 7, match: ['sock'], itemIds: ['socks'] },
+    { id: 'e2', label: 'Spare socks', category: 'clothing', qty: 2, match: ['sock'], itemIds: ['gone'] },
+    { id: 'e3', label: 'Umbrella', category: 'gear', qty: 1, match: ['umbrella'], itemIds: [] },
+  ] }
+  const list = fromTemplate(tpl, [socks])
+  assert.deepEqual(list.map((c) => [c.label, c.qty, c.itemIds, c.packed, c.source]), [
+    ['Socks', 7, ['socks'], false, 'template'],
+    ['Spare socks', 2, ['socks'], false, 'template'],
+    ['Umbrella', 1, [], false, 'template'],
+  ])
+  assert.ok(list.every((c) => !['e1', 'e2', 'e3'].includes(c.id)))
+  // adding it to a list that has Socks keeps that entry and adds only what's missing
+  const mine = { ...list[0], id: 'mine', label: 'socks ', qty: 4 }
+  const merged = addTemplate([mine], tpl, [socks])
+  assert.deepEqual(merged.map((c) => [c.label, c.qty]), [['socks ', 4], ['Spare socks', 2], ['Umbrella', 1]])
+})
+
+test('a trip saved as a template keeps its entries and conditions, not its ticks; a copy gets new ids', () => {
+  const trip: Trip = { id: 't', name: 'Lisbon', destination: '', start: '2026-01-01', end: '2026-01-06', climate: 'hot', kind: 'city', activities: ['photography'], bagIds: [], placements: [], loose: [], worn: [],
+    checklist: [{ id: 'c', label: 'Day bag', category: 'gear', qty: 1, match: ['day bag'], packed: true, source: 'rule', note: 'the small one' }] }
+  const t = toTemplate(trip, 'City week')
+  assert.deepEqual([t.name, t.climate, t.kind, t.activities], ['City week', 'hot', 'city', ['photography']])
+  assert.deepEqual(t.entries.map(({ id: _id, ...e }) => e), [{ label: 'Day bag', category: 'gear', qty: 1, match: ['day bag'], note: 'the small one' }])
+  const copy = duplicateTemplate({ ...t, sample: true })
+  assert.equal(copy.name, 'City week copy')
+  assert.notEqual(copy.id, t.id)
+  assert.notEqual(copy.entries[0].id, t.entries[0].id)
+  assert.equal(copy.sample, undefined)
 })

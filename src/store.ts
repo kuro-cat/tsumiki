@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { toPlacement } from './lib/packing'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTrip, orientationsOf, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Trip } from './lib/model'
+import { DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTemplate, duplicateTrip, fromTemplate, orientationsOf, toTemplate, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Template, type TemplateEntry, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -76,14 +76,37 @@ export function sampleState(): State {
     ...['T-shirt', 'T-shirt', 'Underwear', 'Underwear'].map((n) => ({ id: uid(), itemId: byName(n).id, home: cube?.id ?? mainOf(backpack).id })),
     { id: uid(), itemId: byName('Jeans').id, home: mainOf(backpack).id },
   ]
-  return { items, bags, trips: [trip], activeTripId: trip.id, apiKey: '', packsTo: { ...DEFAULT_PACKS_TO } }
+  return { items, bags, trips: [trip], templates: sampleTemplates(), activeTripId: trip.id, apiKey: '', packsTo: { ...DEFAULT_PACKS_TO } }
+}
+
+/** Two starting templates. Their entries find inventory items by name when a trip is made from them. */
+export function sampleTemplates(): Template[] {
+  const e = (label: string, category: Category, qty: number, ...match: string[]): TemplateEntry => ({ id: uid(), label, category, qty, match: match.length ? match : [label.toLowerCase()] })
+  const papers = [e('Passport or ID', 'documents', 1, 'passport', 'id card'), e('Wallet and cards', 'documents', 1, 'wallet'), e('Phone charger', 'electronics', 1, 'charger')]
+  return [
+    { id: uid(), name: '7-day spring', climate: 'mild', kind: 'city', activities: [], sample: true, entries: [
+      ...papers,
+      e('T-shirts', 'clothing', 5, 't-shirt'), e('Trousers', 'clothing', 2, 'jeans', 'trouser', 'chinos'), e('Light jacket', 'clothing', 1, 'jacket'),
+      e('Underwear', 'clothing', 7, 'underwear'), e('Socks', 'clothing', 7, 'sock'), e('Sleepwear', 'clothing', 1, 'sleep', 'pyjama'),
+      e('Walking shoes', 'footwear', 1, 'sneaker', 'shoe'), e('Toothbrush and toothpaste', 'toiletries', 1, 'toothbrush'), e('Deodorant', 'toiletries', 1, 'deodorant'),
+      e('Umbrella', 'gear', 1, 'umbrella'), e('Laundry bag', 'gear', 1, 'laundry'),
+    ] },
+    { id: uid(), name: '15-day thru-hike', climate: 'mixed', kind: 'outdoor', activities: ['hiking', 'camping'], sample: true, entries: [
+      ...papers, e('Power bank', 'electronics', 1, 'power bank'), e('Headlamp', 'electronics', 1, 'headlamp'),
+      e('Tent', 'gear', 1, 'tent'), e('Sleeping bag', 'gear', 1, 'sleeping bag'), e('Sleeping pad', 'gear', 1, 'pad'), e('Stove and fuel', 'gear', 1, 'stove'),
+      e('Water bottles', 'gear', 2, 'bottle'), e('Water filter', 'gear', 1, 'filter'), e('Maps', 'documents', 1, 'map'),
+      e('Hiking shirts', 'clothing', 2, 'shirt'), e('Hiking shorts', 'clothing', 1, 'shorts'), e('Rain jacket', 'clothing', 1, 'rain', 'jacket'), e('Warm layer', 'clothing', 1, 'fleece', 'down'),
+      e('Underwear', 'clothing', 3, 'underwear'), e('Socks', 'clothing', 3, 'sock'), e('Trail shoes', 'footwear', 1, 'trail', 'sneaker'), e('Camp sandals', 'footwear', 1, 'sandal'),
+      e('First aid kit', 'toiletries', 1, 'first aid', 'medic'), e('Sunscreen', 'toiletries', 1, 'sunscreen'), e('Toothbrush and toothpaste', 'toiletries', 1, 'toothbrush'),
+    ] },
+  ]
 }
 
 export const KEY = 'bin-pack.v7'
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) { const s = JSON.parse(raw) as State; return { ...s, items: s.items.map((i) => (i.color && RETIRED_SWATCHES[i.color] ? { ...i, color: RETIRED_SWATCHES[i.color] } : i)) } }
+    if (raw) { const s = JSON.parse(raw) as State; return { ...s, templates: s.templates ?? sampleTemplates(), items: s.items.map((i) => (i.color && RETIRED_SWATCHES[i.color] ? { ...i, color: RETIRED_SWATCHES[i.color] } : i)) } }
   } catch { /* fall through to sample */ }
   return sampleState()
 }
@@ -146,6 +169,32 @@ export function useStore() {
       api.snap(`Copied ${t.name}`)
       setState({ ...s, trips: [...s.trips, copy], activeTripId: copy.id })
       return copy
+    },
+    upsertTemplate: (t: Template) => setState((s) => ({ ...s, templates: upsert(s.templates, t) })),
+    removeTemplate: (id: string) => { api.snap(`Deleted ${name(now.current.templates, id)}`); setState((s) => ({ ...s, templates: s.templates.filter((t) => t.id !== id) })) },
+    duplicateTemplate: (id: string) => {
+      const t = now.current.templates.find((x) => x.id === id)
+      if (!t) return null
+      const copy = duplicateTemplate(t)
+      setState((s) => ({ ...s, templates: [...s.templates, copy] }))
+      return copy
+    },
+    /** A trip's list kept as a new template, named after the trip. */
+    saveAsTemplate: (tripId: string) => {
+      const trip = now.current.trips.find((x) => x.id === tripId)
+      if (!trip) return null
+      const t = toTemplate(trip, trip.name)
+      setState((s) => ({ ...s, templates: [...s.templates, t] }))
+      api.say(`Saved ${trip.name} as a template`)
+      return t
+    },
+    /** A new trip from a template: its list and defaults, the first bag, a week from today. The new trip is made active. */
+    tripFromTemplate: (id: string) => {
+      const s = now.current, t = s.templates.find((x) => x.id === id)
+      if (!t) return null
+      const trip: Trip = { ...newTrip(s.bags[0]?.id ?? null), name: t.name, ...(t.climate ? { climate: t.climate } : {}), ...(t.kind ? { kind: t.kind } : {}), activities: [...(t.activities ?? [])], checklist: fromTemplate(t, s.items) }
+      setState({ ...s, trips: [...s.trips, trip], activeTripId: trip.id })
+      return trip
     },
     removeTrip: (id: string) => { api.snap(`Deleted ${name(now.current.trips, id)}`); setState((s) => { const trips = s.trips.filter((t) => t.id !== id); return { ...s, trips, activeTripId: s.activeTripId === id ? trips[0]?.id ?? null : s.activeTripId } }) },
     patchTrip: (id: string, patch: Partial<Trip> | ((t: Trip) => Partial<Trip>)) =>

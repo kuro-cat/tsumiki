@@ -8,7 +8,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
   const [msg, setMsg] = useState<{ text: string; red?: boolean; at?: 'sample' } | null>(null)
   const [anim, setAnim] = useState(autopackAnimates)
   const toggleAnim = (on: boolean) => { setAnim(on); setAutopackAnimates(on) }
-  const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length
+  const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length + state.templates.filter((t) => t.sample).length
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify({ ...state, apiKey: '' }, null, 2)], { type: 'application/json' })
@@ -25,7 +25,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
       const s = JSON.parse(await f.text()) as Partial<State>
       if (!Array.isArray(s.items) || !Array.isArray(s.bags) || !Array.isArray(s.trips)) throw new Error()
       api.snap(`Imported ${s.items.length} items, ${s.bags.length} bags, ${s.trips.length} trips`)
-      api.replace({ items: s.items, bags: s.bags, trips: s.trips, apiKey: state.apiKey, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null, packsTo: { ...DEFAULT_PACKS_TO, ...s.packsTo } })
+      api.replace({ items: s.items, bags: s.bags, trips: s.trips, templates: Array.isArray(s.templates) ? s.templates : [], apiKey: state.apiKey, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null, packsTo: { ...DEFAULT_PACKS_TO, ...s.packsTo } })
       setMsg(null)
     } catch {
       setMsg({ text: 'That file is not a Bin-pack export.', red: true })
@@ -34,15 +34,15 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
   const removeSample = () => {
     const trips = state.trips.filter((t) => !t.sample)
     api.snap('Removed sample data')
-    api.replace({ ...state, items: state.items.filter((i) => !i.sample), bags: state.bags.filter((b) => !b.sample), trips, activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : trips[0]?.id ?? null })
+    api.replace({ ...state, items: state.items.filter((i) => !i.sample), bags: state.bags.filter((b) => !b.sample), trips, templates: state.templates.filter((t) => !t.sample), activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : trips[0]?.id ?? null })
     setMsg(null)
   }
   const restoreSample = () => {
     const fresh = sampleState()
     const own = <T extends { sample?: boolean }>(xs: T[]) => xs.filter((x) => !x.sample)
     const trips = [...own(state.trips), ...fresh.trips]
-    api.replace({ ...state, items: [...own(state.items), ...fresh.items], bags: [...own(state.bags), ...fresh.bags], trips, activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : fresh.activeTripId })
-    setMsg({ text: `Sample data restored: ${fresh.items.length} items, ${fresh.bags.length} bags, ${fresh.trips.length} trip.`, at: 'sample' })
+    api.replace({ ...state, items: [...own(state.items), ...fresh.items], bags: [...own(state.bags), ...fresh.bags], trips, templates: [...own(state.templates), ...fresh.templates], activeTripId: trips.some((t) => t.id === state.activeTripId) ? state.activeTripId : fresh.activeTripId })
+    setMsg({ text: `Sample data restored: ${fresh.items.length} items, ${fresh.bags.length} bags, ${fresh.trips.length} trip, ${fresh.templates.length} templates.`, at: 'sample' })
   }
   const reset = () => {
     if (!confirm('Delete everything Bin-pack stores in this browser? Export first if you want to keep it.')) return

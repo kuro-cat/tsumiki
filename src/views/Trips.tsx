@@ -1,15 +1,14 @@
-import { useState, type FormEvent } from 'react'
-import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, shownUnit, tripBags, tripReady, uid, withLink, titleCase, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
+import { useState } from 'react'
+import { CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, addTemplate, repack, shownUnit, tripBags, tripReady, uid, withLink, titleCase, type Bag, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
-import { ACTIVITIES, suggest } from '../lib/suggest'
+import { EntryForm } from './EntryForm'
+import { ActivityChips, Templates } from './Templates'
+import { suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
-import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Stepper, Tab, TabList, UnitInput } from '../ui'
+import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
 import { DateRange } from '../pickers'
-import { Bike, Briefcase, Camera, MountainSnow, Signpost, Tent, Timer, WavesLadder, Wine, type LucideIcon } from 'lucide-react'
-
-const ACT_ICON: Record<(typeof ACTIVITIES)[number], LucideIcon> = { hiking: Signpost, swimming: WavesLadder, running: Timer, photography: Camera, camping: Tent, 'formal event': Wine, work: Briefcase, cycling: Bike, skiing: MountainSnow }
 
 
 
@@ -17,8 +16,9 @@ export function Trips({ state, api, go }: ViewProps) {
   const [editId, setEditId] = useState<string | null>(state.activeTripId)
   const trip = state.trips.find((t) => t.id === editId) ?? state.trips[0] ?? null
   // The Add form: link is '' to guess from the name, '*none' for not in the inventory, or an item id.
-  const blankDraft = { label: '', category: 'misc' as Category, qty: 1, link: '', note: '' }
-  const [draft, setDraft] = useState<typeof blankDraft | null>(null)
+  const [draft, setDraft] = useState(false)
+  const [mode, setMode] = useState<'trips' | 'templates'>('trips')
+  const [tplId, setTplId] = useState<string | null>(null)
   // Details show as one summary until Edit; checklist rows open for linking on click.
   // A trip nobody has named yet opens straight into its details.
   const [editing, setEditing] = useState(() => !!trip && trip.name === 'New trip' && !trip.checklist.length)
@@ -64,20 +64,15 @@ export function Trips({ state, api, go }: ViewProps) {
       setBusy(false)
     }
   }
-  const addEntry = (e: FormEvent) => {
-    e.preventDefault()
-    const label = draft?.label.trim()
-    if (!trip || !draft || !label) return
-    const base: Omit<CheckItem, 'id' | 'packed'> = { label, category: draft.category, qty: Math.max(1, draft.qty), match: [label.toLowerCase()], source: 'manual', ...(draft.note.trim() ? { note: draft.note.trim() } : {}) }
-    const entry = draft.link === '' ? withLink(base, state.items) : { ...base, itemIds: draft.link === '*none' ? [] : [draft.link] }
-    api.patchTrip(trip.id, (t) => ({ checklist: [{ ...entry, id: uid(), packed: false }, ...t.checklist] }))
-    setDraft(null)
-  }
   const toggleAct = (a: string) => trip && patch({ activities: trip.activities.includes(a) ? trip.activities.filter((x) => x !== a) : [...trip.activities, a] })
   const open = () => { if (trip) { api.set({ activeTripId: trip.id }); go('Plan') } }
   const duplicate = () => {
     const t = trip && api.duplicateTrip(trip.id)
     if (t) { setEditId(t.id); setOpenRow(null); setMsg(null) }
+  }
+  const fromTemplate = (id: string) => {
+    const t = api.tripFromTemplate(id)
+    if (t) { setMode('trips'); setEditId(t.id); setEditing(true); setOpenRow(null); setMsg(null) }
   }
   const remove = () => {
     if (!trip) return
@@ -87,7 +82,11 @@ export function Trips({ state, api, go }: ViewProps) {
 
   return (
     <section className="page narrow">
-      <PageHead title="Trips" actions={<button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button>} />
+      <PageHead title={mode === 'trips' ? 'Trips' : 'Templates'} meta={<Seg label="Show" options={['trips', 'templates'] as const} value={mode} onChange={setMode} />} actions={mode === 'trips' ? <>
+        {state.templates.length > 0 && <ActionSelect label="New trip from a template" placeholder="From template…" onPick={fromTemplate}>{state.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</ActionSelect>}
+        <button className="btn primary" onClick={startNew}><Icon name="plus" />New trip</button>
+      </> : <button className="btn primary" onClick={() => { const t = { id: uid(), name: 'New template', entries: [] }; api.upsertTemplate(t); setTplId(t.id) }}><Icon name="plus" />New template</button>} />
+      {mode === 'templates' ? <Templates state={state} api={api} startTrip={fromTemplate} openId={tplId} setOpenId={setTplId} /> : <>
       {/* Trips as sheet tabs across the top; the chosen trip gets the full width below. */}
       {state.trips.length > 0 ? (
         <TabList className="trip-tabs cluster tight" label="Trips">
@@ -117,6 +116,7 @@ export function Trips({ state, api, go }: ViewProps) {
                   <button className="btn primary" type="button" onClick={open}>Open the plan <Icon name="arrow" /></button>
                   <button className="btn" type="button" onClick={() => setEditing(true)}>Edit trip</button>
                   <button className="btn" type="button" onClick={duplicate}>Duplicate</button>
+                  <button className="btn" type="button" onClick={() => { const t = api.saveAsTemplate(trip.id); if (t) setTplId(t.id) }} disabled={!trip.checklist.length}>Save as template</button>
                 </div>
               </div>
             ) : (
@@ -162,7 +162,7 @@ export function Trips({ state, api, go }: ViewProps) {
               <Field label="Weather" span={6} group><Seg label="Weather" options={CLIMATES} value={trip.climate} onChange={(climate) => patch({ climate })} /></Field>
               <Field label="Kind of trip" span={6} group><Seg label="Kind of trip" options={KINDS} value={trip.kind} onChange={(kind) => patch({ kind })} /></Field>
               <Field label="Activities" span={12} group>
-                <div className="radios">{ACTIVITIES.map((a) => { const I = ACT_ICON[a]; return <button key={a} type="button" className="chip ichip" aria-pressed={trip.activities.includes(a)} onClick={() => toggleAct(a)}><I size={18} strokeWidth={1.75} aria-hidden="true" />{titleCase(a)}</button> })}</div>
+                <ActivityChips value={trip.activities} onToggle={toggleAct} />
               </Field>
             </FormCard>
             )}
@@ -175,29 +175,19 @@ export function Trips({ state, api, go }: ViewProps) {
                 {tripReady(trip, state.bags, state.items) && <span className="tag blue ready" role="status">Ready to travel</span>}
               </div>
               <div className="cluster">
-                {!draft && <button className="btn primary" type="button" onClick={() => setDraft(blankDraft)}><Icon name="plus" />Add</button>}
+                {!draft && <button className="btn primary" type="button" onClick={() => setDraft(true)}><Icon name="plus" />Add</button>}
                 <button className="btn" type="button" onClick={regenerate}>Suggest from trip</button>
+                {state.templates.length > 0 && <ActionSelect label="Add a template to the list" placeholder="Add a template…" onPick={(id) => {
+                  const t = state.templates.find((x) => x.id === id)
+                  if (!t) return
+                  const next = addTemplate(trip.checklist, t, state.items)
+                  patch({ checklist: next })
+                  setMsg({ text: `${next.length - trip.checklist.length} added from ${t.name}.` })
+                }}>{state.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</ActionSelect>}
                 <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking Claude…' : 'Ask Claude for extras'}</button>
                 {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
               </div>
-              {draft && (
-                <FormCard label="Add to the checklist" title="Add to the list" onSubmit={addEntry} onClose={() => setDraft(null)} actions={<>
-                  <button className="btn primary" type="submit" disabled={!draft.label.trim()}>Add to the list</button>
-                  <button className="btn text" type="button" onClick={() => setDraft(null)}>Cancel</button>
-                </>}>
-                  <Field label="Name" span={6}><input type="text" autoFocus value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Gift for the hosts" required /></Field>
-                  <Field label="Category" span={4}><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
-                  <Field label="Quantity" span={2} group><Stepper label="Quantity" value={draft.qty} onChange={(qty) => setDraft({ ...draft, qty })} /></Field>
-                  <Field label="Linked item" span={6}>
-                    <select value={draft.link} onChange={(e) => { const it = state.items.find((i) => i.id === e.target.value); setDraft({ ...draft, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>
-                      <option value="">Match by name</option>
-                      {[...state.items].sort((a, b) => a.name.localeCompare(b.name)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                      <option value="*none">Nothing I own (tick it by hand)</option>
-                    </select>
-                  </Field>
-                  <Field label={<>Note <span className="dim">optional</span></>} span={6}><input type="text" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="Buy at the airport" /></Field>
-                </FormCard>
-              )}
+              {draft && <EntryForm items={state.items} onClose={() => setDraft(false)} onAdd={(e) => { api.patchTrip(trip.id, (t) => ({ checklist: [{ ...e, id: uid(), packed: false, source: 'manual' }, ...t.checklist] })); setDraft(false) }} />}
               <div className="table">
                 {trip.checklist.map((c) => {
                   const linked = linkedItems(c, state.items)
@@ -230,6 +220,7 @@ export function Trips({ state, api, go }: ViewProps) {
           </>
         )}
       </div>
+      </>}
     </section>
   )
 }

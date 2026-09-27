@@ -16,6 +16,11 @@
 .check-row.done .cat { opacity: 0.55; }
 .check-row .more { grid-column: 2 / -1; display: grid; gap: 8px; padding: 4px 0 2px; animation: open 180ms var(--ease) both; }
 .check-row .more .hint { font-size: var(--fs-s); }
+/* Template rows: the quantity leads, where a trip row shows its progress. */
+.check-row.tpl .qty { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.check-row.tpl .count { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-edit { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto minmax(0, 2fr); gap: 10px; align-items: end; }
+@media (max-width: 600px) { .tpl-edit { grid-template-columns: 1fr 1fr; } .check-row.tpl .count { max-width: none; } }
 .glyph { width: 36px; min-height: 18px; display: flex; align-items: center; }
 .glyph.done { color: var(--blue); }
 .glyph.none { min-height: 0; height: 0; width: 16px; border-top: 1.5px dashed var(--ink-2); }
