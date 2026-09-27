@@ -106,12 +106,16 @@ export function useStore() {
     replace: (s: State) => setState(s),
     upsertItem: (it: Item) => setState((s) => ({ ...s, items: upsert(s.items, it) })),
     removeItem: (id: string) => { api.snap(`Deleted ${name(now.current.items, id)}`); setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => withoutItem(t, id)) })) },
-    /** Saves a bag, settled so nothing floats; trips using it lose what sat in compartments it no longer has. */
-    upsertBag: (raw: Bag) => setState((s) => {
+    /** Saves a bag, settled so nothing floats. Trips using it re-seat what a smaller compartment no longer holds; anything with no room left comes out, with Undo. */
+    upsertBag: (raw: Bag) => {
+      const s = now.current
       const b = { ...raw, compartments: settleCompartments(raw.compartments) }
       const before = s.bags.find((x) => x.id === b.id)
-      return { ...s, bags: upsert(s.bags, b), trips: before ? s.trips.map((t) => afterBagEdit(t, before, b)) : s.trips }
-    }),
+      const trips = before ? s.trips.map((t) => afterBagEdit(t, before, b, s.items)) : s.trips
+      const out = s.trips.flatMap((t, i) => t.placements.filter((p) => !trips[i].placements.some((q) => q.id === p.id)))
+      if (out.length) api.snap(`${out.length === 1 ? `${name(s.items, out[0].itemId)} no longer fits` : `${out.length} items no longer fit`} in ${b.name} and came out`)
+      setState({ ...s, bags: upsert(s.bags, b), trips })
+    },
     removeBag: (id: string) => { api.snap(`Deleted ${name(now.current.bags, id)}`); setState((s) => {
       const bag = s.bags.find((b) => b.id === id)
       return { ...s, bags: s.bags.filter((b) => b.id !== id), trips: s.trips.map((t) => (bag && t.bagIds.includes(id) ? { ...t, bagIds: t.bagIds.filter((x) => x !== id), ...dropBag(bag, t), ...bagLeaves(t, id) } : t)) }

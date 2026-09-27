@@ -165,7 +165,7 @@ const comp = (id: string) => ({ id, name: id, l: 30, w: 20, h: 10, x: 0, y: 0, z
 test('editing a bag leaves the trip’s other bags alone', () => {
   const a: Bag = { id: 'a', name: 'A', empty: 0, limit: null, compartments: [comp('a1')] }
   const t = tripOf({ bagIds: ['a', 'b'], placements: [{ id: 'pa', itemId: 'i', compartmentId: 'a1', x: 0, y: 0, z: 0, o: 0 }, { id: 'pb', itemId: 'i', compartmentId: 'b1', x: 0, y: 0, z: 0, o: 0 }], loose: [{ id: 'lb', itemId: 's', home: 'b1' }] })
-  const r = afterBagEdit(t, a, { ...a, name: 'A renamed' })
+  const r = afterBagEdit(t, a, { ...a, name: 'A renamed' }, [])
   assert.deepEqual(r.placements.map((p) => p.id), ['pa', 'pb'])
   assert.deepEqual(r.loose, t.loose)
 })
@@ -178,13 +178,13 @@ test('a compartment removed from a bag takes its placements out and sends its lo
     placements: [{ id: 'cube', itemId: 'k', compartmentId: 'pocket', x: 0, y: 0, z: 0, o: 0 }, { id: 'stays', itemId: 'i', compartmentId: 'main', x: 0, y: 0, z: 0, o: 0 }],
     loose: [{ id: 'in-cube', itemId: 's', home: 'cube' }, { id: 'in-pocket', itemId: 's', home: 'pocket' }, { id: 'in-main', itemId: 's', home: 'main' }],
   })
-  const r = afterBagEdit(t, before, after)
+  const r = afterBagEdit(t, before, after, [])
   assert.deepEqual(r.placements.map((p) => p.id), ['stays'])
   // the cube's contents leave with it; what lay loose in the pocket moves to Main
   assert.deepEqual(r.loose.map((l) => [l.id, l.home]), [['in-pocket', 'main'], ['in-main', 'main']])
   // a trip without the bag is untouched
   const other = tripOf({ bagIds: ['z'], placements: t.placements })
-  assert.equal(afterBagEdit(other, before, after), other)
+  assert.equal(afterBagEdit(other, before, after, []), other)
 })
 
 test('withoutItem removes every unit of an item from a trip and unlinks it from the checklist', () => {
@@ -201,4 +201,18 @@ test('withoutItem removes every unit of an item from a trip and unlinks it from 
   assert.deepEqual(r.loose.map((l) => l.id), ['l3'])
   assert.deepEqual(r.worn.map((w) => w.id), ['w2'])
   assert.deepEqual(r.checklist.map((c) => c.itemIds), [['x'], undefined, ['x']])
+})
+
+test('a compartment made smaller re-seats what no longer fits, and takes out what has no room left', () => {
+  const box = (id: string, l: number, w: number, h: number): Item => ({ id, name: id, category: 'gear', kind: 'rigid', l, w, h, up: true, weight: 1, qty: 1 })
+  const items = [box('a', 10, 10, 10), box('b', 10, 10, 10), box('c', 10, 10, 10)]
+  const before: Bag = { id: 'bag', name: 'B', empty: 0, limit: null, compartments: [{ ...comp('main'), l: 30, w: 10, h: 10 }] }
+  const at = (id: string, itemId: string, x: number) => ({ id, itemId, compartmentId: 'main', x, y: 0, z: 0, o: 0 })
+  const t = tripOf({ bagIds: ['bag'], placements: [at('pa', 'a', 0), at('pb', 'b', 20)] })
+  // 30 long becomes 20: b at x 20 now overhangs and moves into the free spot at x 10, keeping its id
+  const r = afterBagEdit(t, before, { ...before, compartments: [{ ...before.compartments[0], l: 20 }] }, items)
+  assert.deepEqual(r.placements.map((p) => [p.id, p.x]), [['pa', 0], ['pb', 10]])
+  // three items and room for two: the one that overhangs comes out
+  const full = tripOf({ bagIds: ['bag'], placements: [at('pa', 'a', 0), at('pc', 'c', 10), at('pb', 'b', 20)] })
+  assert.deepEqual(afterBagEdit(full, before, { ...before, compartments: [{ ...before.compartments[0], l: 20 }] }, items).placements.map((p) => p.id), ['pa', 'pc'])
 })

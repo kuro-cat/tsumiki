@@ -1,4 +1,4 @@
-import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, dropZ, fillHeight, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
+import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, dropZ, fillHeight, fits, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
 
 export type Category = 'clothing' | 'footwear' | 'toiletries' | 'electronics' | 'documents' | 'gear' | 'misc'
 export const CATEGORIES: Category[] = ['clothing', 'footwear', 'toiletries', 'electronics', 'documents', 'gear', 'misc']
@@ -179,13 +179,27 @@ export function dropBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'
   const r = withoutPlacements(trip, new Set(mine.placements.map((p) => p.id)))
   return { placements: r.placements, loose: r.loose.filter((l) => !mine.loose.includes(l)) }
 }
-/** A trip after one of its bags was edited. Placements in compartments the bag no longer has come out, with what they held;
- *  loose units in those compartments move to Main. The trip's other bags are left as they are. */
-export function afterBagEdit(trip: Trip, before: Bag, after: Bag): Trip {
+/** A trip after one of its bags was edited. Placements in compartments the bag no longer has come out, with what they held,
+ *  and loose units there move to Main. A box that overhangs a compartment made smaller moves to the best free spot in the bag,
+ *  keeping its id (a cube keeps what it holds), or comes out when there is no room. The trip's other bags are left as they are. */
+export function afterBagEdit(trip: Trip, before: Bag, after: Bag, items: Item[]): Trip {
   if (!trip.bagIds.includes(after.id)) return trip
   const gone = new Set(before.compartments.filter((c) => !after.compartments.some((x) => x.id === c.id)).map((c) => c.id))
-  const r = withoutPlacements(trip, new Set(trip.placements.filter((p) => gone.has(p.compartmentId)).map((p) => p.id)))
-  return { ...trip, placements: r.placements, loose: r.loose.map((l) => (gone.has(l.home) ? { ...l, home: mainOf(after).id } : l)) }
+  const boxed = (p: Placement) => { const it = items.find((i) => i.id === p.itemId); return it && isBoxed(it) ? it : null }
+  const overhangs = trip.placements.filter((p) => {
+    const c = after.compartments.find((x) => x.id === p.compartmentId), it = boxed(p)
+    return !!c && !!it && !fits(c, [], { ...oriented(it, p.o), x: p.x, y: p.y, z: p.z })
+  })
+  const staying = trip.placements.filter((p) => !gone.has(p.compartmentId) && !overhangs.includes(p))
+  const moved = autoPackBins(after.compartments, overhangs.map((p) => ({ key: p, box: boxed(p)!, os: orientationsOf(boxed(p)!) })), placedBoxes({ ...trip, placements: staying }, items))
+    .placed.map((x): Placement => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
+  const out = trip.placements.filter((p) => gone.has(p.compartmentId) || (overhangs.includes(p) && !moved.some((m) => m.id === p.id)))
+  const r = withoutPlacements(trip, new Set(out.map((p) => p.id)))
+  return {
+    ...trip,
+    placements: r.placements.map((p) => moved.find((m) => m.id === p.id) ?? p),
+    loose: r.loose.map((l) => (gone.has(l.home) ? { ...l, home: mainOf(after).id } : l)),
+  }
 }
 /** A trip without one item: its placements (with what they held), loose and worn units go, and checklist entries stop linking to it.
  *  An entry whose only link it was goes back to matching by name. */
