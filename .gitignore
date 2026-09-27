@@ -7,3 +7,4 @@ tsconfig.tsbuildinfo
 .impeccable/questions/
 .impeccable/direction-payload*.json
 .impeccable/brief-body.md
+.claude/
