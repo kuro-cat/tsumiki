@@ -181,8 +181,11 @@ export function Trips({ state, api, go }: ViewProps) {
                   const t = state.templates.find((x) => x.id === id)
                   if (!t) return
                   const next = addTemplate(trip.checklist, t, state.items)
+                  const n = next.length - trip.checklist.length
+                  if (!n) return setMsg({ text: `The list already has everything in ${t.name}.` })
+                  api.snap(`Added ${n} from ${t.name}`)
                   patch({ checklist: next })
-                  setMsg({ text: `${next.length - trip.checklist.length} added from ${t.name}.` })
+                  setMsg(null)
                 }}>{state.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</ActionSelect>}
                 <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking Claude…' : 'Ask Claude for extras'}</button>
                 {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
