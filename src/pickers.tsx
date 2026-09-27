@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { CatIcon, Icon } from './Icon'
-import { CATEGORIES, titleCase, type Category } from './store'
+import { CATEGORIES, isoDate, titleCase, type Category } from './store'
 import { Choice, Popover, type Opt } from './ui'
 
 /** A swatch choice: its value, a name for screen readers and tooltips, and the CSS colour it paints. */
@@ -57,15 +57,14 @@ export const CategoryPick = ({ value, onChange, label = 'Category' }: { value: C
 
 // Dates as local calendar days: 'YYYY-MM-DD' in and out, never through UTC, so a day never slips across midnight.
 const day = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const plus = (s: string, n: number) => { const d = day(s); d.setDate(d.getDate() + n); return ymd(d) }
-const short = (s: string) => day(s).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+const addDays = (s: string, n: number) => { const d = day(s); d.setDate(d.getDate() + n); return isoDate(d) }
+const shortDate = (s: string) => day(s).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 /** Leave and return dates in one field. The calendar takes the first pick as the day you leave and the next later pick as the day you're back. */
 export function DateRange({ start, end, onChange }: { start: string; end: string; onChange: (start: string, end: string) => void }) {
   const n = Math.max(1, Math.round((day(end).getTime() - day(start).getTime()) / 86400000))
-  const face = <span className="range-face"><b>{short(start)}</b><Icon name="arrow" /><b>{short(end)}</b><span className="dim">{n} {n === 1 ? 'night' : 'nights'}</span></span>
+  const face = <span className="range-face"><b>{shortDate(start)}</b><Icon name="arrow" /><b>{shortDate(end)}</b><span className="dim">{n} {n === 1 ? 'night' : 'nights'}</span></span>
   return <Popover label="Trip dates" className="dates" face={face}>{(close) => <Calendar start={start} end={end} onChange={onChange} close={close} />}</Popover>
 }
 
@@ -76,23 +75,23 @@ function Calendar({ start, end, onChange, close }: { start: string; end: string;
   const grid = useRef<HTMLDivElement>(null)
   const f = day(focus), first = new Date(f.getFullYear(), f.getMonth(), 1)
   const lead = (first.getDay() + 6) % 7
-  const cells = Array.from({ length: Math.ceil((lead + new Date(f.getFullYear(), f.getMonth() + 1, 0).getDate()) / 7) * 7 }, (_, i) => ymd(new Date(f.getFullYear(), f.getMonth(), i - lead + 1)))
+  const cells = Array.from({ length: Math.ceil((lead + new Date(f.getFullYear(), f.getMonth() + 1, 0).getDate()) / 7) * 7 }, (_, i) => isoDate(new Date(f.getFullYear(), f.getMonth(), i - lead + 1)))
   // While picking, the range runs from the first pick to the day under the pointer or focus.
   const from = picking ?? start, to = picking ? (hover && hover > picking ? hover : picking) : end
-  const today = ymd(new Date())
+  const today = isoDate(new Date())
   useEffect(() => { grid.current?.querySelector<HTMLButtonElement>(`[data-d="${focus}"]`)?.focus() }, [focus])
   const pick = (d: string) => {
     if (!picking || d <= picking) { setPicking(d); return }
     onChange(picking, d); close()
   }
-  const move = (months: number) => { const d = day(focus); const want = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + months); d.setDate(Math.min(want, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); setFocus(ymd(d)) }
+  const move = (months: number) => { const d = day(focus); const want = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + months); d.setDate(Math.min(want, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); setFocus(isoDate(d)) }
   const key = (e: KeyboardEvent) => {
     const by: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }
-    if (e.key in by) setFocus(plus(focus, by[e.key]))
+    if (e.key in by) setFocus(addDays(focus, by[e.key]))
     else if (e.key === 'PageUp') move(-1)
     else if (e.key === 'PageDown') move(1)
-    else if (e.key === 'Home') setFocus(plus(focus, -((day(focus).getDay() + 6) % 7)))
-    else if (e.key === 'End') setFocus(plus(focus, 6 - ((day(focus).getDay() + 6) % 7)))
+    else if (e.key === 'Home') setFocus(addDays(focus, -((day(focus).getDay() + 6) % 7)))
+    else if (e.key === 'End') setFocus(addDays(focus, 6 - ((day(focus).getDay() + 6) % 7)))
     else return
     e.preventDefault()
   }

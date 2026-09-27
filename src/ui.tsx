@@ -22,16 +22,16 @@ export function MeasureInput({ unit, value, onChange, onBlur, min, step, ...inpu
     onBlur={(e) => { setDraft(null); onBlur?.(e) }} />
 }
 
-/** Pointer-down handler that scrubs a number: every 6 px sideways is one step (ten with Shift), kept within min and max.
- *  It reports like an input would, with the metric value in target.value. */
-export function scrubber({ value, min, max, step, disabled, onChange }: Pick<InputHTMLAttributes<HTMLInputElement>, 'value' | 'min' | 'max' | 'step' | 'disabled' | 'onChange'>) {
+/** Pointer-down handler that drags a number: every 6 px sideways is one step (ten with Shift), kept within min and max.
+ *  Steps are in the unit shown, so inches and ounces move evenly; it reports like an input would, with the metric value in target.value. */
+export function dragToChange(unit: string, { value, min, max, step, disabled, onChange }: Pick<InputHTMLAttributes<HTMLInputElement>, 'value' | 'min' | 'max' | 'step' | 'disabled' | 'onChange'>) {
   return (e: PointerEvent<HTMLElement>) => {
     if (disabled || !onChange || e.button !== 0) return
     e.preventDefault()
-    const el = e.currentTarget, x0 = e.clientX, v0 = Number(value) || 0, st = Number(step) || 1
+    const el = e.currentTarget, x0 = e.clientX, v0 = toShown(Number(value) || 0, unit), st = shownStep(unit) ?? (Number(step) || 1)
     el.setPointerCapture(e.pointerId)
     const move = (m: globalThis.PointerEvent) => {
-      let v = Number((v0 + Math.round((m.clientX - x0) / 6) * st * (m.shiftKey ? 10 : 1)).toFixed(4))
+      let v = fromShown(Number((v0 + Math.round((m.clientX - x0) / 6) * st * (m.shiftKey ? 10 : 1)).toFixed(4)), unit)
       if (min != null && min !== '') v = Math.max(Number(min), v)
       if (max != null && max !== '') v = Math.min(Number(max), v)
       onChange({ target: { value: String(v) } } as ChangeEvent<HTMLInputElement>)
@@ -43,7 +43,7 @@ export function scrubber({ value, min, max, step, disabled, onChange }: Pick<Inp
 
 /** A number field with its unit inside the frame. Drag the unit sideways to change the value; arrows and typing work too. */
 export function UnitInput({ unit, ...input }: { unit: string } & InputHTMLAttributes<HTMLInputElement>) {
-  return <span className="unit"><MeasureInput unit={unit} {...input} /><span className="dim scrub" onPointerDown={scrubber(input)} title="Drag to change" aria-hidden="true">{shownUnit(unit)}</span></span>
+  return <span className="unit"><MeasureInput unit={unit} {...input} /><span className="dim scrub" onPointerDown={dragToChange(unit, input)} title="Drag to change" aria-hidden="true">{shownUnit(unit)}</span></span>
 }
 
 type Axis = 'l' | 'w' | 'h'
@@ -99,12 +99,12 @@ export function Popover({ label, face, className, disabled, children }: { label:
   useEffect(() => {
     if (!open) return
     const down = (e: globalThis.PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
-    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); key.current?.focus() } }
-    window.addEventListener('pointerdown', down); window.addEventListener('keydown', esc)
-    return () => { window.removeEventListener('pointerdown', down); window.removeEventListener('keydown', esc) }
+    window.addEventListener('pointerdown', down)
+    return () => window.removeEventListener('pointerdown', down)
   }, [open])
   return (
-    <div className={'popover' + (className ? ` ${className}` : '')} ref={ref} onBlur={(e) => { if (open && e.relatedTarget && !ref.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
+    // Escape closes the panel and stops there, so it never also reaches whatever holds the popover (the plan clears its selection on Escape).
+    <div className={'popover' + (className ? ` ${className}` : '')} ref={ref} onKeyDown={(e) => { if (open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() } }} onBlur={(e) => { if (open && e.relatedTarget && !ref.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
       <button ref={key} type="button" className="pop-key" aria-label={label} aria-expanded={open} aria-haspopup="dialog" disabled={disabled} onClick={() => setOpen((o) => !o)}>{face}<Icon name="chev" /></button>
       {open && <div className={'pop' + (end ? ' end' : '')} role="dialog" aria-label={label}>{children(close)}</div>}
     </div>

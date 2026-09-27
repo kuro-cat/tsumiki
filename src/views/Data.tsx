@@ -99,7 +99,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
             <button className="btn" onClick={restoreSample}>Restore sample data</button>
             {msg?.at === 'sample' ? <span className="msg" role="status">{msg.text}</span> : <span className="hint">{sampleCount ? `${sampleCount} sample records` : 'None left'}</span>}
           </div>
-          <p className="hint">Restoring brings back the sample items, bags and Lisbon trip. Your own stay as they are.</p>
+          <p className="hint">Restoring brings back the sample items, bags, Lisbon trip and templates. Your own stay as they are.</p>
         </section>
         <section>
           <h2>Start over</h2>

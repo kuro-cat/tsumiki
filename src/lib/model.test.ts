@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addTemplate, afterBagEdit, bagLeaves, duplicateTemplate, duplicateTrip, fromTemplate, toTemplate, type Template,withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
+import { addTemplate, isoDate, afterBagEdit, bagLeaves, duplicateTemplate, duplicateTrip, fromTemplate, toTemplate, type Template,withoutItem, bagTotals, settleCompartments, sharedTotals, entryUnits, isPacked, linkedItems, withLink, defaultCapacity, defaultKind, dropBag, fillOf, packedCount, packedVolume, repack, wornWeight, roomiestHome, rotateCompartment, tripReady, withoutPlacements, type Bag, type ContainerItem, type Item, type Trip } from './model.ts'
 
 test('kind defaults to soft for clothing and rigid otherwise', () => {
   assert.equal(defaultKind('clothing'), 'soft')
@@ -140,11 +140,11 @@ test('a weighed bag is judged on its Actual Weight, a Shared Limit on the sum of
   assert.equal(tripReady({ ...light, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 2500 }] }, [a, b], [book]), false)
 })
 
-test('a bag leaving a trip takes its Actual Weight, its Reserve and its place in a Shared Limit with it', () => {
+test('a bag leaving a trip takes its Actual Weight with it; a swapped-in bag takes over its Reserve and Shared Limit place', () => {
   const trip = { weighed: { a: 2100, b: 900 }, reserve: { a: { volume: 2000, weight: 500 } }, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 3000 }] } as Trip
-  // swapped: the new bag starts unweighed with no Reserve but takes the old bag's place in the Shared Limit
-  assert.deepEqual(bagLeaves(trip, 'a', 'c'), { weighed: { b: 900 }, reserve: {}, shared: [{ id: 's', bagIds: ['c', 'b'], limit: 3000 }] })
-  // removed: a Shared Limit left with one bag is gone
+  // swapped: the new bag starts unweighed, keeps the room the trip kept free, and takes the old bag's place in the Shared Limit
+  assert.deepEqual(bagLeaves(trip, 'a', 'c'), { weighed: { b: 900 }, reserve: { c: { volume: 2000, weight: 500 } }, shared: [{ id: 's', bagIds: ['c', 'b'], limit: 3000 }] })
+  // removed: its Reserve goes, and a Shared Limit left with one bag is gone
   assert.deepEqual(bagLeaves(trip, 'a'), { weighed: { b: 900 }, reserve: {}, shared: [] })
   // trips from before weighing existed have none of the fields
   assert.deepEqual(bagLeaves({} as Trip, 'a'), { weighed: {}, reserve: {}, shared: [] })
@@ -312,4 +312,22 @@ test('a trip saved as a template keeps its entries and conditions, not its ticks
   assert.notEqual(copy.id, t.id)
   assert.notEqual(copy.entries[0].id, t.entries[0].id)
   assert.equal(copy.sample, undefined)
+})
+
+test('isoDate is the local calendar day, not the UTC one', () => {
+  const tz = process.env.TZ
+  process.env.TZ = 'Asia/Singapore'
+  try { assert.equal(isoDate(new Date(2026, 0, 1, 0, 30)), '2026-01-01') } finally { process.env.TZ = tz }
+})
+
+test('swapping a bag moves its room kept free and repacks by the new bag’s rules', () => {
+  const t: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['a'], checklist: [], loose: [], worn: [],
+    reserve: { a: { volume: 2000, weight: 500 } }, weighed: { a: 4000 },
+    placements: [{ id: 'p', itemId: 'brush', compartmentId: 'a-main', x: 0, y: 0, z: 0, o: 0 }] }
+  const moved = bagLeaves(t, 'a', 'b')
+  assert.deepEqual([moved.reserve, moved.weighed], [{ b: { volume: 2000, weight: 500 } }, {}])
+  const brush: Item = { id: 'brush', name: 'Toothbrush', category: 'toiletries', kind: 'rigid', l: 20, w: 4, h: 3, up: false, weight: 90, qty: 1 }
+  const from: Bag = { id: 'a', name: 'A', empty: 0, limit: null, compartments: [{ id: 'a-main', name: 'Main', l: 30, w: 20, h: 10, x: 0, y: 0, z: 0 }] }
+  const to: Bag = { id: 'b', name: 'B', empty: 0, limit: null, compartments: [{ id: 'b-main', name: 'Main', l: 50, w: 30, h: 20, x: 0, y: 0, z: 0 }, { id: 'b-sleeve', name: 'Sleeve', l: 36, w: 26, h: 3, x: 0, y: 0, z: 0, takes: ['electronics'] }] }
+  assert.equal(repack(from, to, t, [brush]).placements[0].compartmentId, 'b-main')
 })

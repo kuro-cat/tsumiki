@@ -66,7 +66,8 @@ export const SWATCHES = ['#c98b52', '#d0a33a', '#7d9b3f', '#3a9b8c', '#4f7fae', 
 export const RETIRED_SWATCHES: Record<string, string> = { '#8a6bb8': '#4f7fae', '#b25e8f': '#6e8c9e', '#d98a9a': '#b8a07a', '#c8714a': '#c98b52' }
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
-export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
+/** A local calendar day as 'YYYY-MM-DD'. Not toISOString, which gives the UTC day and slips a day either side of midnight. */
+export const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 export const nights = (t: { start: string; end: string }) => Math.max(1, Math.round((Date.parse(t.end) - Date.parse(t.start)) / 86400000))
 const keywordItems = (c: Pick<CheckItem, 'match'>, items: Item[]) => items.filter((i) => c.match.some((k) => i.name.toLowerCase().includes(k)))
 /** The items a checklist entry stands for: its pinned Link, else every item a keyword matches. */
@@ -161,7 +162,9 @@ export function sharedTotals(trip: Trip, bags: Bag[], items: Item[]) {
 /** The trip's weighed, reserve and shared records once bag `from` leaves it. With `to`, the swapped-in bag takes its place in its Shared Limit; a Shared Limit left with one bag is gone. */
 export function bagLeaves(trip: Trip, from: string, to?: string): Pick<Trip, 'weighed' | 'reserve' | 'shared'> {
   const { [from]: _gone, ...weighed } = trip.weighed ?? {}
-  const { [from]: _kept, ...reserve } = trip.reserve ?? {}
+  const { [from]: kept, ...rest } = trip.reserve ?? {}
+  // The room kept free is the trip's plan, so a swapped-in bag takes it over; an Actual Weight belonged to the bag on the scale.
+  const reserve = to && kept ? { ...rest, [to]: kept } : rest
   const shared = (trip.shared ?? []).map((s) => ({ ...s, bagIds: s.bagIds.flatMap((id) => (id !== from ? [id] : to ? [to] : [])) })).filter((s) => s.bagIds.length > 1)
   return { weighed, reserve, shared }
 }
@@ -204,7 +207,7 @@ export function afterBagEdit(trip: Trip, before: Bag, after: Bag, items: Item[])
     return !!c && !!it && !fits(c, [], { ...oriented(it, p.o), x: p.x, y: p.y, z: p.z })
   })
   const staying = trip.placements.filter((p) => !gone.has(p.compartmentId) && !overhangs.includes(p))
-  const moved = autoPackBins(after.compartments, overhangs.map((p) => ({ key: p, box: boxed(p)!, os: orientationsOf(boxed(p)!) })), placedBoxes({ ...trip, placements: staying }, items))
+  const moved = autoPackBins(after.compartments, overhangs.map((p) => ({ key: p, box: boxed(p)!, os: orientationsOf(boxed(p)!), weight: boxed(p)!.weight, bins: takers(after, boxed(p)!.category).map((c) => c.id) })), placedBoxes({ ...trip, placements: staying }, items), after.heavy)
     .placed.map((x): Placement => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
   const out = trip.placements.filter((p) => gone.has(p.compartmentId) || (overhangs.includes(p) && !moved.some((m) => m.id === p.id)))
   const r = withoutPlacements(trip, new Set(out.map((p) => p.id)))
@@ -274,6 +277,8 @@ export function fillOf(c: Box, boxes: Placed[], looseVol: number) {
 /** The compartment with the most room left for soft items, after rigid boxes and loose volume already there. */
 /** The compartments Auto-pack may put an item of this category in. */
 export const takers = (bag: Bag, category: Category) => bag.compartments.filter((c) => !c.takes?.length || c.takes.includes(category))
+/** The bag as a soft unit sees it: only compartments that take its category, or all of them when none does, since soft items always have a home. */
+export const softBag = (bag: Bag, it: Item): Bag => { const allowed = takers(bag, it.category); return allowed.length ? { ...bag, compartments: allowed } : bag }
 export function roomiest(bag: Bag, boxes: Record<string, Placed[]>, loose: Record<string, number>): Compartment {
   return bag.compartments.reduce((best, c) => (freeVolume(c, boxes[c.id] ?? []) - (loose[c.id] ?? 0) > freeVolume(best, boxes[best.id] ?? []) - (loose[best.id] ?? 0) ? c : best))
 }
@@ -285,9 +290,9 @@ export function repack(from: Bag, to: Bag, trip: Trip, items: Item[]): Pick<Trip
   rest.loose = rest.loose.filter((l) => !mine.loose.includes(l))
   const boxes = mine.placements.flatMap((p) => {
     const it = items.find((i) => i.id === p.itemId)
-    return it && isBoxed(it) ? [{ key: p, box: it, os: orientationsOf(it) }] : []
+    return it && isBoxed(it) ? [{ key: p, box: it, os: orientationsOf(it), weight: it.weight, bins: takers(to, it.category).map((c) => c.id) }] : []
   })
-  const placements = autoPackBins(to.compartments, boxes).placed.map((x) => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
+  const placements = autoPackBins(to.compartments, boxes, {}, to.heavy).placed.map((x) => ({ ...x.key, compartmentId: x.binId, x: x.p.x, y: x.p.y, z: x.p.z, o: x.o }))
   const next = { ...trip, placements: [...rest.placements, ...placements], loose: rest.loose }
   const placed = placedBoxes(next, items), containers = placedContainers(next, items).filter((c) => placements.some((p) => p.id === c.id))
   const kept = new Set(containers.map((c) => c.id))
@@ -297,7 +302,7 @@ export function repack(from: Bag, to: Bag, trip: Trip, items: Item[]): Pick<Trip
     if (it?.kind !== 'soft') return []
     if (!kept.has(l.home) && mine.placements.some((p) => p.id === l.home)) return [] // its container left the bag
     const pv = packedVolume(it)
-    const home = kept.has(l.home) ? l.home : roomiestHome(to, containers, placed, vols, pv)
+    const home = kept.has(l.home) ? l.home : roomiestHome(softBag(to, it), containers, placed, vols, pv)
     vols[home] = (vols[home] ?? 0) + pv
     return [{ ...l, home }]
   })

@@ -1,5 +1,5 @@
 import { autoPackBins, type Placed } from './pack.ts'
-import { entryUnits, fmtDim, isBoxed, lenUnit, linkedItems, looseVolumes, orientationsOf, packedCount, packedVolume, placedBoxes, placedContainers, roomiestHome, takers, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type SoftItem, type Trip } from './model.ts'
+import { entryUnits, fmtDim, isBoxed, lenUnit, linkedItems, looseVolumes, orientationsOf, packedCount, packedVolume, placedBoxes, placedContainers, roomiestHome, softBag, takers, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type SoftItem, type Trip } from './model.ts'
 
 /** An autopack result as a Placement. A key is an item id, with ':n' after it when several units of one item pack together. */
 export const toPlacement = (x: { key: string; binId: string; p: Placed; o: number }): Placement =>
@@ -16,8 +16,6 @@ export function packOne(bag: Bag, it: Boxed, taken: Record<string, Placed[]> = {
   const r = autoPackBins(bag.compartments, [{ key: it.id, box: it, os: orientationsOf(it), weight: it.weight, bins: takers(bag, it.category).map((c) => c.id) }], taken, bag.heavy)
   return r.placed.length ? toPlacement(r.placed[0]) : null
 }
-/** The bag as a soft unit sees it: only compartments that take its category, or all of them when none does, since soft items always have a home. */
-const softBag = (bag: Bag, it: Item): Bag => { const allowed = takers(bag, it.category); return allowed.length ? { ...bag, compartments: allowed } : bag }
 
 /** A placed unit moved into another bag, placed as the trip will be once it has left; null when it doesn't fit there.
  *  It keeps its placement id, so a container keeps what it holds. */

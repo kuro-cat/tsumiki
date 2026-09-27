@@ -27,7 +27,8 @@ export function Templates({ state, api, startTrip, openId, setOpenId }: Pick<Vie
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const t = state.templates.find((x) => x.id === openId) ?? state.templates[0] ?? null
-  const patch = (p: Partial<Template>) => t && api.upsertTemplate({ ...t, ...p })
+  // An edited sample is the owner's own now, so it loses its sample mark, as items, bags and trips do.
+  const patch = (p: Partial<Template>) => { if (!t) return; const { sample: _s, ...own } = t; api.upsertTemplate({ ...own, ...p }) }
   const patchEntry = (id: string, p: Partial<TemplateEntry>) => t && patch({ entries: t.entries.map((e) => (e.id === id ? { ...e, ...p } : e)) })
   const pick = (id: string) => { setOpenId(id); setOpenRow(null); setAdding(false) }
 
