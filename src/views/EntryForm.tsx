@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { CATEGORIES, titleCase, withLink, type Category, type CheckItem, type Item } from '../store'
+import { withLink, type Category, type CheckItem, type Item } from '../store'
 import { Field, FormCard, Stepper } from '../ui'
+import { CategoryPick } from '../pickers'
 
 export type NewEntry = Omit<CheckItem, 'id' | 'packed' | 'source'>
 
@@ -20,7 +21,7 @@ export function EntryForm({ items, onAdd, onClose }: { items: Item[]; onAdd: (e:
       <button className="btn text" type="button" onClick={onClose}>Cancel</button>
     </>}>
       <Field label="Name" span={6}><input type="text" autoFocus value={d.label} onChange={(e) => setD({ ...d, label: e.target.value })} placeholder="Gift for the hosts" required /></Field>
-      <Field label="Category" span={4}><select value={d.category} onChange={(e) => setD({ ...d, category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
+      <Field label="Category" span={4} group><CategoryPick value={d.category} onChange={(category) => setD({ ...d, category })} /></Field>
       <Field label="Quantity" span={2} group><Stepper label="Quantity" value={d.qty} onChange={(qty) => setD({ ...d, qty })} /></Field>
       <Field label="Linked item" span={6}>
         <select value={d.link} onChange={(e) => { const it = items.find((i) => i.id === e.target.value); setD({ ...d, link: e.target.value, ...(it ? { category: it.category } : {}) }) }}>

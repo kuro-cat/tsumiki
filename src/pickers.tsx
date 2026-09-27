@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { Icon } from './Icon'
+import { CatIcon, Icon } from './Icon'
+import { CATEGORIES, titleCase, type Category } from './store'
 import { Popover } from './ui'
 
 /** A swatch choice: its value, a name for screen readers and tooltips, and the CSS colour it paints. */
@@ -44,6 +45,23 @@ export function ColourPick({ label, value, swatches, custom, onChange }: { label
             </label>
           )}
         </>
+      )}
+    </Popover>
+  )
+}
+
+/** A category key showing its pictogram and name; the panel lists every category the same way. */
+export function CategoryPick({ value, onChange, label = 'Category' }: { value: Category; onChange: (c: Category) => void; label?: string }) {
+  return (
+    <Popover label={label} className="catpick" face={<span className="cat-face"><CatIcon it={{ category: value }} />{titleCase(value)}</span>}>
+      {(close) => (
+        <div className="cat-list" role="radiogroup" aria-label={label}>
+          {CATEGORIES.map((c) => (
+            <button key={c} type="button" role="radio" aria-checked={c === value} autoFocus={c === value} className="cat-opt" onClick={() => { onChange(c); close() }}>
+              <CatIcon it={{ category: c }} />{titleCase(c)}
+            </button>
+          ))}
+        </div>
       )}
     </Popover>
   )

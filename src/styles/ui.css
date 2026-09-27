@@ -193,6 +193,18 @@ input[type='range']:focus-visible { outline: 2px solid var(--blue); outline-offs
 .hue input[type='range']::-moz-range-track { height: 12px; }
 .hue input[type='range']::-webkit-slider-thumb { margin-top: -4px; }
 
+/* Category: the key shows the pictogram and name and fills its field; the panel lists every category. */
+.catpick { width: 100%; }
+.catpick .pop-key { width: 100%; justify-content: space-between; }
+.cat-face { display: inline-flex; align-items: center; gap: 8px; }
+.catpick .pop { min-width: 100%; padding: 6px; gap: 0; }
+.cat-list { display: grid; }
+.cat-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; background: none; color: var(--ink); text-align: left; cursor: pointer; font-size: var(--fs-m); transition: background var(--t); }
+.cat-opt:hover { background: var(--paper-2); }
+.cat-opt[aria-checked='true'] { border-color: var(--ink); background: var(--blue-soft); }
+.cat-opt[aria-checked='true'] .cat { color: var(--blue); }
+.cat-opt:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+
 /* The trip's dates: one key that reads the range, a square month grid beneath it. */
 .dates .pop-key { width: 100%; justify-content: space-between; }
 .dates { width: 100%; }
@@ -288,6 +300,12 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 .msg { font-size: var(--fs-m); color: var(--ink-2); }
 .msg.red { color: var(--red); }
 
+/* Between phone and desktop the item schedule's columns share the width, and names and sizes wrap instead of overrunning the next column. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .table.items > .trow { --cols: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) 64px 32px !important; gap: 10px; }
+  .table.items > .trow > * { min-width: 0; overflow-wrap: anywhere; }
+  .table.items .name .truncate, .table.items .num { white-space: normal; }
+}
 @media (max-width: 900px) {
   .field.s1, .field.s2, .field.s3 { grid-column: span 4; }
   .field.s4 { grid-column: span 6; }

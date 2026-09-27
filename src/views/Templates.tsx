@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CATEGORIES, CLIMATES, KINDS, linkedItems, titleCase, uid, type Category, type Climate, type Template, type TemplateEntry, type TripKind } from '../store'
+import { CLIMATES, KINDS, linkedItems, titleCase, uid, type Climate, type Template, type TemplateEntry, type TripKind } from '../store'
 import { ACTIVITIES } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
@@ -7,6 +7,7 @@ import { Blank } from './Blank'
 import { EntryForm } from './EntryForm'
 import { LinkPicker } from './LinkPicker'
 import { FormCard, Field, Seg, Stepper, Tab, TabList } from '../ui'
+import { CategoryPick } from '../pickers'
 import { Bike, Briefcase, Camera, MountainSnow, Signpost, Tent, Timer, WavesLadder, Wine, type LucideIcon } from 'lucide-react'
 
 const ACT_ICON: Record<(typeof ACTIVITIES)[number], LucideIcon> = { hiking: Signpost, swimming: WavesLadder, running: Timer, photography: Camera, camping: Tent, 'formal event': Wine, work: Briefcase, cycling: Bike, skiing: MountainSnow }
@@ -82,7 +83,7 @@ export function Templates({ state, api, startTrip, openId, setOpenId }: Pick<Vie
                     <div className="more">
                       <div className="tpl-edit">
                         <Field label="Name"><input type="text" value={e.label} onChange={(ev) => patchEntry(e.id, { label: ev.target.value })} required /></Field>
-                        <Field label="Category"><select value={e.category} onChange={(ev) => patchEntry(e.id, { category: ev.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
+                        <Field label="Category" group><CategoryPick value={e.category} onChange={(category) => patchEntry(e.id, { category })} /></Field>
                         <Field label="Quantity" group><Stepper label="Quantity" value={e.qty} onChange={(qty) => patchEntry(e.id, { qty })} /></Field>
                         <Field label="Note"><input type="text" value={e.note ?? ''} onChange={(ev) => patchEntry(e.id, { note: ev.target.value || undefined })} placeholder="optional" /></Field>
                       </div>

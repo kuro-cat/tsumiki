@@ -1,11 +1,11 @@
 import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from 'react'
-import { CATEGORIES, SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, titleCase, type Category, type Item, type Kind } from '../store'
+import { SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, titleCase, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
 import { useSort, type Col } from './Sort'
 import { Field, FormCard, PageHead, Seg, SizeInput, Slider, Stepper, UnitInput, useEditor } from '../ui'
-import { ColourPick, type Swatch } from '../pickers'
+import { CategoryPick, ColourPick, type Swatch } from '../pickers'
 
 const SWATCH_NAMES = ['Clay', 'Ochre', 'Olive', 'Teal', 'Blue', 'Slate', 'Bark', 'Sand']
 const ITEM_SWATCHES: Swatch[] = [{ value: '', name: 'No colour', paint: 'transparent' }, ...SWATCHES.map((c, i) => ({ value: c, name: SWATCH_NAMES[i] ?? c, paint: c }))]
@@ -67,7 +67,7 @@ export function Inventory({ state, api }: ViewProps) {
         </>}>
           <Field label="Name" span={4}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Rain jacket" required /></Field>
           <Field label="Kind" span={3} group><Seg label="Kind" options={KIND_OPTIONS} value={form.kind} onChange={(k) => set('kind', k)} /></Field>
-          <Field label="Category" span={3}><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
+          <Field label="Category" span={3} group><CategoryPick value={form.category} onChange={setCategory} /></Field>
           <Field label="Colour" span={2} group><ColourPick label="Item colour" value={form.color} swatches={ITEM_SWATCHES} custom onChange={(c) => set('color', c)} /></Field>
           <Field label="Weight" span={2}><UnitInput unit="g" min={1} step={1} value={form.weight} onChange={num('weight')} required /></Field>
           <Field label="Qty" span={2} group><Stepper label="Quantity" value={form.qty} onChange={(n) => set('qty', n)} /></Field>
@@ -86,7 +86,7 @@ export function Inventory({ state, api }: ViewProps) {
         </FormCard>
       )}
       <div>
-        <div className="table">
+        <div className="table items">
           <div className="trow head sortable" style={COLS}>{by.head}</div>
           {list.map((it) => (
             <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => ed.edit(toForm(it))}>
