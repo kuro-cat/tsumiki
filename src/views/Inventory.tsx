@@ -66,8 +66,8 @@ export function Inventory({ state, api }: ViewProps) {
           {editing && <div className="right"><button className="btn danger" type="button" onClick={() => { api.removeItem(form.id); ed.close() }}>Delete item</button></div>}
         </>}>
           <Field label="Name" span={4}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Rain jacket" required /></Field>
-          <Field label="Category" span={3}><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
           <Field label="Kind" span={3} group><Seg label="Kind" options={KIND_OPTIONS} value={form.kind} onChange={(k) => set('kind', k)} /></Field>
+          <Field label="Category" span={3}><select value={form.category} onChange={(e) => setCategory(e.target.value as Category)}>{CATEGORIES.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}</select></Field>
           <Field label="Colour" span={2} group><ColourPick label="Item colour" value={form.color} swatches={ITEM_SWATCHES} custom onChange={(c) => set('color', c)} /></Field>
           <Field label="Weight" span={2}><UnitInput unit="g" min={1} step={1} value={form.weight} onChange={num('weight')} required /></Field>
           <Field label="Qty" span={2} group><Stepper label="Quantity" value={form.qty} onChange={(n) => set('qty', n)} /></Field>

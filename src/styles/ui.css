@@ -305,6 +305,10 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
   .field.s1 { grid-column: span 4; } .field.s2, .field.s3 { grid-column: span 6; }
   .field.s4 { grid-column: span 12; }
   .form { padding: 16px; gap: 14px; }
+  /* A segmented control gets its own row on phones, its keys sharing the width. */
+  .field:has(> .seg) { grid-column: 1 / -1; }
+  .field > .seg { justify-self: stretch; }
+  .field > .seg button { flex: 1; padding: 6px 8px; }
   .page { padding: 20px 12px 56px; gap: 18px; }
   .trow { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 12px 14px; }
   .trow.head { display: none; }
