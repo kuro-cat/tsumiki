@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, unitsToPack } from './packing.ts'
+import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, packOne, unitsToPack } from './packing.ts'
 import type { Bag, CheckItem, ContainerItem, Item, RigidItem, SoftItem, Trip } from './model.ts'
 
 const rigid = (id: string, l: number, w: number, h: number, qty = 1): RigidItem => ({ id, name: id, category: 'gear', kind: 'rigid', l, w, h, up: false, weight: 100, qty })
@@ -82,4 +82,20 @@ test('autoPackInto keeps each unit to compartments that take its category', () =
   // a soft unit goes where it's taken even when another compartment has more room
   const big: Bag = { ...b, compartments: [b.compartments[0], { ...b.compartments[1], l: 60, w: 40, h: 30, takes: ['toiletries'] }] }
   assert.equal(autoPackInto(trip(), [soft('shirt', 1)], big, [soft('shirt', 1)]).loose[0].home, 'main')
+})
+
+test('packing one unit follows the bag: compartments that take it, heavy against the chosen edge', () => {
+  const b: Bag = { ...bag('b', 50, 30, 20), heavy: 'bottom', compartments: [{ id: 'main', name: 'Main', l: 50, w: 30, h: 20, x: 0, y: 0, z: 0 }, { id: 'sleeve', name: 'Sleeve', l: 36, w: 26, h: 3, x: 0, y: 0, z: 0, takes: ['electronics'] }] }
+  const brush: RigidItem = { ...rigid('brush', 20, 4, 3), category: 'toiletries' }
+  const spot = packOne(b, brush)
+  assert.deepEqual(spot && [spot.compartmentId, spot.y], ['main', 26])
+  // tightest fit alone would have chosen the sleeve
+  assert.equal(fitOne(b.compartments, brush)?.compartmentId, 'sleeve')
+  // soft units too
+  const sleeveOnlyShirts: Bag = { ...b, compartments: [b.compartments[0], { ...b.compartments[1], l: 60, w: 40, h: 30, takes: ['toiletries'] }] }
+  assert.equal(looseInBag(trip(), [soft('shirt', 1)], sleeveOnlyShirts, soft('shirt', 1)).home, 'main')
+  // and a category nothing takes is named in the reason
+  const only: Bag = { ...b, compartments: [{ ...b.compartments[0], takes: ['clothing'] }] }
+  assert.equal(packOne(only, brush), null)
+  assert.equal(noFitReason(only, [], brush, {}), 'brush (20 × 4 × 3 cm) has no compartment in b that takes toiletries.')
 })

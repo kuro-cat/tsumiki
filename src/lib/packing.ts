@@ -11,20 +11,28 @@ export function fitOne(comps: Compartment[], it: Boxed, taken: Record<string, Pl
   return r.placed.length ? toPlacement(r.placed[0]) : null
 }
 
+/** The best free spot for one unit in a bag, chosen the way Auto-pack would: only compartments that take its category, heavy items where the bag says. */
+export function packOne(bag: Bag, it: Boxed, taken: Record<string, Placed[]> = {}): Placement | null {
+  const r = autoPackBins(bag.compartments, [{ key: it.id, box: it, os: orientationsOf(it), weight: it.weight, bins: takers(bag, it.category).map((c) => c.id) }], taken, bag.heavy)
+  return r.placed.length ? toPlacement(r.placed[0]) : null
+}
+/** The bag as a soft unit sees it: only compartments that take its category, or all of them when none does, since soft items always have a home. */
+const softBag = (bag: Bag, it: Item): Bag => { const allowed = takers(bag, it.category); return allowed.length ? { ...bag, compartments: allowed } : bag }
+
 /** A placed unit moved into another bag, placed as the trip will be once it has left; null when it doesn't fit there.
  *  It keeps its placement id, so a container keeps what it holds. */
 export function moveInto(trip: Trip, items: Item[], placementId: string, to: Bag): Placement | null {
   const pl = trip.placements.find((p) => p.id === placementId)
   const it = pl && items.find((i) => i.id === pl.itemId)
   if (!pl || !it || !isBoxed(it)) return null
-  const spot = fitOne(to.compartments, it, placedBoxes({ ...trip, placements: trip.placements.filter((p) => p.id !== placementId) }, items))
+  const spot = packOne(to, it, placedBoxes({ ...trip, placements: trip.placements.filter((p) => p.id !== placementId) }, items))
   return spot && { ...spot, id: placementId }
 }
 
 /** Why a boxed item has no spot in the bag, and which other bag on the trip could take it. */
 export function noFitReason(bag: Bag, others: Bag[], it: Boxed, taken: Record<string, Placed[]>): string {
-  const why = fitOne(bag.compartments, it) ? 'has no gap big enough left' : `is bigger than every compartment in ${bag.name}`
-  const other = others.find((b) => fitOne(b.compartments, it, taken))
+  const why = !takers(bag, it.category).length ? `has no compartment in ${bag.name} that takes ${it.category}` : packOne(bag, it) ? 'has no gap big enough left' : `is bigger than every compartment in ${bag.name}`
+  const other = others.find((b) => packOne(b, it, taken))
   return `${it.name} (${fmtDim(it)} ${lenUnit()}) ${why}.${other ? ` It fits in ${other.name}.` : ''}`
 }
 
@@ -32,9 +40,9 @@ export function noFitReason(bag: Bag, others: Bag[], it: Boxed, taken: Record<st
 export const bagContainers = (trip: Trip, items: Item[], bag: Bag) =>
   placedContainers(trip, items).filter((c) => bag.compartments.some((x) => x.id === c.compartmentId))
 
-/** One unit of a soft item packed into a bag: into the container or compartment with the most room for it. */
+/** One unit of a soft item packed into a bag: into the container or compartment with the most room for it, among those that take it. */
 export function looseInBag(trip: Trip, items: Item[], bag: Bag, it: SoftItem): Loose {
-  const home = roomiestHome(bag, bagContainers(trip, items, bag), placedBoxes(trip, items), looseVolumes(trip, items), packedVolume(it))
+  const home = roomiestHome(softBag(bag, it), bagContainers(trip, items, bag), placedBoxes(trip, items), looseVolumes(trip, items), packedVolume(it))
   return { id: uid(), itemId: it.id, home }
 }
 
@@ -70,8 +78,7 @@ export function autoPackInto(trip: Trip, items: Item[], bag: Bag, units: Item[])
   const loose = units.flatMap((it): Loose[] => {
     if (it.kind !== 'soft') return []
     const pv = packedVolume(it)
-    const allowed = takers(bag, it.category)
-    const home = roomiestHome(allowed.length ? { ...bag, compartments: allowed } : bag, cubes, taken, vols, pv)
+    const home = roomiestHome(softBag(bag, it), cubes, taken, vols, pv)
     vols[home] = (vols[home] ?? 0) + pv
     return [{ id: uid(), itemId: it.id, home }]
   })

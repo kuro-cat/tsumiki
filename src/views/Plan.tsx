@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
 import { bagHeight, bagTotals, sharedTotals, dropBag, tripBags, tripReady, isBoxed, orientationsOf, withoutPlacements, fmtDim, len, lenUnit, linkedItems, mainOf, newTrip, packedVolume, uid, type Bag, type Item, type Loose, type Placement, type Worn } from '../store'
 import { dropZ, faceName, fits, nextFace, oriented } from '../lib/pack'
-import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, unitsToPack } from '../lib/packing'
+import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, packOne, unitsToPack } from '../lib/packing'
 import { Blank } from './Blank'
 import type { PlanView, ViewProps } from '../App'
 import type { CamView, SceneComp } from './Scene3D'
@@ -152,7 +152,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
       if (c && (looseBy[home] ?? 0) + packedVolume(it) > fills[home].free + eps) say(`${c.name} is over volume`, true)
       return
     }
-    const pl = fitOne(bag.compartments, it, boxesBy)
+    const pl = packOne(bag, it, boxesBy)
     if (!pl) return say(noFitReason(bag, tb.filter((b) => b.id !== bag.id), it, boxesBy), true)
     api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
     setSelected(pl.id)
@@ -181,8 +181,8 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
   const packInto = (it: Item, to: Bag | undefined) => {
     if (!trip || !to) return
     if (isBoxed(it)) {
-      const pl = fitOne(to.compartments, it, boxesBy)
-      if (!pl) return say(`${it.name} doesn't fit in ${to.name}.`, true)
+      const pl = packOne(to, it, boxesBy)
+      if (!pl) return say(noFitReason(to, [], it, boxesBy), true)
       api.patchTrip(trip.id, (t) => ({ placements: [...t.placements, pl] }))
     } else api.patchTrip(trip.id, (t) => ({ loose: [...t.loose, looseInBag(t, items, to, it)] }))
     say(`Packed ${it.name} in ${to.name}`)
