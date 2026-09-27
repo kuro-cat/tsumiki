@@ -265,12 +265,16 @@ function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onCha
 function Reserve({ bag, trip, onChange }: { bag: Bag; trip: Trip; onChange: (r: Trip['reserve']) => void }) {
   const { [bag.id]: mine = { volume: 0, weight: 0 }, ...rest } = trip.reserve ?? {}
   const set = (p: Partial<typeof mine>) => { const next = { ...mine, ...p }; onChange(next.volume > 0 || next.weight > 0 ? { ...rest, [bag.id]: next } : rest) }
+  // Folded away until asked for; once set it stays open.
+  const [open, setOpen] = useState(false)
+  if (!open && !mine.volume && !mine.weight) return <div className="reserve"><button type="button" className="btn text" onClick={() => setOpen(true)}><Icon name="plus" />Keep room free</button></div>
   return (
     <div className="reserve" role="group" aria-label={`Kept free in ${bag.name}`}>
       <span className="label">Keep free</span>
-      <UnitInput unit="L" min={0} step={0.5} value={mine.volume / 1000} onChange={(e) => set({ volume: Math.max(0, Math.round(Number(e.target.value) * 1000)) })} aria-label={`Volume kept free in ${bag.name}, litres`} />
+      <UnitInput unit="L" min={0} step={0.5} autoFocus={open} value={mine.volume / 1000} onChange={(e) => set({ volume: Math.max(0, Math.round(Number(e.target.value) * 1000)) })} aria-label={`Volume kept free in ${bag.name}, litres`} />
       <UnitInput unit="kg" min={0} step={0.1} value={mine.weight / 1000} onChange={(e) => set({ weight: Math.max(0, Math.round(Number(e.target.value) * 1000)) })} aria-label={`Weight kept free in ${bag.name}, ${shownUnit('kg')}`} />
       <span className="hint">for the way home</span>
+      <IconButton icon="x" label={`Keep nothing free in ${bag.name}`} onClick={() => { onChange(rest); setOpen(false) }} />
     </div>
   )
 }
