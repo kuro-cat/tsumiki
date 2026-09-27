@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
 import { BLOCKS, CATEGORIES, bagVolume, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, titleCase, type Bag, type Category, type Compartment } from '../store'
 import type { ViewProps } from '../App'
-import { Icon } from '../Icon'
+import { CatIcon, Icon } from '../Icon'
 import { useSort } from './Sort'
 import { Blank } from './Blank'
 import { Field, FormCard, IconButton, MeasureInput, PageHead, SizeInput, UnitInput, useEditor } from '../ui'
@@ -126,9 +126,9 @@ export function Bags({ state, api }: ViewProps) {
                     </div>
                   </details>
                   <details className="takes">
-                    <summary>Auto-pack: {c.takes?.length ? c.takes.map(titleCase).join(', ') : 'anything'}</summary>
+                    <summary>Auto-pack: {c.takes?.length ? <span className="takes-icons" aria-label={c.takes.map(titleCase).join(', ')}>{c.takes.map((cat) => <CatIcon key={cat} it={{ category: cat }} />)}</span> : 'anything'}</summary>
                     <div className="cluster tight">
-                      {CATEGORIES.map((cat) => <label key={cat} className="chip"><input type="checkbox" checked={!!c.takes?.includes(cat)} onChange={() => toggleTakes(c, cat)} />{titleCase(cat)}</label>)}
+                      {CATEGORIES.map((cat) => <button key={cat} type="button" className="chip ichip" aria-pressed={!!c.takes?.includes(cat)} onClick={() => toggleTakes(c, cat)}><CatIcon it={{ category: cat }} />{titleCase(cat)}</button>)}
                     </div>
                   </details>
                   </div>

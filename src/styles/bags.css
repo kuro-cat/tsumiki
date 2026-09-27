@@ -14,6 +14,8 @@
 .comp-more summary { color: var(--ink-2); font-size: var(--fs-s); cursor: pointer; width: fit-content; }
 .comp-more summary:hover { color: var(--ink); }
 .comp-more .cluster { padding-top: 8px; }
+.takes-icons { display: inline-flex; gap: 4px; vertical-align: -4px; margin-left: 2px; }
+.takes-icons .cat { width: 16px; height: 16px; }
 .comp .pos .cin { width: 96px; }
 .heavy { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .heavy select { width: auto; }
