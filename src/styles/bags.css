@@ -25,6 +25,10 @@
   .comp { grid-template-columns: minmax(0, 1fr) auto 32px; }
   .comp .size { grid-column: 1 / -1; grid-row: 2; }
   .heavy { margin-left: 0; }
+  /* The name gets the first line to itself; the compartment count joins the facts on the second. */
+  .trow.bag .name { display: contents; }
+  .trow.bag .name > .truncate { flex: 1 0 calc(100% - 28px); }
+  .trow.bag .name > .tag { order: 1; padding: 0; background: none; font-size: var(--fs-m); color: var(--ink-2); line-height: inherit; }
 }
 @media (pointer: coarse) {
   .trow.bag .grip { padding: 8px 4px; margin: -8px 0; }
