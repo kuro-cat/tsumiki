@@ -1,5 +1,5 @@
 import type { CSSProperties, PointerEvent as RPointerEvent } from 'react'
-import { fmtDim, type Bag } from '../../store'
+import { fmtDim, len, lenUnit, type Bag } from '../../store'
 import { compBlock, eps, type Layout, type PackData, type PL } from './data'
 
 /** Footprints placed in the last moment, with their order in the batch and, for an autopack batch, the offset each arrives from. */
@@ -36,7 +36,7 @@ export function Sheet({ bag, layout, size, data, cut, selected, hidden, fresh, p
         return (
           <g key={c.id} className="comp">
             <rect className="frame" x={ox} y={oy} width={c.l * s} height={c.w * s} fill={floor} stroke={selC ? 'var(--blue)' : 'var(--ink)'} strokeWidth={2} onPointerDown={onClear} />
-            <text className="cname" x={ox} y={oy - 12}>{c.name}<tspan className="cdim" dx={8}>{fmtDim(c)} cm</tspan></text>
+            <text className="cname" x={ox} y={oy - 12}>{c.name}<tspan className="cdim" dx={8}>{fmtDim(c)} {lenUnit()}</tspan></text>
             {(looseBy[c.id] ?? 0) > 0 && (
               <>
                 <mask id={`m-${c.id}`}>
@@ -64,8 +64,8 @@ export function Sheet({ bag, layout, size, data, cut, selected, hidden, fresh, p
         const { ox, oy } = layout.comps.find((cl) => cl.c.id === selPl.p.compartmentId)!
         return (
           <>
-            <Dim x1={ox + selPl.box.x * s} y1={oy + (selPl.box.y + selPl.box.w) * s + 22} x2={ox + (selPl.box.x + selPl.box.l) * s} y2={oy + (selPl.box.y + selPl.box.w) * s + 22} edge={oy + (selPl.box.y + selPl.box.w) * s} label={`${selPl.box.l}`} color="var(--blue)" />
-            <Dim x1={ox + selPl.box.x * s - 22} y1={oy + selPl.box.y * s} x2={ox + selPl.box.x * s - 22} y2={oy + (selPl.box.y + selPl.box.w) * s} edge={ox + selPl.box.x * s} label={`${selPl.box.w}`} color="var(--blue)" />
+            <Dim x1={ox + selPl.box.x * s} y1={oy + (selPl.box.y + selPl.box.w) * s + 22} x2={ox + (selPl.box.x + selPl.box.l) * s} y2={oy + (selPl.box.y + selPl.box.w) * s + 22} edge={oy + (selPl.box.y + selPl.box.w) * s} label={len(selPl.box.l)} color="var(--blue)" />
+            <Dim x1={ox + selPl.box.x * s - 22} y1={oy + selPl.box.y * s} x2={ox + selPl.box.x * s - 22} y2={oy + (selPl.box.y + selPl.box.w) * s} edge={ox + selPl.box.x * s} label={len(selPl.box.w)} color="var(--blue)" />
           </>
         )
       })()}

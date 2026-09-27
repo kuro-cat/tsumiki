@@ -1,4 +1,6 @@
 import { ALL_ORIENTATIONS, UPRIGHT, autoPackBins, dropZ, fillHeight, fits, freeVolume, oriented, volume, type Box, type Placed } from './pack.ts'
+import { fmtDim, lenUnit } from './units.ts'
+export * from './units.ts'
 
 export type Category = 'clothing' | 'footwear' | 'toiletries' | 'electronics' | 'documents' | 'gear' | 'misc'
 export const CATEGORIES: Category[] = ['clothing', 'footwear', 'toiletries', 'electronics', 'documents', 'gear', 'misc']
@@ -70,10 +72,8 @@ export const wornWeight = (trip: Trip, items: Item[]) => trip.worn.reduce((a, w)
 /** Packed units across an entry's linked items. */
 export const entryUnits = (c: CheckItem, trip: Trip, items: Item[]) => linkedItems(c, items).reduce((a, i) => a + packedCount(trip, i.id), 0)
 export const isPacked = (c: CheckItem, trip: Trip, items: Item[]) => c.packed || (linkedItems(c, items).length > 0 && entryUnits(c, trip, items) >= c.qty)
-export const fmtW = (g: number) => (Math.abs(g) >= 1000 ? (g / 1000).toFixed(2) + ' kg' : Math.round(g) + ' g')
-export const fmtDim = (b: { l: number; w: number; h: number }) => `${b.l} × ${b.w} × ${b.h}`
 export const fmtVol = (cm3: number) => (cm3 / 1000).toFixed(1) + ' L'
-export const fmtSize = (i: Item) => (i.kind === 'soft' ? `${i.volume} L, ${(packedVolume(i) / 1000).toFixed(1)} L packed` : i.kind === 'container' ? `${fmtDim(i)} cm · holds ${i.capacity} L` : `${fmtDim(i)} cm`)
+export const fmtSize = (i: Item) => (i.kind === 'soft' ? `${i.volume} L, ${(packedVolume(i) / 1000).toFixed(1)} L packed` : i.kind === 'container' ? `${fmtDim(i)} ${lenUnit()} · holds ${i.capacity} L` : `${fmtDim(i)} ${lenUnit()}`)
 export const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 export const fmtDate = (s: string) => new Date(s + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 

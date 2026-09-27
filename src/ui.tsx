@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ComponentProps, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
-import { titleCase } from './store'
+import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type ComponentProps, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
+import { converts, fromShown, shownMin, shownStep, shownUnit, titleCase, toShown } from './store'
 import { Icon } from './Icon'
 
 /** A labelled field on the form's 12-column grid. `group` makes it a div, for a set of controls one label can't wrap. */
@@ -9,9 +9,22 @@ export function Field({ label, span, group, children }: { label: ReactNode; span
   return group ? <div className={className}>{body}</div> : <label className={className}>{body}</label>
 }
 
+/** A number input whose value and onChange are in `unit` (cm, g, kg, or anything else, passed through). In imperial it shows and takes in, oz or lb
+ *  and reports back in metric, so forms stay metric. What's typed is kept while focused, and a field left alone never reports. */
+export function MeasureInput({ unit, value, onChange, onBlur, min, step, ...input }: { unit: string } & InputHTMLAttributes<HTMLInputElement>) {
+  const [draft, setDraft] = useState<string | null>(null)
+  if (!converts(unit)) return <input type="number" value={value} onChange={onChange} onBlur={onBlur} min={min} step={step} {...input} />
+  return <input type="number" {...input}
+    min={min == null ? undefined : shownMin(Number(min), unit)} step={shownStep(unit)}
+    value={draft ?? (value === '' || value == null ? '' : toShown(Number(value), unit))}
+    // Forms only read target.value, so they get a stand-in event carrying the metric value.
+    onChange={(e) => { setDraft(e.target.value); onChange?.({ target: { value: e.target.value === '' ? '' : String(fromShown(Number(e.target.value), unit)) } } as ChangeEvent<HTMLInputElement>) }}
+    onBlur={(e) => { setDraft(null); onBlur?.(e) }} />
+}
+
 /** A number input with its unit after it. */
 export function UnitInput({ unit, ...input }: { unit: string } & InputHTMLAttributes<HTMLInputElement>) {
-  return <span className="unit"><input type="number" {...input} /><span className="dim">{unit}</span></span>
+  return <span className="unit"><MeasureInput unit={unit} {...input} /><span className="dim">{shownUnit(unit)}</span></span>
 }
 
 export function IconButton({ icon, label, ...button }: { icon: ComponentProps<typeof Icon>['name']; label: string } & ButtonHTMLAttributes<HTMLButtonElement>) {

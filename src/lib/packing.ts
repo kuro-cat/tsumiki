@@ -1,5 +1,5 @@
 import { autoPackBins, type Placed } from './pack.ts'
-import { entryUnits, fmtDim, isBoxed, linkedItems, looseVolumes, orientationsOf, packedCount, packedVolume, placedBoxes, placedContainers, roomiestHome, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type SoftItem, type Trip } from './model.ts'
+import { entryUnits, fmtDim, isBoxed, lenUnit, linkedItems, looseVolumes, orientationsOf, packedCount, packedVolume, placedBoxes, placedContainers, roomiestHome, uid, type Bag, type Boxed, type Compartment, type Item, type Loose, type Placement, type SoftItem, type Trip } from './model.ts'
 
 /** An autopack result as a Placement. A key is an item id, with ':n' after it when several units of one item pack together. */
 export const toPlacement = (x: { key: string; binId: string; p: Placed; o: number }): Placement =>
@@ -25,7 +25,7 @@ export function moveInto(trip: Trip, items: Item[], placementId: string, to: Bag
 export function noFitReason(bag: Bag, others: Bag[], it: Boxed, taken: Record<string, Placed[]>): string {
   const why = fitOne(bag.compartments, it) ? 'has no gap big enough left' : `is bigger than every compartment in ${bag.name}`
   const other = others.find((b) => fitOne(b.compartments, it, taken))
-  return `${it.name} (${fmtDim(it)} cm) ${why}.${other ? ` It fits in ${other.name}.` : ''}`
+  return `${it.name} (${fmtDim(it)} ${lenUnit()}) ${why}.${other ? ` It fits in ${other.name}.` : ''}`
 }
 
 /** Containers placed in one bag of the trip. */

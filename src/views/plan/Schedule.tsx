@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from 'react'
-import { bagTotals, bagVolume, fmtVol, fmtW, linkedItems, packedCount, sharedTotals, wornCount, type Api, type Bag, type Item, type Trip } from '../../store'
+import { bagTotals, bagVolume, fmtVol, fmtW, fromShown, linkedItems, packedCount, sharedTotals, shownUnit, toShown, wornCount, type Api, type Bag, type Item, type Trip } from '../../store'
 import { volume } from '../../lib/pack'
 import type { Tab } from '../../App'
 import { CatIcon, Icon } from '../../Icon'
@@ -197,9 +197,11 @@ function Readouts({ bag, tot, share, onWeigh, ms, heaviest }: { bag: Bag; tot: R
   const weighed = tot.actual != null
   const limit = tot.limit
   const heavy = limit != null && tot.total > limit
+  // Typed in the shown units; reweighing without a change keeps the stored grams.
+  const start = weighed ? String(toShown(tot.actual! / 1000, 'kg')) : ''
   const commit = () => {
-    const kg = Number(edit)
-    if (edit != null) onWeigh(edit.trim() === '' ? null : kg > 0 ? Math.round(kg * 1000) : tot.actual)
+    const kg = fromShown(Number(edit), 'kg')
+    if (edit != null) onWeigh(edit.trim() === '' ? null : kg > 0 && edit !== start ? Math.round(kg * 1000) : tot.actual)
     setEdit(null)
   }
   return (
@@ -208,16 +210,16 @@ function Readouts({ bag, tot, share, onWeigh, ms, heaviest }: { bag: Bag; tot: R
         <div className="ro-head">
           <span className="label">Weight</span>
           <span className="tag">{weighed ? 'Weighed' : 'Estimate'}</span>
-          {edit == null && <button className="btn key small" onClick={() => setEdit(weighed ? String(tot.actual! / 1000) : '')}>{weighed ? 'Reweigh' : 'Weigh'}</button>}
+          {edit == null && <button className="btn key small" onClick={() => setEdit(start)}>{weighed ? 'Reweigh' : 'Weigh'}</button>}
         </div>
         {edit != null ? (
           // Keys stay in the field: the sheet reads Backspace, R and T as commands on the selected item.
           <label className="weigh" onKeyDown={(e) => e.stopPropagation()}>
-            <input type="number" inputMode="decimal" min={0} step={0.01} autoFocus value={edit} placeholder={(tot.estimate / 1000).toFixed(2)} aria-label="Actual weight in kg"
+            <input type="number" inputMode="decimal" min={0} step={0.01} autoFocus value={edit} placeholder={toShown(tot.estimate / 1000, 'kg').toFixed(2)} aria-label={`Actual weight in ${shownUnit('kg')}`}
               onChange={(e) => setEdit(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.dataset.cancel = '1'; if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur() }}
               onBlur={(e) => (e.currentTarget.dataset.cancel ? setEdit(null) : commit())} />
-            <span className="u">kg</span>
+            <span className="u">{shownUnit('kg')}</span>
           </label>
         ) : <div className="readout num">{split(fmtW(shownW))}</div>}
         <p className="ro-sub">

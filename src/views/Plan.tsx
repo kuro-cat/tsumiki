@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { bagHeight, bagTotals, sharedTotals, dropBag, tripBags, tripReady, isBoxed, orientationsOf, withoutPlacements, fmtDim, linkedItems, mainOf, newTrip, packedVolume, uid, type Bag, type Item, type Loose, type Placement, type Worn } from '../store'
+import { bagHeight, bagTotals, sharedTotals, dropBag, tripBags, tripReady, isBoxed, orientationsOf, withoutPlacements, fmtDim, len, lenUnit, linkedItems, mainOf, newTrip, packedVolume, uid, type Bag, type Item, type Loose, type Placement, type Worn } from '../store'
 import { dropZ, faceName, fits, nextFace, oriented } from '../lib/pack'
 import { autoPackInto, fitOne, looseInBag, moveInto, noFitReason, unitsToPack } from '../lib/packing'
 import { Blank } from './Blank'
@@ -300,7 +300,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           <div className="cut">
             <span className="label" title="Show only what sits below this height">Height</span>
             <input type="range" min={0} max={H} step={1} value={cut} onChange={(e) => setCutRaw(Number(e.target.value))} aria-label="Show layers up to this height" />
-            <span className="num">{cut} cm</span>
+            <span className="num">{len(cut)} {lenUnit()}</span>
           </div>
         )}
         {selPl && !drag && <ItemBar selPl={selPl} bag={bag} tb={tb} rotatePl={rotatePl} tipPl={tipPl} moveTo={moveTo} removePl={removePl} setSelected={setSelected} />}

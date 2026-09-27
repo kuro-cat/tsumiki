@@ -6,13 +6,15 @@ import { Bags } from './views/Bags'
 import { Trips } from './views/Trips'
 import { Data } from './views/Data'
 import { Seg } from './ui'
-import { readTheme, writeTheme, type Theme } from './prefs'
+import { readTheme, readUnits, writeTheme, writeUnits, type Theme } from './prefs'
+import { setUnits, type Units } from './lib/units'
 
 const TABS = ['Plan', 'Inventory', 'Bags', 'Trips', 'Data'] as const
 export type Tab = (typeof TABS)[number]
 export type ViewProps = { state: State; api: Api; go: (t: Tab) => void }
 export type PlanView = 'plan' | '3d'
 const VIEWS: PlanView[] = ['plan', '3d']
+const UNITS: Units[] = ['metric', 'imperial']
 
 /** Theme lives outside State so exports stay about packing. index.html applies it before first paint; this keeps it current. */
 function useTheme() {
@@ -26,6 +28,13 @@ function useTheme() {
     return () => mq.removeEventListener('change', apply)
   }, [theme])
   return [theme, setTheme] as const
+}
+
+/** Display units live outside State too. Set during render so every formatter below reads the current choice. */
+function useUnits() {
+  const [units, set] = useState<Units>(readUnits)
+  setUnits(units)
+  return [units, (u: Units) => { writeUnits(u); set(u) }] as const
 }
 
 /** One notice at a time, pinned to the bottom of the screen so it's seen wherever the traveler is scrolled. Undo stays for 6 s. */
@@ -54,6 +63,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('Plan')
   const [view, setView] = useState<PlanView>('plan')
   const [theme, setTheme] = useTheme()
+  const [units, chooseUnits] = useUnits()
   const trip = state.trips.find((t) => t.id === state.activeTripId) ?? null
   // Which of the trip's bags the sheet shows; falls back to the trip's first bag.
   const [shown, setShown] = useState<string | null>(null)
@@ -92,7 +102,7 @@ export default function App() {
         {tab === 'Inventory' && <Inventory state={state} api={api} go={setTab} />}
         {tab === 'Bags' && <Bags state={state} api={api} go={setTab} />}
         {tab === 'Trips' && <Trips state={state} api={api} go={setTab} />}
-        {tab === 'Data' && <Data state={state} api={api} go={setTab} theme={themeSel} />}
+        {tab === 'Data' && <Data state={state} api={api} go={setTab} theme={themeSel} units={<Seg label="Units" options={UNITS} value={units} onChange={chooseUnits} />} />}
       </main>
       <Notices api={api} />
     </div>

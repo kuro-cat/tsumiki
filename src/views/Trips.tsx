@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, tripReady, uid, withLink, titleCase, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
+import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, shownUnit, tripBags, tripReady, uid, withLink, titleCase, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
-import { ActionSelect, Field, FormCard, IconButton, PageHead, Seg, Tab, TabList } from '../ui'
+import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList } from '../ui'
 
 
 
@@ -245,7 +245,7 @@ function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onCha
               )
             })}
           </span>
-          <label className="unit"><input type="number" min={0.1} step={0.1} value={s.limit / 1000} onChange={(e) => edit(s.id, { limit: Math.round(Number(e.target.value) * 1000) })} aria-label="Shared limit in kg" required /><span className="dim">kg</span></label>
+          <label className="unit"><MeasureInput unit="kg" min={0.1} step={0.1} value={s.limit / 1000} onChange={(e) => edit(s.id, { limit: Math.round(Number(e.target.value) * 1000) })} aria-label={`Shared limit in ${shownUnit('kg')}`} required /><span className="dim">{shownUnit('kg')}</span></label>
           <IconButton icon="x" label="Remove shared limit" onClick={() => onChange(shared.filter((x) => x.id !== s.id))} />
         </div>
       ))}

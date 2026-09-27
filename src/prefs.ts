@@ -1,4 +1,5 @@
 /** Per-browser preferences, kept out of State so exports stay about packing. Without storage they last the session. */
+import type { Units } from './lib/units'
 
 export type Theme = 'system' | 'light' | 'dark'
 /** index.html reads this key too, to apply the theme before first paint. */
@@ -12,3 +13,8 @@ const ANIM_KEY = 'bin-pack.autopack-anim'
 /** Whether an Auto-pack batch arrives one item at a time. On unless switched off on the Data page. */
 export const autopackAnimates = () => { try { return localStorage.getItem(ANIM_KEY) !== 'off' } catch { return true } }
 export const setAutopackAnimates = (on: boolean) => { try { localStorage.setItem(ANIM_KEY, on ? 'on' : 'off') } catch { /* session-only */ } }
+
+const UNITS_KEY = 'bin-pack.units'
+/** Units shown and typed; what's stored is metric either way. */
+export const readUnits = (): Units => { try { return localStorage.getItem(UNITS_KEY) === 'imperial' ? 'imperial' : 'metric' } catch { return 'metric' } }
+export const writeUnits = (u: Units) => { try { localStorage.setItem(UNITS_KEY, u) } catch { /* session-only */ } }

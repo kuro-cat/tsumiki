@@ -1,7 +1,7 @@
-import { fmtDim, type Bag, type Compartment } from '../../store'
+import { fmtDim, lenUnit, type Bag, type Compartment } from '../../store'
 import type { Api } from '../../store'
 import { CatIcon, Icon } from '../../Icon'
-import { ActionSelect } from '../../ui'
+import { ActionSelect, MeasureInput } from '../../ui'
 import type { PL } from './data'
 
 /** Actions on the selected item: turn, tip, move to another bag or wear it, take it out. */
@@ -11,7 +11,7 @@ export function ItemBar({ selPl, bag, tb, rotatePl, tipPl, moveTo, removePl, set
 }) {
   return (
     <div className="sel">
-      <span className="sel-name"><CatIcon it={selPl.it} />{selPl.it.name}<span className="dim">{fmtDim(selPl.box)} cm</span></span>
+      <span className="sel-name"><CatIcon it={selPl.it} />{selPl.it.name}<span className="dim">{fmtDim(selPl.box)} {lenUnit()}</span></span>
       <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn<kbd>R</kbd></button>
       <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip<kbd>T</kbd></button>
       <ActionSelect label={`Move ${selPl.it.name} to…`} placeholder="Move to…" onPick={(to) => moveTo(selPl.p.id, to)}>
@@ -27,12 +27,12 @@ export function ItemBar({ selPl, bag, tb, rotatePl, tipPl, moveTo, removePl, set
 export function CompartmentBar({ selComp, bag, api }: { selComp: Compartment; bag: Bag; api: Api }) {
   return (
     <div className="sel" onKeyDown={(e) => e.stopPropagation()}>
-      <span className="sel-name">{selComp.name}<span className="dim">{fmtDim(selComp)} cm</span></span>
-      {/* Fine control, in cm from the bag's corner. Height only chooses what it rests on; it always settles. */}
+      <span className="sel-name">{selComp.name}<span className="dim">{fmtDim(selComp)} {lenUnit()}</span></span>
+      {/* Fine control, from the bag's corner; stored in cm. Height only chooses what it rests on; it always settles. */}
       {(['x', 'y', 'z'] as const).map((k) => (
         <label key={k} className="cin xyz" title={k === 'x' ? 'Along the length' : k === 'y' ? 'Across the width' : 'Height it rests at'}>
           <span className="label">{k === 'x' ? 'X' : k === 'y' ? 'Y' : 'Z'}</span>
-          <input type="number" step={1} value={selComp[k]} onChange={(e) => api.patchCompartment(bag.id, selComp.id, { [k]: Number(e.target.value) })} aria-label={`${selComp.name} ${k === 'z' ? 'height' : k.toUpperCase()} in cm`} />
+          <MeasureInput unit="cm" step={1} value={selComp[k]} onChange={(e) => api.patchCompartment(bag.id, selComp.id, { [k]: Number(e.target.value) })} aria-label={`${selComp.name} ${k === 'z' ? 'height' : k.toUpperCase()} in ${lenUnit()}`} />
         </label>
       ))}
       <button className="btn text" onClick={() => api.rotateCompartment(bag.id, selComp.id)} title="Rotate (R)"><Icon name="rotate" />Rotate<kbd>R</kbd></button>

@@ -1,10 +1,10 @@
 import { useEffect, useEffectEvent, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { BLOCKS, bagVolume, blockKey, fmtDim, fmtVol, fmtW, newBag, newCompartment, type Bag, type Compartment } from '../store'
+import { BLOCKS, bagVolume, blockKey, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, type Bag, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { Icon } from '../Icon'
 import { useSort } from './Sort'
 import { Blank } from './Blank'
-import { Field, FormCard, IconButton, PageHead, UnitInput, useEditor } from '../ui'
+import { Field, FormCard, IconButton, MeasureInput, PageHead, UnitInput, useEditor } from '../ui'
 
 const blank = (): Bag => ({ ...newBag('', 50, 32, 20, 1200, null) })
 const PRESETS = [
@@ -39,7 +39,7 @@ export function Bags({ state, api }: ViewProps) {
   const usedBy = (id: string) => state.trips.filter((t) => t.bagIds.includes(id)).length
   const by = useSort<Bag>([
     { label: 'Name', key: (b) => b.name },
-    { label: 'Main L × W × D cm', num: true, key: (b) => main(b).l * main(b).w * main(b).h },
+    { label: `Main L × W × D ${lenUnit()}`, num: true, key: (b) => main(b).l * main(b).w * main(b).h },
     { label: 'Volume', num: true, key: bagVolume },
     { label: 'Empty', num: true, key: (b) => b.empty },
     { label: 'Limit', num: true, key: (b) => b.limit },
@@ -99,7 +99,7 @@ export function Bags({ state, api }: ViewProps) {
           <Field label="Name" span={6}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></Field>
           <Field label="Empty weight" span={3}><UnitInput unit="kg" min={0} step={0.05} value={form.empty / 1000} onChange={(e) => set('empty', Math.round(Number(e.target.value) * 1000))} required /></Field>
           <Field label="Weight limit" span={3}><UnitInput unit="kg" min={0} step={0.5} value={form.limit == null ? '' : form.limit / 1000} onChange={(e) => set('limit', e.target.value === '' ? null : Math.round(Number(e.target.value) * 1000))} placeholder="none" /></Field>
-          <Field label={<>Compartments<span className="dim">inside size in cm; X Y Z is where it sits</span></>} span={12} group>
+          <Field label={<>Compartments<span className="dim">inside size in {lenUnit()}; X Y Z is where it sits</span></>} span={12} group>
             <div className="comps">
               {form.compartments.map((c, i) => (
                 <div key={c.id} className="comp">
@@ -113,7 +113,7 @@ export function Bags({ state, api }: ViewProps) {
                   {(['l', 'w', 'h', 'x', 'y', 'z'] as Num[]).map((k) => (
                     <label key={k} className={'cin' + (k === 'x' ? ' x' : '')}>
                       <span className="label">{AXIS[k]}</span>
-                      <input type="number" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
+                      <MeasureInput unit="cm" min={k === 'x' || k === 'y' || k === 'z' ? 0 : 1} step={0.5} value={c[k]} onChange={numC(c.id, k)} aria-label={`${c.name || 'Compartment'} ${AXIS_NAME[k]}`} required />
                     </label>
                   ))}
                   <IconButton icon="x" label={`Remove ${c.name}`} onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'} />

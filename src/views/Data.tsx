@@ -4,7 +4,7 @@ import type { ViewProps } from '../App'
 import { autopackAnimates, setAutopackAnimates } from '../prefs'
 import { Field, PageHead, UnitInput } from '../ui'
 
-export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
+export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNode; units: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; red?: boolean; at?: 'sample' } | null>(null)
   const [anim, setAnim] = useState(autopackAnimates)
   const toggleAnim = (on: boolean) => { setAnim(on); setAutopackAnimates(on) }
@@ -60,6 +60,11 @@ export function Data({ state, api, theme }: ViewProps & { theme?: ReactNode }) {
             <div className="cluster">{theme}</div>
           </section>
         )}
+        <section>
+          <h2>Units</h2>
+          <div className="cluster">{units}</div>
+          <p className="hint">Sizes in inches, weights in oz and lb. Volume stays in litres, and exports are metric either way.</p>
+        </section>
         <section>
           <h2>Backup</h2>
           <div className="cluster">
