@@ -45,6 +45,8 @@ export type Trip = {
   /** Actual Weight in grams by bag id, for the bags that have been weighed. */
   weighed?: Record<string, number>
   shared?: SharedLimit[]
+  /** Reserve by bag id: room kept free for the way home, volume in cm³ and weight in grams. */
+  reserve?: Record<string, { volume: number; weight: number }>
 }
 export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
 
@@ -122,7 +124,8 @@ export function inBag(bag: Bag, trip: Trip): Pick<Trip, 'placements' | 'loose'> 
 }
 export type WeightState = 'no limit' | 'over' | 'near limit' | 'balanced' | 'light'
 export const weightState = (total: number, limit: number | null): WeightState => (limit == null ? 'no limit' : total / limit > 1 ? 'over' : total / limit > 0.85 ? 'near limit' : total / limit >= 0.5 ? 'balanced' : 'light')
-/** What the title block and bag strip report for one bag on a trip. total is the Actual Weight when weighed, else the Estimate. */
+/** What the title block and bag strip report for one bag on a trip. total is the Actual Weight when weighed, else the Estimate.
+ *  The Reserve counts against the limit and the bag's volume (margin, wState, over) but not in total or fill. */
 export function bagTotals(bag: Bag, trip: Trip, items: Item[]) {
   const { placements, loose } = inBag(bag, trip)
   const find = (id: string) => items.find((i) => i.id === id)
@@ -135,29 +138,33 @@ export function bagTotals(bag: Bag, trip: Trip, items: Item[]) {
   const pids = new Set(placements.map((p) => p.id))
   // What sits inside a container is already inside its box, which rigidVol counts; only soft items loose in a compartment add room taken.
   const looseVol = loose.reduce((a, l) => { const it = find(l.itemId); return a + (it?.kind === 'soft' && !pids.has(l.home) ? packedVolume(it) : 0) }, 0)
-  const over = bag.compartments.some((c) => fillOf(c, boxes[c.id] ?? [], lv[c.id] ?? 0).over) || placedContainers(trip, items).some((c) => pids.has(c.id) && containerFill(c.it, lv[c.id] ?? 0).over)
-  return { count: placements.length + loose.length, itemsW, estimate, actual, total, limit: bag.limit, margin: bag.limit == null ? null : bag.limit - total, wState: weightState(total, bag.limit), fill: (rigidVol + looseVol) / bagVolume(bag), over }
+  const reserved = trip.reserve?.[bag.id] ?? { volume: 0, weight: 0 }
+  // The Reserve is kept at bag level: which pocket the souvenirs go in is not known yet.
+  const over = rigidVol + looseVol + reserved.volume > bagVolume(bag) + 1e-6 || bag.compartments.some((c) => fillOf(c, boxes[c.id] ?? [], lv[c.id] ?? 0).over) || placedContainers(trip, items).some((c) => pids.has(c.id) && containerFill(c.it, lv[c.id] ?? 0).over)
+  return { count: placements.length + loose.length, itemsW, estimate, actual, total, limit: bag.limit, margin: bag.limit == null ? null : bag.limit - total - reserved.weight, wState: weightState(total + reserved.weight, bag.limit), fill: (rigidVol + looseVol) / bagVolume(bag), over, reserved }
 }
-/** Each Shared Limit of a trip against the sum of its bags' Totals. */
+/** Each Shared Limit of a trip against the sum of its bags' Totals plus their reserved weight. */
 export function sharedTotals(trip: Trip, bags: Bag[], items: Item[]) {
   return (trip.shared ?? []).map((s) => {
     const members = tripBags(s, bags)
     const total = members.reduce((a, b) => a + bagTotals(b, trip, items).total, 0)
-    return { ...s, members, total, wState: weightState(total, s.limit), over: total > s.limit }
+    const reserved = members.reduce((a, b) => a + (trip.reserve?.[b.id]?.weight ?? 0), 0)
+    return { ...s, members, total, reserved, wState: weightState(total + reserved, s.limit), over: total + reserved > s.limit }
   })
 }
-/** The trip's weighed and shared records once bag `from` leaves it. With `to`, the swapped-in bag takes its place in its Shared Limit; a Shared Limit left with one bag is gone. */
-export function bagLeaves(trip: Trip, from: string, to?: string): Pick<Trip, 'weighed' | 'shared'> {
+/** The trip's weighed, reserve and shared records once bag `from` leaves it. With `to`, the swapped-in bag takes its place in its Shared Limit; a Shared Limit left with one bag is gone. */
+export function bagLeaves(trip: Trip, from: string, to?: string): Pick<Trip, 'weighed' | 'reserve' | 'shared'> {
   const { [from]: _gone, ...weighed } = trip.weighed ?? {}
+  const { [from]: _kept, ...reserve } = trip.reserve ?? {}
   const shared = (trip.shared ?? []).map((s) => ({ ...s, bagIds: s.bagIds.flatMap((id) => (id !== from ? [id] : to ? [to] : [])) })).filter((s) => s.bagIds.length > 1)
-  return { weighed, shared }
+  return { weighed, reserve, shared }
 }
-/** The trip is ready to travel: checklist packed, something in the bags, every bag and Shared Limit under its limit, nothing over volume. */
+/** The trip is ready to travel: checklist packed, something in the bags, every bag and Shared Limit under its limit, nothing over volume, Reserves included. */
 export function tripReady(trip: Trip, bags: Bag[], items: Item[]) {
   const tb = tripBags(trip, bags)
   if (!tb.length || !trip.checklist.length || !trip.checklist.every((c) => isPacked(c, trip, items))) return false
   const totals = tb.map((b) => bagTotals(b, trip, items))
-  return (totals.some((t) => t.count > 0) || trip.worn.length > 0) && totals.every((t) => !t.over && (t.limit == null || t.total <= t.limit)) && sharedTotals(trip, bags, items).every((s) => !s.over)
+  return (totals.some((t) => t.count > 0) || trip.worn.length > 0) && totals.every((t) => !t.over && (t.margin == null || t.margin >= 0)) && sharedTotals(trip, bags, items).every((s) => !s.over)
 }
 /** Fill of one container: contents against capacity. */
 export function containerFill(it: ContainerItem, looseVol: number) {

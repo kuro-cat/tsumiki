@@ -32,6 +32,8 @@
 .tripbags { display: grid; gap: 0; }
 .tripbag { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule-2); }
 .tripbag .name { font-weight: 500; }
+.tripbag .reserve { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.tripbag .reserve .unit { width: 110px; }
 .tripbags > select.act, .tripbags > .share-add { justify-self: start; margin-top: 6px; }
 .shared-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-2); }
 .shared-edit .radios { flex: 1 1 auto; }

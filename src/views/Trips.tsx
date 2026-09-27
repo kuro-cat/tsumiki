@@ -5,7 +5,7 @@ import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { Blank } from './Blank'
-import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList } from '../ui'
+import { ActionSelect, Field, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
 
 
 
@@ -142,6 +142,7 @@ export function Trips({ state, api, go }: ViewProps) {
                           {others.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                         </ActionSelect>
                         <IconButton icon="x" label={`Remove ${b.name} from trip`} title="Remove from trip; its items return to the schedule" onClick={() => { api.snap(`Took ${b.name} off the trip`); api.patchTrip(trip.id, (t) => ({ bagIds: t.bagIds.filter((id) => id !== b.id), ...dropBag(b, t), ...bagLeaves(t, b.id) })) }} />
+                        <Reserve bag={b} trip={trip} onChange={(reserve) => patch({ reserve })} />
                       </div>
                     )
                   })}
@@ -258,6 +259,20 @@ function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onCha
         <button className="btn text share-add" type="button" onClick={() => onChange([...shared, { id: uid(), bagIds: free.slice(0, 2).map((b) => b.id), limit: 10000 }])}><Icon name="plus" />Share a limit</button>
       )}
     </>
+  )
+}
+
+/** A bag's Reserve on a trip: litres and kg kept free for the way home. Both empty or zero means none. */
+function Reserve({ bag, trip, onChange }: { bag: Bag; trip: Trip; onChange: (r: Trip['reserve']) => void }) {
+  const { [bag.id]: mine = { volume: 0, weight: 0 }, ...rest } = trip.reserve ?? {}
+  const set = (p: Partial<typeof mine>) => { const next = { ...mine, ...p }; onChange(next.volume > 0 || next.weight > 0 ? { ...rest, [bag.id]: next } : rest) }
+  return (
+    <div className="reserve" role="group" aria-label={`Kept free in ${bag.name}`}>
+      <span className="label">Keep free</span>
+      <UnitInput unit="L" min={0} step={0.5} value={mine.volume / 1000} onChange={(e) => set({ volume: Math.max(0, Math.round(Number(e.target.value) * 1000)) })} aria-label={`Volume kept free in ${bag.name}, litres`} />
+      <UnitInput unit="kg" min={0} step={0.1} value={mine.weight / 1000} onChange={(e) => set({ weight: Math.max(0, Math.round(Number(e.target.value) * 1000)) })} aria-label={`Weight kept free in ${bag.name}, ${shownUnit('kg')}`} />
+      <span className="hint">for the way home</span>
+    </div>
   )
 }
 

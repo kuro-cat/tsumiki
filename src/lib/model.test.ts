@@ -140,14 +140,41 @@ test('a weighed bag is judged on its Actual Weight, a Shared Limit on the sum of
   assert.equal(tripReady({ ...light, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 2500 }] }, [a, b], [book]), false)
 })
 
-test('a bag leaving a trip takes its Actual Weight and its place in a Shared Limit with it', () => {
-  const trip = { weighed: { a: 2100, b: 900 }, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 3000 }] } as Trip
-  // swapped: the new bag starts unweighed but takes the old bag's place in the Shared Limit
-  assert.deepEqual(bagLeaves(trip, 'a', 'c'), { weighed: { b: 900 }, shared: [{ id: 's', bagIds: ['c', 'b'], limit: 3000 }] })
+test('a bag leaving a trip takes its Actual Weight, its Reserve and its place in a Shared Limit with it', () => {
+  const trip = { weighed: { a: 2100, b: 900 }, reserve: { a: { volume: 2000, weight: 500 } }, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 3000 }] } as Trip
+  // swapped: the new bag starts unweighed with no Reserve but takes the old bag's place in the Shared Limit
+  assert.deepEqual(bagLeaves(trip, 'a', 'c'), { weighed: { b: 900 }, reserve: {}, shared: [{ id: 's', bagIds: ['c', 'b'], limit: 3000 }] })
   // removed: a Shared Limit left with one bag is gone
-  assert.deepEqual(bagLeaves(trip, 'a'), { weighed: { b: 900 }, shared: [] })
-  // trips from before weighing existed have neither field
-  assert.deepEqual(bagLeaves({} as Trip, 'a'), { weighed: {}, shared: [] })
+  assert.deepEqual(bagLeaves(trip, 'a'), { weighed: { b: 900 }, reserve: {}, shared: [] })
+  // trips from before weighing existed have none of the fields
+  assert.deepEqual(bagLeaves({} as Trip, 'a'), { weighed: {}, reserve: {}, shared: [] })
+})
+
+test('a Reserve counts against the limit, the bag volume and a Shared Limit, and so against ready', () => {
+  const book: Item = { id: 'i', name: 'Book', category: 'misc', kind: 'rigid', l: 10, w: 10, h: 2, up: false, weight: 500, qty: 1 }
+  const comp = (id: string, l: number) => ({ id, name: id, l, w: 10, h: 10, x: 0, y: 0, z: 0 })
+  // A is 2 L across two 1 L compartments, the book (200 cm³) in the first
+  const a: Bag = { id: 'a', name: 'A', empty: 1000, limit: 2000, compartments: [comp('ca', 10), comp('cb', 10)] }
+  const b: Bag = { id: 'b', name: 'B', empty: 800, limit: null, compartments: [comp('cc', 10)] }
+  const base: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['a', 'b'], checklist: [{ id: 'e', label: 'Book', category: 'misc', qty: 1, match: [], itemIds: ['i'], packed: false, source: 'manual' }], loose: [], worn: [], placements: [{ id: 'p', itemId: 'i', compartmentId: 'ca', x: 0, y: 0, z: 0, o: 0 }] }
+  assert.equal(tripReady(base, [a, b], [book]), true)
+  // 1500 g + 400 g kept free: within the 2000 g limit, 100 g margin; Total and fill leave the Reserve out
+  const fits: Trip = { ...base, reserve: { a: { volume: 1800, weight: 400 } } }
+  const t = bagTotals(a, fits, [book])
+  assert.deepEqual([t.total, t.margin, t.fill, t.over], [1500, 100, 0.1, false])
+  assert.equal(tripReady(fits, [a, b], [book]), true)
+  // 600 g kept free: over the limit
+  const heavy = bagTotals(a, { ...base, reserve: { a: { volume: 0, weight: 600 } } }, [book])
+  assert.deepEqual([heavy.margin, heavy.wState], [-100, 'over'])
+  assert.equal(tripReady({ ...base, reserve: { a: { volume: 0, weight: 600 } } }, [a, b], [book]), false)
+  // 1801 cm³ kept free: more than the 1800 cm³ left across both compartments, though each compartment alone is fine
+  const full: Trip = { ...base, reserve: { a: { volume: 1801, weight: 0 } } }
+  assert.equal(bagTotals(a, full, [book]).over, true)
+  assert.equal(tripReady(full, [a, b], [book]), false)
+  // a Shared Limit sums Totals and reserved weight: 1500 + 800 + 300 kept free in B
+  const shared: Trip = { ...base, reserve: { b: { volume: 0, weight: 300 } }, shared: [{ id: 's', bagIds: ['a', 'b'], limit: 2500 }] }
+  assert.deepEqual(sharedTotals(shared, [a, b], [book]).map((s) => [s.total, s.reserved, s.over]), [[2300, 300, true]])
+  assert.equal(tripReady(shared, [a, b], [book]), false)
 })
 
 test('a bag counts a container by its box, not its box plus what is inside', () => {

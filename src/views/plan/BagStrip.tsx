@@ -28,7 +28,7 @@ export function BagStrip({ trip, items, tb, bag, shared, worn, wornRef, wornHit,
         return (
           <div key={sh.id} className={'share' + (sh.over ? ' over' : '')} role="presentation">
             <div className="share-tabs">{members.map(tab)}</div>
-            <span className="share-cap">Together {fmtW(sh.total)} of {fmtW(sh.limit)}</span>
+            <span className="share-cap">Together {fmtW(sh.total)} of {fmtW(sh.limit)}{sh.reserved > 0 && ` · ${fmtW(sh.reserved)} kept free`}</span>
           </div>
         )
       })}

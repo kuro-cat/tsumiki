@@ -196,7 +196,9 @@ function Readouts({ bag, tot, share, onWeigh, ms, heaviest }: { bag: Bag; tot: R
   const shownW = useTween(tot.total, ms), shownF = useTween(tot.fill, ms)
   const weighed = tot.actual != null
   const limit = tot.limit
-  const heavy = limit != null && tot.total > limit
+  const heavy = tot.margin != null && tot.margin < 0
+  const keptW = tot.reserved.weight, keptV = tot.reserved.volume
+  const left = bagVolume(bag) * (1 - shownF) - keptV
   // Typed in the shown units; reweighing without a change keeps the stored grams.
   const start = weighed ? String(toShown(tot.actual! / 1000, 'kg')) : ''
   const commit = () => {
@@ -223,22 +225,25 @@ function Readouts({ bag, tot, share, onWeigh, ms, heaviest }: { bag: Bag; tot: R
           </label>
         ) : <div className="readout num">{split(fmtW(shownW))}</div>}
         <p className="ro-sub">
-          {limit == null ? 'No weight limit' : heavy ? <><b>{fmtW(tot.total - limit)} over</b> the {fmtW(limit)} limit</> : <>of {fmtW(limit)} · <b>{fmtW(limit - tot.total)} left</b></>}
+          {limit == null ? 'No weight limit' : heavy ? <><b>{fmtW(-tot.margin!)} over</b> the {fmtW(limit)} limit</> : <>of {fmtW(limit)} · <b>{fmtW(tot.margin!)} left</b></>}
+          {keptW > 0 && <> · {fmtW(keptW)} kept free</>}
           {weighed && <> · estimate {fmtW(tot.estimate)}</>}
         </p>
         {heavy && heaviest.length > 0 && <p className="ro-sub">Heaviest here: {heaviest.map((i) => `${i.name} ${fmtW(i.weight)}`).join(', ')}</p>}
-        {limit != null && <Segments ratio={tot.total / limit} n={Math.min(24, Math.max(6, Math.ceil(limit / 1000)))} over={heavy} ms={ms} />}
+        {limit != null && <Segments ratio={(tot.total + keptW) / limit} n={Math.min(24, Math.max(6, Math.ceil(limit / 1000)))} over={heavy} ms={ms} />}
       </div>
       <div className={'ro' + (tot.over ? ' over' : '')}>
         <div className="ro-head"><span className="label">Space</span></div>
         <div className="readout num">{split(`${Math.round(shownF * 100)} %`)}</div>
-        <p className="ro-sub">{tot.over ? <><b>Over volume</b> in a compartment</> : <><b>{fmtVol(Math.max(0, bagVolume(bag) * (1 - shownF)))} left</b></>}</p>
+        <p className="ro-sub">
+          {tot.over ? (keptV > 0 && left < 0 ? <><b>{fmtVol(-left)} over</b> with {fmtVol(keptV)} kept free</> : <><b>Over volume</b> in a compartment</>) : <><b>{fmtVol(Math.max(0, left))} left</b>{keptV > 0 && <> · {fmtVol(keptV)} kept free</>}</>}
+        </p>
         <Segments ratio={tot.fill} n={10} over={tot.over} ms={ms} />
       </div>
       {share && (
         <div className={'ro-share' + (share.over ? ' over' : '')}>
-          <span>With {share.members.filter((b) => b.id !== bag.id).map((b) => b.name).join(', ')}: <b className="num">{fmtW(share.total)}</b> of {fmtW(share.limit)}</span>
-          <Segments ratio={share.total / share.limit} n={12} over={share.over} small ms={ms} />
+          <span>With {share.members.filter((b) => b.id !== bag.id).map((b) => b.name).join(', ')}: <b className="num">{fmtW(share.total)}</b> of {fmtW(share.limit)}{share.reserved > 0 && <> · {fmtW(share.reserved)} kept free</>}</span>
+          <Segments ratio={(share.total + share.reserved) / share.limit} n={12} over={share.over} small ms={ms} />
         </div>
       )}
     </section>
