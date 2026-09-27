@@ -17,6 +17,8 @@
 .comp .takes { grid-column: 1 / -1; margin-top: -2px; }
 .comp .takes summary { color: var(--ink-2); font-size: var(--fs-s); cursor: pointer; width: fit-content; }
 .comp .takes .cluster { padding-top: 8px; }
+.heavy { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.heavy select { width: auto; }
 
 @media (max-width: 600px) {
   .comps { gap: 16px; }

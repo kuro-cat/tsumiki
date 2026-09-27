@@ -19,7 +19,7 @@ type Num = 'l' | 'w' | 'h' | 'x' | 'y' | 'z'
 const AXIS: Record<Num, string> = { l: 'L', w: 'W', h: 'D', x: 'X', y: 'Y', z: 'Z' }
 const AXIS_NAME: Record<Num, string> = { l: 'length', w: 'width', h: 'depth', x: 'X position', y: 'Y position', z: 'Z position' }
 // Edges are the plan's: the side of the drawing that sits against the traveler's back.
-const HEAVY: [NonNullable<Bag['heavy']> | '', string][] = [['', 'Anywhere'], ['low', 'Low'], ['top', 'Low, against the top edge'], ['bottom', 'Low, against the bottom edge'], ['left', 'Low, against the left edge'], ['right', 'Low, against the right edge']]
+const HEAVY: [NonNullable<Bag['heavy']> | '', string][] = [['', 'Anywhere'], ['low', 'Low'], ['top', 'Low, top edge'], ['bottom', 'Low, bottom edge'], ['left', 'Low, left edge'], ['right', 'Low, right edge']]
 
 export function Bags({ state, api }: ViewProps) {
   const ed = useEditor(blank)
@@ -102,9 +102,6 @@ export function Bags({ state, api }: ViewProps) {
           <Field label="Name" span={6}><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Travel backpack 40 L" required /></Field>
           <Field label="Empty weight" span={3}><UnitInput unit="kg" min={0} step={0.05} value={form.empty / 1000} onChange={(e) => set('empty', Math.round(Number(e.target.value) * 1000))} required /></Field>
           <Field label="Weight limit" span={3}><UnitInput unit="kg" min={0} step={0.5} value={form.limit == null ? '' : form.limit / 1000} onChange={(e) => set('limit', e.target.value === '' ? null : Math.round(Number(e.target.value) * 1000))} placeholder="none" /></Field>
-          <Field label={<>Heavy items<span className="dim">where Auto-pack puts them</span></>} span={6}>
-            <select value={form.heavy ?? ''} onChange={(e) => set('heavy', (e.target.value || undefined) as Bag['heavy'])}>{HEAVY.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select>
-          </Field>
           <Field label={<>Compartments<span className="dim">inside size in {lenUnit()}; X Y Z is where it sits</span></>} span={12} group>
             <div className="comps">
               {form.compartments.map((c, i) => (
@@ -124,7 +121,7 @@ export function Bags({ state, api }: ViewProps) {
                   ))}
                   <IconButton icon="x" label={`Remove ${c.name}`} onClick={() => set('compartments', form.compartments.filter((x) => x.id !== c.id))} disabled={i === 0} title={i === 0 ? 'Every bag has a Main compartment' : 'Remove'} />
                   <details className="takes">
-                    <summary>Auto-pack puts in it: {c.takes?.length ? c.takes.map(titleCase).join(', ') : 'anything'}</summary>
+                    <summary>Auto-pack: {c.takes?.length ? c.takes.map(titleCase).join(', ') : 'anything'}</summary>
                     <div className="cluster tight">
                       {CATEGORIES.map((cat) => <label key={cat} className="chip"><input type="checkbox" checked={!!c.takes?.includes(cat)} onChange={() => toggleTakes(c, cat)} />{titleCase(cat)}</label>)}
                     </div>
@@ -134,6 +131,9 @@ export function Bags({ state, api }: ViewProps) {
             </div>
             <div className="cluster">
               <button type="button" className="btn text" onClick={addComp}><Icon name="plus" />Add compartment</button>
+              <label className="heavy"><span className="label">Heavy items</span>
+                <select value={form.heavy ?? ''} onChange={(e) => set('heavy', (e.target.value || undefined) as Bag['heavy'])} title="Where Auto-pack puts heavy items. An edge is the side against your back.">{HEAVY.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select>
+              </label>
             </div>
           </Field>
         </FormCard>
