@@ -2,6 +2,9 @@
 .trow.bag .grip { display: flex; color: var(--ink-3); cursor: grab; touch-action: none; }
 .trow.bag .grip:hover { color: var(--ink); }
 .trow.bag.lift { opacity: 0.45; }
+/* When the name and its compartment count don't fit side by side, the count drops under the name rather than squeezing it. */
+.trow.bag .nm { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }
+.trow.bag .nm > .truncate { min-width: 0; max-width: 100%; }
 .trow.bag.drop-before { box-shadow: inset 0 2px 0 var(--blue); }
 .trow.bag.drop-after { box-shadow: inset 0 -2px 0 var(--blue); }
 
@@ -20,15 +23,16 @@
 .heavy { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .heavy select { width: auto; }
 
+/* Between phone and desktop the number columns tighten and names wrap rather than being cut. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .table:has(> .trow.bag) > .trow { --cols: minmax(0, 1fr) 112px 60px 68px 76px 48px !important; gap: 12px; }
+  .trow.bag .nm > .truncate { white-space: normal; overflow-wrap: anywhere; }
+}
 @media (max-width: 600px) {
   .comps { gap: 16px; }
   .comp { grid-template-columns: minmax(0, 1fr) auto 32px; }
   .comp .size { grid-column: 1 / -1; grid-row: 2; }
   .heavy { margin-left: 0; }
-  /* The name gets the first line to itself; the compartment count joins the facts on the second. */
-  .trow.bag .name { display: contents; }
-  .trow.bag .name > .truncate { flex: 1 0 calc(100% - 28px); }
-  .trow.bag .name > .tag { order: 1; padding: 0; background: none; font-size: var(--fs-m); color: var(--ink-2); line-height: inherit; }
 }
 @media (pointer: coarse) {
   .trow.bag .grip { padding: 8px 4px; margin: -8px 0; }

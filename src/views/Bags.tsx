@@ -148,7 +148,7 @@ export function Bags({ state, api }: ViewProps) {
         <div className="trow head sortable" style={COLS}>{by.head}</div>
         {list.map((b) => { const i = state.bags.indexOf(b); return (
           <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => ed.edit(b)} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
-            <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span className="truncate">{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}</span>
+            <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span className="nm"><span className="truncate">{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}</span></span>
             <span className="num">{fmtDim(b.compartments[0])}</span>
             <span className="num">{fmtVol(bagVolume(b))}</span>
             <span className="num">{fmtW(b.empty)}</span>
