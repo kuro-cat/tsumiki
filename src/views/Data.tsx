@@ -90,7 +90,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
         </section>
         <section>
           <h2>Auto-pack</h2>
-          <label className="chip"><input type="checkbox" checked={anim} onChange={(e) => toggleAnim(e.target.checked)} />Animate items into the bag one by one</label>
+          <label className="chip" title="Items arrive in the bag one at a time"><input type="checkbox" checked={anim} onChange={(e) => toggleAnim(e.target.checked)} />Animate Auto-pack</label>
         </section>
         <section>
           <h2>Sample data</h2>

@@ -2,15 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { toPlacement } from './lib/packing'
 import { suggest } from './lib/suggest'
-import { DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTemplate, duplicateTrip, fromTemplate, orientationsOf, toTemplate, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Template, type TemplateEntry, type Trip } from './lib/model'
+import { weekOut, DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTemplate, duplicateTrip, fromTemplate, orientationsOf, toTemplate, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Template, type TemplateEntry, type Trip } from './lib/model'
 
 export * from './lib/model'
 
 export function newTrip(bagId: string | null): Trip {
   const bagIds = bagId ? [bagId] : []
-  const start = new Date(); start.setDate(start.getDate() + 7)
-  const end = new Date(start); end.setDate(end.getDate() + 3)
-  return { id: uid(), name: 'New trip', destination: '', start: isoDate(start), end: isoDate(end), climate: 'mild', kind: 'city', activities: [], bagIds, checklist: [], placements: [], loose: [], worn: [] }
+  return { id: uid(), name: 'New trip', destination: '', ...weekOut(new Date(), 3), climate: 'mild', kind: 'city', activities: [], bagIds, checklist: [], placements: [], loose: [], worn: [] }
 }
 
 export function sampleState(): State {
@@ -111,6 +109,8 @@ function load(): State {
   return sampleState()
 }
 
+/** A record the owner saved is theirs now: it loses its sample mark, so Remove sample data leaves it alone. Trips keep theirs while being packed. */
+const own = <T extends { sample?: boolean }>({ sample: _s, ...x }: T) => x as T
 const upsert = <T extends { id: string }>(list: T[], x: T) => (list.some((y) => y.id === x.id) ? list.map((y) => (y.id === x.id ? x : y)) : [...list, x])
 
 /** A notice for the traveler; with undo, it offers to put back what the last removal took. */
@@ -134,12 +134,12 @@ export function useStore() {
     notice,
     set: (patch: Partial<State>) => setState((s) => ({ ...s, ...patch })),
     replace: (s: State) => setState(s),
-    upsertItem: (it: Item) => setState((s) => ({ ...s, items: upsert(s.items, it) })),
+    upsertItem: (it: Item) => setState((s) => ({ ...s, items: upsert(s.items, own(it)) })),
     removeItem: (id: string) => { api.snap(`Deleted ${name(now.current.items, id)}`); setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id), trips: s.trips.map((t) => withoutItem(t, id)) })) },
     /** Saves a bag, settled so nothing floats. Trips using it re-seat what a smaller compartment no longer holds; anything with no room left comes out, with Undo. */
     upsertBag: (raw: Bag) => {
       const s = now.current
-      const b = { ...raw, compartments: settleCompartments(raw.compartments) }
+      const b = { ...own(raw), compartments: settleCompartments(raw.compartments) }
       const before = s.bags.find((x) => x.id === b.id)
       const trips = before ? s.trips.map((t) => afterBagEdit(t, before, b, s.items)) : s.trips
       const out = s.trips.flatMap((t, i) => t.placements.filter((p) => !trips[i].placements.some((q) => q.id === p.id)))
@@ -170,7 +170,7 @@ export function useStore() {
       setState({ ...s, trips: [...s.trips, copy], activeTripId: copy.id })
       return copy
     },
-    upsertTemplate: (t: Template) => setState((s) => ({ ...s, templates: upsert(s.templates, t) })),
+    upsertTemplate: (t: Template) => setState((s) => ({ ...s, templates: upsert(s.templates, own(t)) })),
     removeTemplate: (id: string) => { api.snap(`Deleted ${name(now.current.templates, id)}`); setState((s) => ({ ...s, templates: s.templates.filter((t) => t.id !== id) })) },
     duplicateTemplate: (id: string) => {
       const t = now.current.templates.find((x) => x.id === id)

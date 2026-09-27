@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, addTemplate, repack, shownUnit, tripBags, tripReady, uid, withLink, titleCase, type Bag, type SharedLimit, type Trip } from '../store'
+import { CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, addTemplate, repack, shownUnit, toggle, tripBags, tripReady, uid, withLink, titleCase, type Bag, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { EntryForm } from './EntryForm'
-import { ActivityChips, Templates } from './Templates'
+import { Templates } from './Templates'
+import { ActivityChips, CheckRow } from './Checklist'
 import { suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
-import { CatIcon, Icon } from '../Icon'
+import { Icon } from '../Icon'
 import { Blank } from './Blank'
-import { Field, Menu, FormCard, IconButton, MeasureInput, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
+import { Field, Menu, FormCard, IconButton, PageHead, Seg, Tab, TabList, UnitInput } from '../ui'
 import { DateRange } from '../pickers'
 
 
@@ -15,7 +16,6 @@ import { DateRange } from '../pickers'
 export function Trips({ state, api, go }: ViewProps) {
   const [editId, setEditId] = useState<string | null>(state.activeTripId)
   const trip = state.trips.find((t) => t.id === editId) ?? state.trips[0] ?? null
-  // The Add form: link is '' to guess from the name, '*none' for not in the inventory, or an item id.
   const [draft, setDraft] = useState(false)
   const [mode, setMode] = useState<'trips' | 'templates'>('trips')
   const [tplId, setTplId] = useState<string | null>(null)
@@ -26,13 +26,13 @@ export function Trips({ state, api, go }: ViewProps) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; red?: boolean } | null>(null)
   const patch = (p: Partial<Trip>) => trip && api.patchTrip(trip.id, p)
+  /** Shows a trip, closing any open row and message; `edit` opens or closes its form, and leaves it as it is when absent. */
+  const show = (id: string, edit?: boolean) => { setEditId(id); if (edit !== undefined) setEditing(edit); setOpenRow(null); setMsg(null) }
 
   const startNew = () => {
     const t = newTrip(state.bags[0]?.id ?? null)
     api.upsertTrip(t)
-    setEditId(t.id)
-    setEditing(true)
-    setMsg(null)
+    show(t.id, true)
   }
   const regenerate = () => {
     if (!trip) return
@@ -64,15 +64,15 @@ export function Trips({ state, api, go }: ViewProps) {
       setBusy(false)
     }
   }
-  const toggleAct = (a: string) => trip && patch({ activities: trip.activities.includes(a) ? trip.activities.filter((x) => x !== a) : [...trip.activities, a] })
+  const toggleAct = (a: string) => trip && patch({ activities: toggle(trip.activities, a) })
   const open = () => { if (trip) { api.set({ activeTripId: trip.id }); go('Plan') } }
   const duplicate = () => {
     const t = trip && api.duplicateTrip(trip.id)
-    if (t) { setEditId(t.id); setOpenRow(null); setMsg(null) }
+    if (t) show(t.id)
   }
   const fromTemplate = (id: string) => {
     const t = api.tripFromTemplate(id)
-    if (t) { setMode('trips'); setEditId(t.id); setEditing(true); setOpenRow(null); setMsg(null) }
+    if (t) { setMode('trips'); show(t.id, true) }
   }
   const remove = () => {
     if (!trip) return
@@ -93,7 +93,7 @@ export function Trips({ state, api, go }: ViewProps) {
           {state.trips.map((t) => {
             const done = t.checklist.filter((c) => isPacked(c, t, state.items)).length
             return (
-              <Tab key={t.id} selected={trip?.id === t.id} className="bagtab" onClick={() => { setEditId(t.id); setEditing(false); setOpenRow(null); setMsg(null) }}>
+              <Tab key={t.id} selected={trip?.id === t.id} className="bagtab" onClick={() => show(t.id, false)}>
                 <span className="name truncate">{t.name}</span>
                 <span className="num">{fmtDate(t.start)} · {done} of {t.checklist.length}</span>
               </Tab>
@@ -194,23 +194,16 @@ export function Trips({ state, api, go }: ViewProps) {
                   const packed = isPacked(c, trip, state.items)
                   const setLink = (itemIds: string[]) => api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, itemIds } : x)) }))
                   return (
-                    <div key={c.id} className={'check-row' + (packed ? ' done' : '')}>
-                      {/* Ticking happens on the plan; here the mark only reports: packed, how many of how many, or not owned. */}
-                      <Progress done={packed} units={units} qty={c.qty} owned={linked.length > 0} />
-                      <button type="button" className="lbl" aria-expanded={openRow === c.id} onClick={() => setOpenRow(openRow === c.id ? null : c.id)}>
-                        <span className="entry"><CatIcon it={{ category: c.category, color: linked[0]?.color }} /><span>{c.label}</span></span>
-                        <span className="count">{c.packed && !linked.length ? 'Ticked' : linked.length ? `${units} of ${c.qty}` : 'Not in inventory'}</span>
-                        <span className="chev" aria-hidden="true"><Icon name="chev" /></span>
-                      </button>
-                      {c.source === 'ai' ? <span className="tag blue">Claude</span> : c.source === 'manual' ? <span className="tag">Yours</span> : <span />}
-                      {openRow === c.id && (
-                        <div className="more">
-                          <span className="hint">{c.note ? `${c.note}. ` : ''}{linked.length ? (c.itemIds ? 'Packed when these are in a bag:' : 'Matched by name. Packed when these are in a bag:') : 'Link it to something you own, or tick it off on the plan.'}</span>
-                          <LinkPicker entry={c} items={state.items} onChange={setLink} />
-                          <div><button className="btn text" type="button" onClick={() => { api.snap(`Removed ${c.label}`); api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) })) }}><Icon name="x" />Remove from the list</button></div>
-                        </div>
-                      )}
-                    </div>
+                    <CheckRow key={c.id} className={packed ? 'done' : undefined} category={c.category} color={linked[0]?.color} label={c.label}
+                      // Ticking happens on the plan; here the mark only reports: packed, how many of how many, or not owned.
+                      lead={<Progress done={packed} units={units} qty={c.qty} owned={linked.length > 0} />}
+                      count={c.packed && !linked.length ? 'Ticked' : linked.length ? `${units} of ${c.qty}` : 'Not in inventory'}
+                      tag={c.source === 'ai' ? <span className="tag blue">Claude</span> : c.source === 'manual' ? <span className="tag">Yours</span> : undefined}
+                      open={openRow === c.id} onToggle={() => setOpenRow(openRow === c.id ? null : c.id)}
+                      onRemove={() => { api.snap(`Removed ${c.label}`); api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) })) }}>
+                      <span className="hint">{c.note ? `${c.note}. ` : ''}{linked.length ? (c.itemIds ? 'Packed when these are in a bag:' : 'Matched by name. Packed when these are in a bag:') : 'Link it to something you own, or tick it off on the plan.'}</span>
+                      <LinkPicker entry={c} items={state.items} onChange={setLink} />
+                    </CheckRow>
                   )
                 })}
                 {!trip.checklist.length && <Blank art="list" title="The list is empty">Suggest one from the trip, or add your own.</Blank>}
@@ -246,7 +239,7 @@ function SharedLimits({ trip, bags, onChange }: { trip: Trip; bags: Bag[]; onCha
               )
             })}
           </span>
-          <label className="unit"><MeasureInput unit="kg" min={0.1} step={0.1} value={s.limit / 1000} onChange={(e) => edit(s.id, { limit: Math.round(Number(e.target.value) * 1000) })} aria-label={`Shared limit in ${shownUnit('kg')}`} required /><span className="dim">{shownUnit('kg')}</span></label>
+          <UnitInput unit="kg" min={0.1} step={0.1} value={s.limit / 1000} onChange={(e) => edit(s.id, { limit: Math.round(Number(e.target.value) * 1000) })} aria-label={`Shared limit in ${shownUnit('kg')}`} required />
           <IconButton icon="x" label="Remove shared limit" onClick={() => onChange(shared.filter((x) => x.id !== s.id))} />
         </div>
       ))}

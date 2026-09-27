@@ -231,7 +231,8 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
     sheetRef.current?.focus({ preventScroll: true, focusVisible: false } as FocusOptions)
   }
   const onKey = (e: KeyboardEvent) => {
-    if (!selected || drag) return
+    // Shortcuts are for the sheet itself; keys typed in its bars, menus and fields stay theirs.
+    if (e.target !== e.currentTarget || !selected || drag) return
     const isComp = !!compOf(selected)
     if ((e.key === 'Delete' || e.key === 'Backspace') && !isComp) { e.preventDefault(); removePl(selected); setSelected(null) }
     if (e.key === 'r' || e.key === 'R') { if (isComp && bag) api.rotateCompartment(bag.id, selected); else rotatePl(selected) }
@@ -311,7 +312,7 @@ export function Plan({ state, api, go, view, setView, bagId, worn, show }: ViewP
           <div className="sheet-empty">
             <Blank art="bag" title="Choose a bag">The plan is drawn at the bag's inside size.</Blank>
             {bags.length ? (
-              <Menu label="Bag" placeholder="Select a bag" className="field" onPick={(id) => { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, id] })); show(id) }}
+              <Menu label="Bag" placeholder="Select a bag" className="wide" onPick={(id) => { api.patchTrip(trip.id, (t) => ({ bagIds: [...t.bagIds, id] })); show(id) }}
                 items={bags.map((b) => ({ value: b.id, label: b.name, hint: fmtDim(mainOf(b)) }))} />
             ) : (
               <button className="btn primary" onClick={() => go('Bags')}>Add a bag <Icon name="arrow" /></button>

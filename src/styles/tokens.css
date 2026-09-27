@@ -33,7 +33,6 @@
   --blk-dim: color-mix(in srgb, var(--ink) 72%, transparent);
   --blk-track: rgb(255 255 255 / 0.45);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23152022' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%232f6f80' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5 5.5-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --font: 'Archivo', system-ui, sans-serif;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -72,7 +71,6 @@
   --blk-dim: color-mix(in srgb, var(--ink) 90%, transparent);
   --blk-track: rgb(255 255 255 / 0.12);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e4ecec' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  --chevron-act: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236fb3c4' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
 

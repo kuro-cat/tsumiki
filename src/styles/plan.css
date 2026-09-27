@@ -134,7 +134,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .menu.put .pop-key { width: 26px; min-height: 34px; padding: 0; margin-left: -1px; justify-content: center; border-color: var(--ink); }
 .menu.put .pop-key:hover:not(:disabled) { background: var(--paper-2); }
 .menu.put .pop-key:disabled { opacity: 0.5; }
-.menu.put .pop.end, .menu.put .pop { min-width: 220px; }
+.menu.put .pop { min-width: 220px; }
 
 /* Colour blocks: one per compartment, containers nested inside. */
 .block { background: color-mix(in srgb, var(--blk) var(--bmix), var(--blk-base)); border: 1px solid color-mix(in srgb, var(--blk) 65%, var(--ink)); padding: 10px 12px 8px; margin-bottom: 10px; animation: open 220ms var(--ease) both; }

@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { CatIcon, Icon } from './Icon'
-import { CATEGORIES, isoDate, titleCase, type Category } from './store'
+import { CATEGORIES, isoDate, nights, titleCase, type Category } from './store'
 import { Choice, Popover, type Opt } from './ui'
 
 /** A swatch choice: its value, a name for screen readers and tooltips, and the CSS colour it paints. */
 export type Swatch = { value: string; name: string; paint: string }
 
 // Custom colours keep to the Cool Earth rule: hues from ochre through greens to sea blue, never red-pink or purple.
-export const HUE_MIN = 25, HUE_MAX = 215
+const HUE_MIN = 25, HUE_MAX = 215
 const SAT = 34, LIGHT = 46
-export const hueHex = (h: number) => {
+const hueHex = (h: number) => {
   const s = SAT / 100, l = LIGHT / 100, a = s * Math.min(l, 1 - l)
   const f = (n: number) => { const k = (n + h / 30) % 12; return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0') }
   return `#${f(0)}${f(8)}${f(4)}`
 }
-export const hexHue = (hex: string) => {
+const hexHue = (hex: string) => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
   const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b)
   if (!d) return HUE_MIN
@@ -63,7 +63,7 @@ const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 /** Leave and return dates in one field. The calendar takes the first pick as the day you leave and the next later pick as the day you're back. */
 export function DateRange({ start, end, onChange }: { start: string; end: string; onChange: (start: string, end: string) => void }) {
-  const n = Math.max(1, Math.round((day(end).getTime() - day(start).getTime()) / 86400000))
+  const n = nights({ start, end })
   const face = <span className="range-face"><b>{shortDate(start)}</b><Icon name="arrow" /><b>{shortDate(end)}</b><span className="dim">{n} {n === 1 ? 'night' : 'nights'}</span></span>
   return <Popover label="Trip dates" className="dates" face={face}>{(close) => <Calendar start={start} end={end} onChange={onChange} close={close} />}</Popover>
 }

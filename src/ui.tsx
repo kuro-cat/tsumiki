@@ -3,7 +3,7 @@ import { converts, fromShown, lenUnit, shownMin, shownStep, shownUnit, titleCase
 import { Icon } from './Icon'
 
 /** A labelled field on the form's 12-column grid. `group` makes it a div, for a set of controls one label can't wrap. */
-export function Field({ label, span, group, children }: { label: ReactNode; span?: 1 | 2 | 3 | 4 | 6 | 12; group?: boolean; children: ReactNode }) {
+export function Field({ label, span, group, children }: { label: ReactNode; span?: 2 | 3 | 4 | 6 | 12; group?: boolean; children: ReactNode }) {
   const className = 'field' + (span ? ` s${span}` : '')
   const body = <><span className="label">{label}</span>{children}</>
   return group ? <div className={className}>{body}</div> : <label className={className}>{body}</label>
@@ -11,14 +11,17 @@ export function Field({ label, span, group, children }: { label: ReactNode; span
 
 /** A number input whose value and onChange are in `unit` (cm, g, kg, or anything else, passed through). In imperial it shows and takes in, oz or lb
  *  and reports back in metric, so forms stay metric. What's typed is kept while focused, and a field left alone never reports. */
-export function MeasureInput({ unit, value, onChange, onBlur, min, step, ...input }: { unit: string } & InputHTMLAttributes<HTMLInputElement>) {
+/** Forms only read target.value, so converted and dragged values reach them in a stand-in event carrying the metric value. */
+const metricChange = (value: string) => ({ target: { value } }) as ChangeEvent<HTMLInputElement>
+
+export function MeasureInput({ unit, ...props }: { unit: string } & InputHTMLAttributes<HTMLInputElement>) {
   const [draft, setDraft] = useState<string | null>(null)
-  if (!converts(unit)) return <input type="number" value={value} onChange={onChange} onBlur={onBlur} min={min} step={step} {...input} />
+  if (!converts(unit)) return <input type="number" {...props} />
+  const { value, onChange, onBlur, min, step: _step, ...input } = props
   return <input type="number" {...input}
     min={min == null ? undefined : shownMin(Number(min), unit)} step={shownStep(unit)}
     value={draft ?? (value === '' || value == null ? '' : toShown(Number(value), unit))}
-    // Forms only read target.value, so they get a stand-in event carrying the metric value.
-    onChange={(e) => { setDraft(e.target.value); onChange?.({ target: { value: e.target.value === '' ? '' : String(fromShown(Number(e.target.value), unit)) } } as ChangeEvent<HTMLInputElement>) }}
+    onChange={(e) => { setDraft(e.target.value); onChange?.(metricChange(e.target.value === '' ? '' : String(fromShown(Number(e.target.value), unit)))) }}
     onBlur={(e) => { setDraft(null); onBlur?.(e) }} />
 }
 
@@ -30,11 +33,15 @@ export function dragToChange(unit: string, { value, min, max, step, disabled, on
     e.preventDefault()
     const el = e.currentTarget, x0 = e.clientX, v0 = toShown(Number(value) || 0, unit), st = shownStep(unit) ?? (Number(step) || 1)
     el.setPointerCapture(e.pointerId)
+    // Reports only when the value steps, not on every pointer move: some fields save straight to storage.
+    let last = Number(value) || 0
     const move = (m: globalThis.PointerEvent) => {
       let v = fromShown(Number((v0 + Math.round((m.clientX - x0) / 6) * st * (m.shiftKey ? 10 : 1)).toFixed(4)), unit)
       if (min != null && min !== '') v = Math.max(Number(min), v)
       if (max != null && max !== '') v = Math.min(Number(max), v)
-      onChange({ target: { value: String(v) } } as ChangeEvent<HTMLInputElement>)
+      if (v === last) return
+      last = v
+      onChange(metricChange(String(v)))
     }
     const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up) }
     el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up)
@@ -162,6 +169,8 @@ const listKeys = (e: KeyboardEvent<HTMLElement>) => {
 /** One choice in a dropdown: what it's called, and optionally a pictogram before it and a note after it. `group` starts a new heading in a menu. */
 export type Opt<T extends string = string> = { value: T; label: string; icon?: ReactNode; hint?: string; group?: string }
 
+const OptBody = ({ o }: { o: Opt }) => <>{o.icon}<span className="opt-label">{o.label}</span>{o.hint && <span className="dim">{o.hint}</span>}</>
+
 /** A dropdown that holds a value: the key shows the current option, the panel lists them all. */
 export function Choice<T extends string>({ label, value, options, onChange, className }: { label: string; value: T; options: Opt<T>[]; onChange: (v: T) => void; className?: string }) {
   const cur = options.find((o) => o.value === value)
@@ -171,7 +180,7 @@ export function Choice<T extends string>({ label, value, options, onChange, clas
         <div className="opts" role="listbox" aria-label={label} onKeyDown={listKeys}>
           {options.map((o) => (
             <button key={o.value} type="button" role="option" data-opt aria-selected={o.value === value} autoFocus={o.value === value} className="opt" onClick={() => { onChange(o.value); close() }}>
-              {o.icon}<span className="opt-label">{o.label}</span>{o.hint && <span className="dim">{o.hint}</span>}
+              <OptBody o={o} />
             </button>
           ))}
         </div>
@@ -190,7 +199,7 @@ export function Menu({ label, placeholder, items, onPick, disabled, className = 
             <Fragment key={it.value}>
               {it.group && it.group !== items[i - 1]?.group && <span className="opt-group" role="presentation">{it.group}</span>}
               <button type="button" role="menuitem" data-opt autoFocus={i === 0} className="opt" onClick={() => { close(); onPick(it.value) }}>
-                {it.icon}<span className="opt-label">{it.label}</span>{it.hint && <span className="dim">{it.hint}</span>}
+                <OptBody o={it} />
               </button>
             </Fragment>
           ))}

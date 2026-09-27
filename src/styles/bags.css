@@ -25,7 +25,7 @@
 
 /* Between phone and desktop the number columns tighten and names wrap rather than being cut. */
 @media (min-width: 601px) and (max-width: 900px) {
-  .table:has(> .trow.bag) > .trow { --cols: minmax(0, 1fr) 112px 60px 68px 76px 48px !important; gap: 12px; }
+  .table.bags > .trow { --cols: minmax(0, 1fr) 112px 60px 68px 76px 48px; gap: 12px; }
   .trow.bag .nm > .truncate { white-space: normal; overflow-wrap: anywhere; }
 }
 @media (max-width: 600px) {

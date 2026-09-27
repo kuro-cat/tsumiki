@@ -1,5 +1,5 @@
-import { useEffect, useEffectEvent, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
-import { BLOCKS, CATEGORIES, bagVolume, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, titleCase, type Bag, type Category, type Compartment } from '../store'
+import { useEffect, useEffectEvent, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react'
+import { BLOCKS, CATEGORIES, bagVolume, fmtDim, fmtVol, fmtW, lenUnit, newBag, newCompartment, titleCase, toggle, type Bag, type Category, type Compartment } from '../store'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
 import { useSort } from './Sort'
@@ -14,7 +14,6 @@ const PRESETS = [
   { name: 'Checked, medium', l: 68, w: 46, h: 26, empty: 3800, limit: 23000 },
   { name: 'Daypack 20 L', l: 42, w: 26, h: 16, empty: 600, limit: null },
 ]
-const COLS = { '--cols': 'minmax(0, 2fr) 150px 90px 90px 90px 60px' } as CSSProperties
 const main = (b: Bag) => b.compartments[0]
 /** Where heavy items go, drawn: scattered for anywhere, an arrow to the floor for low, a heavy bar on the chosen edge of the plan. */
 function HeavyGlyph({ v }: { v: NonNullable<Bag['heavy']> | '' }) {
@@ -41,7 +40,7 @@ export function Bags({ state, api }: ViewProps) {
   const set = <K extends keyof Bag>(k: K, v: Bag[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setComp = (id: string, patch: Partial<Compartment>) => set('compartments', form.compartments.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   const numC = (id: string, k: Num) => (e: ChangeEvent<HTMLInputElement>) => setComp(id, { [k]: Number(e.target.value) })
-  const toggleTakes = (c: Compartment, cat: Category) => { const t = c.takes?.includes(cat) ? c.takes.filter((x) => x !== cat) : [...(c.takes ?? []), cat]; setComp(c.id, { takes: t.length ? t : undefined }) }
+  const toggleTakes = (c: Compartment, cat: Category) => { const t = toggle(c.takes ?? [], cat); setComp(c.id, { takes: t.length ? t : undefined }) }
   const addComp = () => {
     const last = form.compartments[form.compartments.length - 1]
     set('compartments', [...form.compartments, newCompartment(`Pocket ${form.compartments.length}`, 20, 12, 5, last ? last.x + last.l + 2 : 0, 0, 0)])
@@ -49,8 +48,7 @@ export function Bags({ state, api }: ViewProps) {
   const save = (e: FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || !form.compartments.length) return
-    const { sample: _s, ...rest } = form
-    api.upsertBag({ ...rest, name: form.name.trim(), compartments: form.compartments.map((c) => ({ ...c, name: c.name.trim() || 'Compartment' })) })
+    api.upsertBag({ ...form, name: form.name.trim(), compartments: form.compartments.map((c) => ({ ...c, name: c.name.trim() || 'Compartment' })) })
     ed.close()
   }
   const usedBy = (id: string) => state.trips.filter((t) => t.bagIds.includes(id)).length
@@ -155,10 +153,10 @@ export function Bags({ state, api }: ViewProps) {
           </Field>
         </FormCard>
       )}
-      <div className="table" ref={listRef}>
-        <div className="trow head sortable" style={COLS}>{by.head}</div>
+      <div className="table bags" ref={listRef}>
+        <div className="trow head sortable">{by.head}</div>
         {list.map((b) => { const i = state.bags.indexOf(b); return (
-          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} style={COLS} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => ed.edit(b)} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
+          <button key={b.id} type="button" className={'trow bag' + (lift?.from === i ? ' lift' : '') + (lift && lift.to === i && lift.from !== i ? (lift.to > lift.from ? ' drop-after' : ' drop-before') : '')} aria-current={editing && form.id === b.id ? 'true' : undefined} onClick={() => ed.edit(b)} onKeyDown={(e) => !by.sorted && keyMove(e, i)} title={by.sorted ? undefined : 'Alt+↑/↓ reorders'}>
             <span className="name">{!by.sorted && <span className="grip" onPointerDown={(e) => grab(e, i)} aria-hidden="true"><Icon name="grip" /></span>}<span className="nm"><span className="truncate">{b.name}</span>{b.compartments.length > 1 && <span className="tag">{b.compartments.length} compartments</span>}</span></span>
             <span className="num">{fmtDim(b.compartments[0])}</span>
             <span className="num">{fmtVol(bagVolume(b))}</span>

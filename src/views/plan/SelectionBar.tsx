@@ -10,8 +10,7 @@ export function ItemBar({ selPl, bag, tb, rotatePl, tipPl, moveTo, removePl, set
   removePl: (id: string) => void; setSelected: (id: string | null) => void
 }) {
   return (
-    // Keys typed in the bar, such as Escape or R in the Move to menu, stay here rather than acting on the plan.
-    <div className="sel" onKeyDown={(e) => e.stopPropagation()}>
+    <div className="sel">
       <span className="sel-name"><CatIcon it={selPl.it} />{selPl.it.name}<span className="dim">{fmtDim(selPl.box)} {lenUnit()}</span></span>
       <button className="btn text" onClick={() => rotatePl(selPl.p.id)} title="Turn 90° (R)"><Icon name="rotate" />Turn<kbd>R</kbd></button>
       <button className="btn text" onClick={() => tipPl(selPl.p.id)} disabled={selPl.it.up} title={selPl.it.up ? 'This side up' : 'Tip onto the next face (T)'}><Icon name="tip" />Tip<kbd>T</kbd></button>
@@ -25,7 +24,7 @@ export function ItemBar({ selPl, bag, tb, rotatePl, tipPl, moveTo, removePl, set
 /** Arranging: where the selected compartment sits, and a turn. */
 export function CompartmentBar({ selComp, bag, api }: { selComp: Compartment; bag: Bag; api: Api }) {
   return (
-    <div className="sel" onKeyDown={(e) => e.stopPropagation()}>
+    <div className="sel">
       <span className="sel-name">{selComp.name}<span className="dim">{fmtDim(selComp)} {lenUnit()}</span></span>
       {/* Fine control, from the bag's corner; stored in cm. Height only chooses what it rests on; it always settles. */}
       {(['x', 'y', 'z'] as const).map((k) => (

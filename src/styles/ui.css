@@ -1,6 +1,6 @@
 .label { font-size: var(--fs-s); line-height: 1.3; color: var(--ink-2); font-weight: 500; }
-/* Section caps: condensed, tracked, in full ink. Used sparingly: section and readout names, table headers. */
-.sec h3, .ro-head .label, .trow.head .sort, .trow.head > .label, .form-sec { font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-s); font-weight: 600; color: var(--ink); }
+/* Section caps: condensed, tracked, in full ink. Used sparingly: section and readout names, table headers, menu groups. Tags keep their own size and colour. */
+.sec h3, .ro-head .label, .trow.head .sort, .trow.head > .label, .form-sec, .opt-group, .checklist .ready { font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-s); font-weight: 600; color: var(--ink); }
 .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .dim { color: var(--ink-2); font-size: var(--fs-s); }
 .muted { color: var(--ink-2); }
@@ -70,16 +70,15 @@
 .seg button[aria-pressed='true'] { background: var(--ink); color: var(--paper); }
 
 /* Fields are square boxes; focus draws the edge in ink, and keyboard focus adds the blue outline. */
-input[type='text'], input[type='number'], input[type='date'], input[type='password'], input[type='search'], select, textarea {
+input[type='text'], input[type='number'], input[type='password'], input[type='search'], textarea {
   background: var(--raise); border: 1px solid var(--rule);
   padding: 7px 10px; min-width: 0; width: 100%; min-height: 36px;
   transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
-input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); outline: none; }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-input:disabled, select:disabled { color: var(--ink-3); opacity: 0.7; }
+input:focus, textarea:focus { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); outline: none; }
+input:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+input:disabled { color: var(--ink-3); opacity: 0.7; }
 input::placeholder { color: var(--ink-3); }
-select { appearance: none; -webkit-appearance: none; padding-right: 28px; background-image: var(--chevron); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
 input[type='number'] { text-align: right; }
 /* Checkboxes are drawn like the checklist mark: a square with an ink edge that fills with the accent and a tick. */
 input[type='checkbox'] { appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin: 0; border: 1.5px solid var(--ink); background: var(--raise); cursor: pointer; transition: background var(--t) var(--ease), border-color var(--t) var(--ease); }
@@ -99,13 +98,7 @@ input[type='checkbox']:focus-visible { outline: 2px solid var(--blue); outline-o
 button.chip { color: var(--ink); font-weight: 500; }
 button.chip:hover { border-color: var(--ink); background: var(--blue-soft); }
 button.chip .dim { font-weight: 400; }
-.chip.sw-chip { padding: 6px 8px; }
 .chip.on { border-color: var(--ink); background: var(--blue-soft); }
-.chip input[type='color'] { position: static; opacity: 1; width: 16px; height: 16px; padding: 0; border: 1px solid var(--rule); background: none; cursor: pointer; }
-.chip input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
-/* One rule per engine: a selector list with the other engine's pseudo-element is dropped whole. */
-.chip input[type='color']::-webkit-color-swatch { border: 0; }
-.chip input[type='color']::-moz-color-swatch { border: 0; }
 .sw { display: inline-block; width: 14px; height: 14px; background: var(--sw, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent); flex: none; }
 .tag { font-size: var(--fs-xs); font-weight: 500; color: var(--ink-2); background: var(--paper-2); padding: 1px 7px; line-height: 1.5; white-space: nowrap; }
 .tag.blue { color: var(--blue); background: var(--blue-soft); }
@@ -128,7 +121,7 @@ button.chip .dim { font-weight: 400; }
 .field { display: grid; gap: 6px; align-content: start; }
 .field > .label { display: block; }
 .field > .seg, .field > .radios { justify-self: start; }
-.field.s1 { grid-column: span 1; } .field.s2 { grid-column: span 2; } .field.s3 { grid-column: span 3; } .field.s4 { grid-column: span 4; } .field.s6 { grid-column: span 6; } .field.s12 { grid-column: span 12; }
+.field.s2 { grid-column: span 2; } .field.s3 { grid-column: span 3; } .field.s4 { grid-column: span 4; } .field.s6 { grid-column: span 6; } .field.s12 { grid-column: span 12; }
 .form-actions { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 4px; }
 .form-actions .right { margin-left: auto; display: flex; gap: 8px; }
 /* Number fields: value and unit share one frame; the unit is a handle you drag sideways to change the value. */
@@ -201,7 +194,7 @@ input[type='range']:focus-visible { outline: 2px solid var(--blue); outline-offs
 .menu.act .pop-key { border-color: transparent; background: transparent; color: var(--blue); font-weight: 500; padding: 0 8px; gap: 6px; }
 .menu.act .pop-key:hover:not(:disabled), .menu.act .pop-key[aria-expanded='true'] { background: var(--blue-soft); border-color: transparent; }
 .menu.act .pop-key > svg:last-child { color: currentColor; }
-.menu.field .pop-key { min-width: 240px; justify-content: space-between; }
+.menu.wide .pop-key { min-width: 240px; justify-content: space-between; }
 .opts { display: grid; min-width: 200px; max-height: min(60vh, 360px); overflow-y: auto; overscroll-behavior: contain; }
 .opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; background: none; color: var(--ink); text-align: left; cursor: pointer; font-size: var(--fs-m); white-space: nowrap; transition: background var(--t); }
 .opt:hover { background: var(--paper-2); }
@@ -209,7 +202,7 @@ input[type='range']:focus-visible { outline: 2px solid var(--blue); outline-offs
 .opt[aria-selected='true'] { border-color: var(--ink); background: var(--blue-soft); }
 .opt[aria-selected='true'] svg { color: var(--blue); }
 .opt:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
-.opt-group { padding: 8px 10px 4px; font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-xs); font-weight: 600; color: var(--ink-2); }
+.opt-group { padding: 8px 10px 4px; font-size: var(--fs-xs); }
 .opt-group:not(:first-child) { border-top: 1px solid var(--rule-2); margin-top: 4px; }
 .glyph { flex: none; color: var(--ink-2); }
 
@@ -259,6 +252,9 @@ input[type='range']:focus-visible { outline: 2px solid var(--blue); outline-offs
   border: 0; border-bottom: 1px solid var(--rule-2); background: none; color: inherit; font-size: var(--fs-base);
   transition: background var(--t) var(--ease);
 }
+/* Each schedule's columns, overridden at mid widths below and ignored on phones, where rows wrap. */
+.table.bags > .trow { --cols: minmax(0, 2fr) 150px 90px 90px 90px 60px; }
+.table.items > .trow { --cols: minmax(0, 2fr) minmax(0, 1fr) 150px 190px 80px 44px; }
 .trow:last-child { border-bottom: 0; }
 .trow.head { padding: 9px 16px; background: var(--raise); border-bottom: 1px solid var(--rule); }
 .trow.head:hover { background: var(--raise); }
@@ -310,12 +306,12 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
 
 /* Between phone and desktop the item schedule's columns share the width, and names and sizes wrap instead of overrunning the next column. */
 @media (min-width: 601px) and (max-width: 900px) {
-  .table.items > .trow { --cols: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) 64px 32px !important; gap: 10px; }
+  .table.items > .trow { --cols: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) 64px 32px; gap: 10px; }
   .table.items > .trow > * { min-width: 0; overflow-wrap: anywhere; }
   .table.items .name .truncate, .table.items .num { white-space: normal; }
 }
 @media (max-width: 900px) {
-  .field.s1, .field.s2, .field.s3 { grid-column: span 4; }
+  .field.s2, .field.s3 { grid-column: span 4; }
   .field.s4 { grid-column: span 6; }
   .field.s6 { grid-column: span 12; }
   .ctl { margin-left: 0; padding-bottom: 10px; width: 100%; }
@@ -329,7 +325,7 @@ button.trow[aria-current='true'] { background: var(--blue-soft); }
   .top > .theme, .ctl .theme { display: none; }
   .ctl { order: 4; padding: 0 0 10px; }
   .trow.head .sort { min-height: 32px; }
-  .field.s1 { grid-column: span 4; } .field.s2, .field.s3 { grid-column: span 6; }
+  .field.s2, .field.s3 { grid-column: span 6; }
   .field.s4 { grid-column: span 12; }
   .form { padding: 16px; gap: 14px; }
   /* A segmented control gets its own row on phones, its keys sharing the width. */

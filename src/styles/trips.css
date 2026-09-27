@@ -3,7 +3,7 @@
 .trip-body { display: grid; gap: 24px; }
 .checklist { display: grid; gap: 10px; }
 .checklist > .page-head { gap: 10px; }
-.checklist .ready { font-stretch: 75%; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; animation: open 180ms var(--ease) both; }
+.checklist .ready { animation: open 180ms var(--ease) both; }
 .page.narrow { max-width: 860px; }
 .trip-card { padding: 20px; display: grid; gap: 14px; }
 .trip-card .when { color: var(--ink-2); }

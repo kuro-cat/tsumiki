@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ChangeEvent, type FormEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { SWATCHES, defaultCapacity, defaultKind, defaultUp, fmtSize, fmtW, uid, titleCase, type Category, type Item, type Kind } from '../store'
 import type { ViewProps } from '../App'
 import { CatIcon, Icon } from '../Icon'
@@ -12,7 +12,6 @@ const ITEM_SWATCHES: Swatch[] = [{ value: '', name: 'No colour', paint: 'transpa
 
 /** Form state carries both shapes so switching kind keeps whatever was typed. */
 type Form = { id: string; name: string; category: Category; kind: Kind; l: number; w: number; h: number; volume: number; packsTo: number; weight: number; qty: number; color: string; up: boolean; capacity: number; autoCap: boolean }
-const COLS = { '--cols': 'minmax(0, 2fr) minmax(0, 1fr) 150px 190px 80px 44px' } as CSSProperties
 const KIND_OPTIONS: Kind[] = ['rigid', 'soft', 'container']
 const SORT: Col<Item>[] = [
   { label: 'Name', key: (i) => i.name },
@@ -87,9 +86,9 @@ export function Inventory({ state, api }: ViewProps) {
       )}
       <div>
         <div className="table items">
-          <div className="trow head sortable" style={COLS}>{by.head}</div>
+          <div className="trow head sortable">{by.head}</div>
           {list.map((it) => (
-            <button key={it.id} type="button" className="trow" style={COLS} aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => ed.edit(toForm(it))}>
+            <button key={it.id} type="button" className="trow" aria-current={editing && form.id === it.id ? 'true' : undefined} onClick={() => ed.edit(toForm(it))}>
               <span className="name"><CatIcon it={it} /><span className="truncate">{it.name}</span></span>
               <span className="dim">{titleCase(it.category)}</span>
               <span className="dim">{titleCase(it.kind)}{it.kind !== 'soft' && it.up ? ', upright' : ''}</span>

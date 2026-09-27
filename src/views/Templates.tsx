@@ -1,25 +1,13 @@
 import { useState } from 'react'
-import { CLIMATES, KINDS, linkedItems, titleCase, uid, type Climate, type Template, type TemplateEntry, type TripKind } from '../store'
-import { ACTIVITIES } from '../lib/suggest'
+import { CLIMATES, KINDS, linkedItems, toggle, uid, type Climate, type Template, type TemplateEntry, type TripKind } from '../store'
 import type { ViewProps } from '../App'
-import { CatIcon, Icon } from '../Icon'
+import { Icon } from '../Icon'
 import { Blank } from './Blank'
 import { EntryForm } from './EntryForm'
 import { LinkPicker } from './LinkPicker'
+import { ActivityChips, CheckRow } from './Checklist'
 import { FormCard, Field, Seg, Stepper, Tab, TabList } from '../ui'
 import { CategoryPick } from '../pickers'
-import { Bike, Briefcase, Camera, MountainSnow, Signpost, Tent, Timer, WavesLadder, Wine, type LucideIcon } from 'lucide-react'
-
-const ACT_ICON: Record<(typeof ACTIVITIES)[number], LucideIcon> = { hiking: Signpost, swimming: WavesLadder, running: Timer, photography: Camera, camping: Tent, 'formal event': Wine, work: Briefcase, cycling: Bike, skiing: MountainSnow }
-
-/** The activities as toggle chips, each with its pictogram. */
-export function ActivityChips({ value, onToggle }: { value: string[]; onToggle: (a: string) => void }) {
-  return (
-    <div className="radios">
-      {ACTIVITIES.map((a) => { const I = ACT_ICON[a]; return <button key={a} type="button" className="chip ichip" aria-pressed={value.includes(a)} onClick={() => onToggle(a)}><I size={18} strokeWidth={1.75} aria-hidden="true" />{titleCase(a)}</button> })}
-    </div>
-  )
-}
 
 const ANY = 'any' as const
 /** Reusable checklists: pick one, edit its name, defaults and entries, or start a trip from it. */
@@ -27,8 +15,7 @@ export function Templates({ state, api, startTrip, openId, setOpenId }: Pick<Vie
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const t = state.templates.find((x) => x.id === openId) ?? state.templates[0] ?? null
-  // An edited sample is the owner's own now, so it loses its sample mark, as items, bags and trips do.
-  const patch = (p: Partial<Template>) => { if (!t) return; const { sample: _s, ...own } = t; api.upsertTemplate({ ...own, ...p }) }
+  const patch = (p: Partial<Template>) => t && api.upsertTemplate({ ...t, ...p })
   const patchEntry = (id: string, p: Partial<TemplateEntry>) => t && patch({ entries: t.entries.map((e) => (e.id === id ? { ...e, ...p } : e)) })
   const pick = (id: string) => { setOpenId(id); setOpenRow(null); setAdding(false) }
 
@@ -57,7 +44,7 @@ export function Templates({ state, api, startTrip, openId, setOpenId }: Pick<Vie
             <Seg label="Kind of trip" options={[ANY, ...KINDS]} names={{ any: 'Any' }} value={t.kind ?? ANY} onChange={(v) => patch({ kind: v === ANY ? undefined : (v as TripKind) })} />
           </Field>
           <Field label="Activities" span={12} group>
-            <ActivityChips value={t.activities ?? []} onToggle={(a) => { const cur = t.activities ?? []; patch({ activities: cur.includes(a) ? cur.filter((x) => x !== a) : [...cur, a] }) }} />
+            <ActivityChips value={t.activities ?? []} onToggle={(a) => patch({ activities: toggle(t.activities ?? [], a) })} />
           </Field>
         </FormCard>
 
@@ -72,27 +59,17 @@ export function Templates({ state, api, startTrip, openId, setOpenId }: Pick<Vie
             {t.entries.map((e) => {
               const linked = linkedItems(e, state.items)
               return (
-                <div key={e.id} className="check-row tpl">
-                  <span className="qty">{e.qty}</span>
-                  <button type="button" className="lbl" aria-expanded={openRow === e.id} onClick={() => setOpenRow(openRow === e.id ? null : e.id)}>
-                    <span className="entry"><CatIcon it={{ category: e.category, color: linked[0]?.color }} /><span>{e.label}</span></span>
-                    <span className="count">{linked.length ? linked.map((i) => i.name).join(', ') : 'Not in inventory'}</span>
-                    <span className="chev" aria-hidden="true"><Icon name="chev" /></span>
-                  </button>
-                  <span />
-                  {openRow === e.id && (
-                    <div className="more">
-                      <div className="tpl-edit">
-                        <Field label="Name"><input type="text" value={e.label} onChange={(ev) => patchEntry(e.id, { label: ev.target.value })} required /></Field>
-                        <Field label="Category" group><CategoryPick value={e.category} onChange={(category) => patchEntry(e.id, { category })} /></Field>
-                        <Field label="Quantity" group><Stepper label="Quantity" value={e.qty} onChange={(qty) => patchEntry(e.id, { qty })} /></Field>
-                        <Field label="Note"><input type="text" value={e.note ?? ''} onChange={(ev) => patchEntry(e.id, { note: ev.target.value || undefined })} placeholder="optional" /></Field>
-                      </div>
-                      <LinkPicker entry={e} items={state.items} onChange={(itemIds) => patchEntry(e.id, { itemIds })} />
-                      <div><button className="btn text" type="button" onClick={() => { api.snap(`Removed ${e.label}`); patch({ entries: t.entries.filter((x) => x.id !== e.id) }) }}><Icon name="x" />Remove from the template</button></div>
-                    </div>
-                  )}
-                </div>
+                <CheckRow key={e.id} className="tpl" lead={<span className="qty">{e.qty}</span>} category={e.category} color={linked[0]?.color} label={e.label}
+                  count={linked.length ? linked.map((i) => i.name).join(', ') : 'Not in inventory'} open={openRow === e.id} onToggle={() => setOpenRow(openRow === e.id ? null : e.id)}
+                  onRemove={() => { api.snap(`Removed ${e.label}`); patch({ entries: t.entries.filter((x) => x.id !== e.id) }) }}>
+                  <div className="tpl-edit">
+                    <Field label="Name"><input type="text" value={e.label} onChange={(ev) => patchEntry(e.id, { label: ev.target.value })} required /></Field>
+                    <Field label="Category" group><CategoryPick value={e.category} onChange={(category) => patchEntry(e.id, { category })} /></Field>
+                    <Field label="Quantity" group><Stepper label="Quantity" value={e.qty} onChange={(qty) => patchEntry(e.id, { qty })} /></Field>
+                    <Field label="Note"><input type="text" value={e.note ?? ''} onChange={(ev) => patchEntry(e.id, { note: ev.target.value || undefined })} placeholder="optional" /></Field>
+                  </div>
+                  <LinkPicker entry={e} items={state.items} onChange={(itemIds) => patchEntry(e.id, { itemIds })} />
+                </CheckRow>
               )
             })}
             {!t.entries.length && <Blank art="list" title="The template is empty">Add what every trip like this needs.</Blank>}
