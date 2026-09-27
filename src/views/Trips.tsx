@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, uid, withLink, titleCase, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
+import { CATEGORIES, CLIMATES, KINDS, bagLeaves, dropBag, entryUnits, fmtDate, inBag, isPacked, linkedItems, newTrip, nights, repack, tripBags, tripReady, uid, withLink, titleCase, type Bag, type Category, type CheckItem, type SharedLimit, type Trip } from '../store'
 import { LinkPicker } from './LinkPicker'
 import { ACTIVITIES, suggest } from '../lib/suggest'
 import type { ViewProps } from '../App'
@@ -160,6 +160,8 @@ export function Trips({ state, api, go }: ViewProps) {
               <div className="page-head">
                 <h2>Checklist</h2>
                 <span className="label">{trip.checklist.filter((c) => isPacked(c, trip, state.items)).length} of {trip.checklist.length} packed</span>
+                {/* The same test as the plan's postmark: everything packed and every bag within its limits. */}
+                {tripReady(trip, state.bags, state.items) && <span className="tag blue ready" role="status">Ready to travel</span>}
               </div>
               <div className="cluster">
                 {!draft && <button className="btn primary" type="button" onClick={() => setDraft(blankDraft)}><Icon name="plus" />Add</button>}

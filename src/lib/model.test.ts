@@ -71,6 +71,23 @@ test('repack moves one bag’s packing into another and leaves other bags alone'
   assert.equal(tripReady(trip, [a, b], items), false) // empty checklist is never ready
 })
 
+test('a trip is ready only with the checklist packed, every limit kept and nothing over volume', () => {
+  const box: Item = { id: 'r', name: 'Box', category: 'gear', kind: 'rigid', l: 10, w: 10, h: 10, up: false, weight: 1000, qty: 1 }
+  const shirt: Item = { id: 's', name: 'Shirt', category: 'clothing', kind: 'soft', volume: 1, packsTo: 100, weight: 100, qty: 1 }
+  const items = [box, shirt]
+  const a: Bag = { id: 'a', name: 'A', empty: 500, limit: 2000, compartments: [{ id: 'ca', name: 'Main', l: 20, w: 20, h: 20, x: 0, y: 0, z: 0 }] }
+  const b: Bag = { id: 'b', name: 'B', empty: 500, limit: null, compartments: [{ id: 'cb', name: 'Main', l: 10, w: 10, h: 10, x: 0, y: 0, z: 0 }] }
+  const trip: Trip = { id: 't', name: '', destination: '', start: '2026-01-01', end: '2026-01-02', climate: 'mild', kind: 'city', activities: [], bagIds: ['a', 'b'], worn: [],
+    checklist: [{ id: 'k1', label: 'Box', category: 'gear', qty: 1, match: [], itemIds: ['r'], packed: false, source: 'rule' }, { id: 'k2', label: 'Shirt', category: 'clothing', qty: 1, match: [], itemIds: ['s'], packed: false, source: 'rule' }],
+    placements: [{ id: 'p', itemId: 'r', compartmentId: 'ca', x: 0, y: 0, z: 0, o: 0 }], loose: [{ id: 'l', itemId: 's', home: 'cb' }] }
+  assert.equal(tripReady(trip, [a, b], items), true)
+  assert.equal(tripReady({ ...trip, loose: [] }, [a, b], items), false) // shirt not packed
+  assert.equal(tripReady(trip, [{ ...a, limit: 1200 }, b], items), false) // A over its own limit
+  assert.equal(tripReady({ ...trip, shared: [{ id: 'x', bagIds: ['a', 'b'], limit: 2000 }] }, [a, b], items), false) // 1500 + 600 over the shared 2000
+  assert.equal(tripReady({ ...trip, weighed: { a: 2100 } }, [a, b], items), false) // the Actual Weight is what counts
+  assert.equal(tripReady(trip, [a, { ...b, compartments: [{ ...b.compartments[0], h: 1 }] }], items), false) // 1 L shirt in a 0.1 L compartment
+})
+
 test('worn units count as packed and weigh nothing in any bag', () => {
   const hat: Item = { id: 'h', name: 'Hat', category: 'clothing', kind: 'rigid', l: 30, w: 30, h: 8, up: false, weight: 110, qty: 1 }
   const bag: Bag = { id: 'b', name: 'B', empty: 500, limit: null, compartments: [{ id: 'c', name: 'Main', l: 40, w: 40, h: 20, x: 0, y: 0, z: 0 }] }
