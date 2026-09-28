@@ -48,16 +48,17 @@ export function Trips({ state, api, go }: ViewProps) {
   }
   const askAi = async () => {
     if (!trip) return
-    if (!state.apiKey) return setMsg({ text: 'Add a Claude API key under Data first.', red: true })
     setBusy(true)
     setMsg(null)
     try {
+      const { aiExtras, aiSetupGap } = await import('../lib/ai')
+      const gap = aiSetupGap(state.ai)
+      if (gap) return setMsg({ text: gap, red: true })
       const { name, destination, start, end, climate, kind, activities } = trip
-      const { aiExtras } = await import('../lib/ai')
-      const extras = await aiExtras(state.apiKey, { name, destination, start, end, climate, kind, activities }, trip.checklist.map((c) => c.label))
+      const extras = await aiExtras(state.ai, { name, destination, start, end, climate, kind, activities }, trip.checklist.map((c) => c.label))
       const fresh = extras.filter((e) => !trip.checklist.some((c) => c.label.toLowerCase() === e.label.toLowerCase())).map((e) => ({ ...withLink(e, state.items), id: uid(), packed: false }))
       api.patchTrip(trip.id, (t) => ({ checklist: [...t.checklist, ...fresh] }))
-      setMsg({ text: fresh.length ? `${fresh.length} destination extras added.` : 'Claude had nothing to add.' })
+      setMsg({ text: fresh.length ? `${fresh.length} destination extras added.` : 'Nothing to add.' })
     } catch (err) {
       setMsg({ text: err instanceof Error ? err.message : 'Request failed.', red: true })
     } finally {
@@ -183,7 +184,7 @@ export function Trips({ state, api, go }: ViewProps) {
                   patch({ checklist: next })
                   setMsg(null)
                 }} />}
-                <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking Claude…' : 'Ask Claude for extras'}</button>
+                <button className={'btn' + (busy ? ' busy' : '')} type="button" onClick={askAi} aria-busy={busy}><Icon name="spark" />{busy ? 'Asking…' : 'Ask AI for extras'}</button>
                 {msg && <span className={'msg' + (msg.red ? ' red' : '')} role="status">{msg.text}</span>}
               </div>
               {draft && <EntryForm items={state.items} onClose={() => setDraft(false)} onAdd={(e) => { api.patchTrip(trip.id, (t) => ({ checklist: [{ ...e, id: uid(), packed: false, source: 'manual' }, ...t.checklist] })); setDraft(false) }} />}
@@ -198,7 +199,7 @@ export function Trips({ state, api, go }: ViewProps) {
                       // Ticking happens on the plan; here the mark only reports: packed, how many of how many, or not owned.
                       lead={<Progress done={packed} units={units} qty={c.qty} owned={linked.length > 0} />}
                       count={c.packed && !linked.length ? 'Ticked' : linked.length ? `${units} of ${c.qty}` : 'Not in inventory'}
-                      tag={c.source === 'ai' ? <span className="tag blue">Claude</span> : c.source === 'manual' ? <span className="tag">Yours</span> : undefined}
+                      tag={c.source === 'ai' ? <span className="tag blue">AI</span> : c.source === 'manual' ? <span className="tag">Yours</span> : undefined}
                       open={openRow === c.id} onToggle={() => setOpenRow(openRow === c.id ? null : c.id)}
                       onRemove={() => { api.snap(`Removed ${c.label}`); api.patchTrip(trip.id, (t) => ({ checklist: t.checklist.filter((x) => x.id !== c.id) })) }}>
                       <span className="hint">{c.note ? `${c.note}. ` : ''}{linked.length ? (c.itemIds ? 'Packed when these are in a bag:' : 'Matched by name. Packed when these are in a bag:') : 'Link it to something you own, or tick it off on the plan.'}</span>

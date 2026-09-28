@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { autoPackBins } from './lib/pack'
 import { toPlacement } from './lib/packing'
 import { suggest } from './lib/suggest'
-import { weekOut, DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTemplate, duplicateTrip, fromTemplate, orientationsOf, toTemplate, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Template, type TemplateEntry, type Trip } from './lib/model'
+import { weekOut, DEFAULT_AI, DEFAULT_PACKS_TO, afterBagEdit, RETIRED_SWATCHES, bagLeaves, defaultUp, dropBag, duplicateTemplate, duplicateTrip, fromTemplate, orientationsOf, toTemplate, withLink, withoutItem, isoDate, mainOf, newBag, newCompartment, rotateCompartment, settleCompartments, uid, type Bag, type Boxed, type Category, type Compartment, type Item, type State, type Template, type TemplateEntry, type Trip } from './lib/model'
 
 export * from './lib/model'
 
@@ -74,7 +74,7 @@ export function sampleState(): State {
     ...['T-shirt', 'T-shirt', 'Underwear', 'Underwear'].map((n) => ({ id: uid(), itemId: byName(n).id, home: cube?.id ?? mainOf(backpack).id })),
     { id: uid(), itemId: byName('Jeans').id, home: mainOf(backpack).id },
   ]
-  return { items, bags, trips: [trip], templates: sampleTemplates(), activeTripId: trip.id, apiKey: '', packsTo: { ...DEFAULT_PACKS_TO } }
+  return { items, bags, trips: [trip], templates: sampleTemplates(), activeTripId: trip.id, ai: { ...DEFAULT_AI }, packsTo: { ...DEFAULT_PACKS_TO } }
 }
 
 /** Two starting templates. Their entries find inventory items by name when a trip is made from them. */
@@ -104,7 +104,7 @@ export const KEY = 'bin-pack.v7'
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) { const s = JSON.parse(raw) as State; return { ...s, templates: s.templates ?? sampleTemplates(), items: s.items.map((i) => (i.color && RETIRED_SWATCHES[i.color] ? { ...i, color: RETIRED_SWATCHES[i.color] } : i)) } }
+    if (raw) { const { apiKey, ...s } = JSON.parse(raw) as State & { apiKey?: string }; return { ...s, ai: s.ai ?? { ...DEFAULT_AI, key: apiKey ?? '' }, templates: s.templates ?? sampleTemplates(), items: s.items.map((i) => (i.color && RETIRED_SWATCHES[i.color] ? { ...i, color: RETIRED_SWATCHES[i.color] } : i)) } }
   } catch { /* fall through to sample */ }
   return sampleState()
 }

@@ -54,7 +54,10 @@ export type Trip = {
   /** Reserve by bag id: room kept free for the way home, volume in cm³ and weight in grams. */
   reserve?: Record<string, { volume: number; weight: number }>
 }
-export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; templates: Template[]; activeTripId: string | null; apiKey: string; packsTo: Record<Category, number> }
+/** The one AI provider suggestions go to. An empty model means the provider's default; OpenAI-compatible needs one. */
+export type AiSettings = { provider: 'anthropic' | 'openai'; key: string; baseUrl: string; model: string }
+export const DEFAULT_AI: AiSettings = { provider: 'anthropic', key: '', baseUrl: '', model: '' }
+export type State = { items: Item[]; bags: Bag[]; trips: Trip[]; templates: Template[]; activeTripId: string | null; ai: AiSettings; packsTo: Record<Category, number> }
 
 export const DEFAULT_PACKS_TO: Record<Category, number> = { clothing: 60, footwear: 100, toiletries: 90, electronics: 100, documents: 100, gear: 100, misc: 100 }
 export const defaultKind = (c: Category): Kind => (c === 'clothing' ? 'soft' : 'rigid')

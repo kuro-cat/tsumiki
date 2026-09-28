@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_PACKS_TO, isoDate, KEY, sampleState, titleCase, type State } from '../store'
+import { CATEGORIES, DEFAULT_PACKS_TO, type AiSettings, isoDate, KEY, sampleState, titleCase, type State } from '../store'
 import type { ViewProps } from '../App'
 import { autopackAnimates, setAutopackAnimates } from '../prefs'
-import { Field, PageHead, UnitInput } from '../ui'
+import { Field, PageHead, Seg, UnitInput } from '../ui'
+
+const PROVIDERS = ['anthropic', 'openai'] as const
 
 export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNode; units: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; red?: boolean; at?: 'sample' } | null>(null)
@@ -10,8 +12,11 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
   const toggleAnim = (on: boolean) => { setAnim(on); setAutopackAnimates(on) }
   const sampleCount = state.items.filter((i) => i.sample).length + state.bags.filter((b) => b.sample).length + state.trips.filter((t) => t.sample).length + state.templates.filter((t) => t.sample).length
 
+  const ai = state.ai
+  const setAi = (change: Partial<AiSettings>) => api.set({ ai: { ...ai, ...change } })
+
   const exportJson = () => {
-    const blob = new Blob([JSON.stringify({ ...state, apiKey: '' }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ ...state, ai: { ...state.ai, key: '' } }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `bin-pack-${isoDate(new Date())}.json`
@@ -25,7 +30,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
       const s = JSON.parse(await f.text()) as Partial<State>
       if (!Array.isArray(s.items) || !Array.isArray(s.bags) || !Array.isArray(s.trips)) throw new Error()
       api.snap(`Imported ${s.items.length} items, ${s.bags.length} bags, ${s.trips.length} trips`)
-      api.replace({ items: s.items, bags: s.bags, trips: s.trips, templates: Array.isArray(s.templates) ? s.templates : [], apiKey: state.apiKey, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null, packsTo: { ...DEFAULT_PACKS_TO, ...s.packsTo } })
+      api.replace({ items: s.items, bags: s.bags, trips: s.trips, templates: Array.isArray(s.templates) ? s.templates : [], ai: state.ai, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null, packsTo: { ...DEFAULT_PACKS_TO, ...s.packsTo } })
       setMsg(null)
     } catch {
       setMsg({ text: 'That file is not a Bin-pack export.', red: true })
@@ -75,9 +80,12 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
           <p className="hint">Importing replaces everything here.</p>
         </section>
         <section>
-          <h2>Claude API key</h2>
-          <Field label="Key"><input type="password" value={state.apiKey} onChange={(e) => api.set({ apiKey: e.target.value.trim() })} placeholder="sk-ant-…" autoComplete="off" /></Field>
-          <p className="hint">Optional, for “Ask Claude for extras” on a trip. The key stays in this browser; requests go straight to Anthropic on your account.</p>
+          <h2>AI suggestions</h2>
+          <div className="cluster"><Seg label="Provider" options={PROVIDERS} value={ai.provider} onChange={(provider) => setAi({ provider })} names={{ anthropic: 'Anthropic', openai: 'OpenAI-compatible' }} /></div>
+          <Field label="Key"><input type="password" value={ai.key} onChange={(e) => setAi({ key: e.target.value.trim() })} placeholder={ai.provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'} autoComplete="off" /></Field>
+          {ai.provider === 'openai' && <Field label="Base URL"><input type="url" value={ai.baseUrl} onChange={(e) => setAi({ baseUrl: e.target.value.trim() })} placeholder="https://opencode.ai/zen/go/v1" autoComplete="off" /></Field>}
+          <Field label="Model"><input value={ai.model} onChange={(e) => setAi({ model: e.target.value.trim() })} placeholder={ai.provider === 'anthropic' ? 'claude-opus-5-5' : 'Required'} autoComplete="off" /></Field>
+          <p className="hint">Optional, for “Ask AI for extras” on a trip. The key stays in this browser; requests go straight to the provider on your account. {ai.provider === 'openai' && 'Endpoints that block browser calls, such as OpenCode, work when the app runs from npm run dev or npm run preview.'}</p>
         </section>
         <section>
           <h2>Packed size by category</h2>
