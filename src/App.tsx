@@ -6,7 +6,8 @@ import { Bags } from './views/Bags'
 import { Trips } from './views/Trips'
 import { Data } from './views/Data'
 import { Choice, Seg, type Opt } from './ui'
-import { Monitor, Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Share, Sun } from 'lucide-react'
+import { shareTrip } from './views/plan/shareImage'
 import { readTheme, readUnits, writeTheme, writeUnits, type Theme } from './prefs'
 import { setUnits, type Units } from './lib/units'
 
@@ -86,6 +87,9 @@ export default function App() {
         {tab === 'Plan' && trip ? (
           <div className="ctl">
             <Choice label="Trip" className="trip-pick" value={trip.id} onChange={(id) => api.set({ activeTripId: id })} options={state.trips.map((t) => ({ value: t.id, label: t.name }))} />
+            <button className="btn" onClick={() => shareTrip(trip, state.bags, state.items).catch(() => api.say("Couldn't make the image", true))} title="Send the trip's numbers and packing list as a picture">
+              <Share size={16} strokeWidth={1.5} aria-hidden="true" />Share
+            </button>
             <Seg label="View" options={VIEWS} value={view} onChange={setView} names={{ plan: 'Plan', '3d': '3D' }} />
             {themeSel}
           </div>

@@ -25,7 +25,7 @@ export function Icon({ name, size = 16 }: { name: keyof typeof P; size?: number 
   )
 }
 
-const CAT: Record<Category, LucideIcon> = { clothing: Shirt, footwear: Footprints, toiletries: Droplets, electronics: Plug, documents: IdCard, gear: Compass, misc: Package }
+export const CAT: Record<Category, LucideIcon> = { clothing: Shirt, footwear: Footprints, toiletries: Droplets, electronics: Plug, documents: IdCard, gear: Compass, misc: Package }
 
 /** An item's category, drawn in its own colour when it has one. */
 export function CatIcon({ it }: { it: { category: Category; color?: string } }) {
