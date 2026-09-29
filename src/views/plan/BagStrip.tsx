@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
 import { bagTotals, fmtW, sharedTotals, type Bag, type Item, type Trip } from '../../store'
 import { Tab, TabList } from '../../ui'
 
@@ -7,6 +7,9 @@ export function BagStrip({ trip, items, tb, bag, shared, worn, wornRef, wornHit,
   trip: Trip; items: Item[]; tb: Bag[]; bag: Bag | null; shared: ReturnType<typeof sharedTotals>; worn: boolean
   wornRef: RefObject<HTMLButtonElement | null>; wornHit: boolean; show: (id: string) => void
 }) {
+  // The shown bag's weight is in the readouts, so its tab leaves it out. On Worn, the bag just left keeps it out too, so the row doesn't reflow.
+  const quiet = useRef(bag?.id)
+  if (bag) quiet.current = bag.id
   if (!tb.length && !trip.worn.length) return null
   return (
     <TabList className="bagstrip" label="Bags on this trip">
@@ -16,7 +19,7 @@ export function BagStrip({ trip, items, tb, bag, shared, worn, wornRef, wornHit,
           return (
             <Tab key={b.id} selected={b.id === bag?.id} className={'bagtab' + (t.over || t.wState === 'over' ? ' red' : '')} onClick={() => show(b.id)}>
               <span className="name truncate">{b.name}</span>
-              {b.id !== bag?.id && <span className="num">{fmtW(t.total)}</span>}
+              {b.id !== quiet.current && <span className="num">{fmtW(t.total)}</span>}
             </Tab>
           )
         }
