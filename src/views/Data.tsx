@@ -19,7 +19,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
     const blob = new Blob([JSON.stringify({ ...state, ai: { ...state.ai, key: '' } }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `bin-pack-${isoDate(new Date())}.json`
+    a.download = `tsumiki-${isoDate(new Date())}.json`
     a.click()
     URL.revokeObjectURL(a.href)
     setMsg({ text: 'Exported. The API key is never included.' })
@@ -33,7 +33,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
       api.replace({ items: s.items, bags: s.bags, trips: s.trips, templates: Array.isArray(s.templates) ? s.templates : [], ai: state.ai, activeTripId: s.activeTripId ?? s.trips[0]?.id ?? null, packsTo: { ...DEFAULT_PACKS_TO, ...s.packsTo } })
       setMsg(null)
     } catch {
-      setMsg({ text: 'That file is not a Bin-pack export.', red: true })
+      setMsg({ text: 'That file is not a Tsumiki export.', red: true })
     }
   }
   const removeSample = () => {
@@ -50,7 +50,7 @@ export function Data({ state, api, theme, units }: ViewProps & { theme?: ReactNo
     setMsg({ text: `Sample data restored: ${fresh.items.length} items, ${fresh.bags.length} bags, ${fresh.trips.length} trip, ${fresh.templates.length} templates.`, at: 'sample' })
   }
   const reset = () => {
-    if (!confirm('Delete everything Bin-pack stores in this browser? Export first if you want to keep it.')) return
+    if (!confirm('Delete everything Tsumiki stores in this browser? Export first if you want to keep it.')) return
     localStorage.removeItem(KEY)
     location.reload()
   }
