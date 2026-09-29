@@ -5,8 +5,8 @@ import { CAT } from '../../Icon'
 import { bagTotals, CATEGORIES, fmtW, linkedItems, nights, packedCount, titleCase, tripBags, tripReady, wornCount, type Bag, type Category, type Item, type Trip } from '../../store'
 
 /** Fjord sea for the list, Night sea's text, accent and red on the ink band. Fixed, so a shared card looks the same whatever theme it was made in. */
-const C = { ink: '#152022', paper: '#f2f5f5', ink2: '#475759', ink3: '#5d6d6f', rule: '#cbd5d7', on: '#f2f5f5', on2: '#a3b3b4', seam: '#2c4043', blue: '#6fb3c4', red: '#e07a6e', track: 'rgb(255 255 255 / 0.12)' }
-const W = 720, X = 40, CW = W - 2 * X, GAP = 28, COLS = 3, COL = (CW - GAP * (COLS - 1)) / COLS
+const C = { ink: '#152022', paper: '#f2f5f5', raise: '#fbfcfc', ink2: '#475759', ink3: '#5d6d6f', rule: '#cbd5d7', on: '#f2f5f5', on2: '#a3b3b4', seam: '#2c4043', blue: '#6fb3c4', red: '#e07a6e', track: 'rgb(255 255 255 / 0.12)' }
+const W = 720, X = 40, CW = W - 2 * X, GAP = 6, COLS = 3, COL = (CW - GAP * (COLS - 1)) / COLS, PAD = 14, HEAD = 32
 const S = 2 // raster scale
 const LINE = 19.6, ROW = 6 + LINE // list rows: 14px at 1.4, 3px above and below
 type G = CanvasRenderingContext2D
@@ -15,7 +15,7 @@ type Run = [string, Font, string]
 
 const F = {
   title: { size: 52, weight: 700, track: -0.035 }, sub: { size: 15 }, caps: { size: 12, weight: 600, caps: true }, fact: { size: 15, weight: 600 }, factMute: { size: 15 },
-  bag: { size: 14, weight: 600 }, stat: { size: 14 }, statB: { size: 14, weight: 600 }, row: { size: 14 }, qty: { size: 12.5 }, note: { size: 12 }, foot: { size: 13 }, mark: { size: 14, weight: 700, mark: true },
+  bag: { size: 14, weight: 600 }, stat: { size: 14 }, statB: { size: 14, weight: 600 }, row: { size: 15, weight: 500 }, qty: { size: 14, weight: 500 }, tag: { size: 11, weight: 600, caps: true }, note: { size: 12 }, foot: { size: 13 }, mark: { size: 14, weight: 700, mark: true },
 } satisfies Record<string, Font>
 
 function font(g: G, f: Font) {
@@ -59,30 +59,38 @@ function postmark(g: G, x: number, y: number) {
   g.restore()
 }
 
-type Row = { qty: number; name: string; weight?: number; worn: number }
+type Row = { qty: number; name: string; weight?: number; worn: number; icon: string }
 /** Everything packed on the trip, worn included, by category in the app's order; checklist entries ticked by hand come in without a weight. */
 function packingList(trip: Trip, items: Item[]) {
   const by = new Map<Category, Row[]>()
   const add = (c: Category, r: Row) => by.set(c, [...(by.get(c) ?? []), r])
   for (const it of items) {
     const n = packedCount(trip, it.id)
-    if (n) add(it.category, { qty: n, name: it.name, weight: it.weight * n, worn: wornCount(trip, it.id) })
+    if (n) add(it.category, { qty: n, name: it.name, weight: it.weight * n, worn: wornCount(trip, it.id), icon: tint(it.category, it.color) })
   }
-  for (const c of trip.checklist) if (c.packed && !linkedItems(c, items).length) add(c.category, { qty: c.qty, name: c.label, worn: 0 })
+  for (const c of trip.checklist) if (c.packed && !linkedItems(c, items).length) add(c.category, { qty: c.qty, name: c.label, worn: 0, icon: tint(c.category) })
   return CATEGORIES.filter((c) => by.has(c)).map((cat) => ({ cat, rows: by.get(cat)!.sort((a, b) => a.name.localeCompare(b.name)) }))
 }
 
-/** Category pictograms as images, drawn from the same icons the schedule uses. */
-async function pictograms(cats: Category[]) {
+/** A row's pictogram key: its category in the item's colour, mixed 72 % into ink as in the schedule, or muted ink when it has none. */
+function tint(cat: Category, color?: string) {
+  if (!color) return `${cat}|${C.ink2}`
+  const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+  const [a, b] = [hex(color), hex(C.ink)]
+  return `${cat}|#${a.map((v, i) => Math.round(v * 0.72 + b[i] * 0.28).toString(16).padStart(2, '0')).join('')}`
+}
+/** The pictograms the list needs, drawn from the same icons the schedule uses. */
+async function pictograms(keys: string[]) {
+  keys = [...new Set(keys)]
   const host = document.createElement('div'), root = createRoot(host)
-  flushSync(() => root.render(<>{cats.map((c) => { const I = CAT[c]; return <I key={c} size={16} strokeWidth={2} color={C.ink} /> })}</>))
+  flushSync(() => root.render(<>{keys.map((k) => { const [c, color] = k.split('|'), I = CAT[c as Category]; return <I key={k} size={16} strokeWidth={2} color={color} /> })}</>))
   const svgs = [...host.querySelectorAll('svg')].map((s) => s.outerHTML)
   root.unmount()
   return Object.fromEntries(await Promise.all(svgs.map(async (s, i) => {
     const img = new Image()
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s)
     await img.decode()
-    return [cats[i], img] as const
+    return [keys[i], img] as const
   })))
 }
 
@@ -128,48 +136,52 @@ function paint(g: G, trip: Trip, bags: Bag[], items: Item[], icons: Record<strin
   }
   const inkEnd = y + 8
 
-  // The list: each category whole under its total weight, the categories split into columns as evenly as they go.
-  y = inkEnd + 44
+  // The list: each category a block, kept whole, the blocks stacked into columns as evenly as they go.
+  y = inkEnd + 40
   const list = packingList(trip, items)
+  const inner = COL - 2 * PAD
   const blocks = list.map(({ cat, rows }) => {
     const laid = rows.map((r) => {
-      const tail: Run[] = [...(r.qty > 1 ? [[`×${r.qty}`, F.qty, C.ink3] as Run] : []), ...(r.worn ? [['· worn', F.note, C.ink2] as Run] : [])]
-      const tw = tail.reduce((a, [s, f]) => a + measure(g, s, f) + 6, 0)
-      const lines = wrap(g, r.name, COL, F.row)
-      // The quantity and worn mark follow the name, dropping to a line of their own when the last line has no room.
-      const own = tail.length > 0 && measure(g, lines[lines.length - 1], F.row) + tw > COL
-      return { lines, tail, own, h: ROW + LINE * (lines.length - 1 + (own ? 1 : 0)) }
+      // A quantity over one sits muted at the right as ×3; a worn unit is tagged beside it.
+      const q = r.qty > 1 ? `×${r.qty}` : ''
+      const qw = q ? measure(g, q, F.qty) : 0
+      const ww = r.worn ? measure(g, 'Worn', F.tag) + 8 : 0
+      const lines = wrap(g, r.name, inner - 24 - qw - ww - (qw || ww ? 6 : 0), F.row)
+      return { r, q, qw, lines, h: ROW + LINE * (lines.length - 1) }
     })
     const total = rows.reduce((a, r) => a + (r.weight ?? 0), 0)
-    return { cat, laid, total, h: 16 + laid.reduce((a, l) => a + l.h, 0) }
+    return { cat, laid, total, h: HEAD + 8 + laid.reduce((a, l) => a + l.h, 0) + 10 }
   })
   let bottom = y
-  balance(blocks.map((b) => b.h + 26), COLS).forEach((col, ci) => {
+  balance(blocks.map((b) => b.h + GAP), COLS).forEach((col, ci) => {
     const x = X + ci * (COL + GAP)
     let cy = y
     for (const bi of col) {
-      const { cat, laid, total } = blocks[bi]
-      if (icons[cat]) g.drawImage(icons[cat], x, cy - 12, 16, 16)
-      text(g, titleCase(cat), x + 24, cy, F.caps, C.ink)
-      if (total) text(g, fmtW(total), x + COL, cy, F.note, C.ink2, 'right')
-      g.fillStyle = C.rule; g.fillRect(x, cy + 10, COL, 1)
-      cy += 16
+      const { cat, laid, total, h } = blocks[bi]
+      g.fillStyle = C.rule; g.fillRect(x, cy, COL, h)
+      g.fillStyle = C.raise; g.fillRect(x + 1, cy + 1, COL - 2, h - 2)
+      // The heading is inverted, an ink strip across the block like the band above.
+      g.fillStyle = C.ink; g.fillRect(x, cy, COL, HEAD)
+      text(g, titleCase(cat), x + PAD, cy + 21, F.caps, C.on)
+      if (total) text(g, fmtW(total), x + COL - PAD, cy + 21, F.note, C.on2, 'right')
+      let ry = cy + HEAD + 8
       for (const l of laid) {
-        let ly = cy + 3 + 14
-        l.lines.forEach((s, i) => text(g, s, x, ly + i * LINE, F.row, C.ink))
-        let tx = x + (l.own ? 0 : measure(g, l.lines[l.lines.length - 1], F.row) + 6)
-        ly += LINE * (l.lines.length - 1 + (l.own ? 1 : 0))
-        for (const [s, f, c] of l.tail) tx += text(g, s, tx, ly, f, c) + 6
-        cy += l.h
+        const base = ry + 3 + 15
+        if (icons[l.r.icon]) g.drawImage(icons[l.r.icon], x + PAD, base - 13, 16, 16)
+        l.lines.forEach((s, i) => text(g, s, x + PAD + 24, base + i * LINE, F.row, C.ink))
+        let rx = x + COL - PAD
+        if (l.q) { text(g, l.q, rx, base, F.qty, C.ink2, 'right'); rx -= l.qw + 8 }
+        if (l.r.worn) text(g, 'Worn', rx, base, F.tag, C.ink2, 'right')
+        ry += l.h
       }
-      cy += 26
+      cy += h + GAP
     }
     bottom = Math.max(bottom, cy)
   })
-  if (!list.length) { text(g, 'Nothing packed yet', X, y, F.row, C.ink2); bottom = y + 32 }
+  if (!list.length) { text(g, 'Nothing packed yet', X, y + 14, F.row, C.ink2); bottom = y + 32 }
 
   // Signed off at the foot.
-  y = bottom + 4
+  y = bottom + 28
   g.fillStyle = C.ink; g.fillRect(X, y, CW, 1)
   y += 29
   const pw = text(g, 'Planned using', X, y, F.foot, C.ink2)
@@ -181,7 +193,7 @@ function paint(g: G, trip: Trip, bags: Bag[], items: Item[], icons: Record<strin
 /** The trip as a PNG card: an ink band with the trip and each bag's totals, the packing list by category, and the TSUMIKI line. */
 async function tripPng(trip: Trip, bags: Bag[], items: Item[]) {
   await Promise.all(['700 52px Archivo', 'condensed 600 12px Archivo'].map((f) => document.fonts.load(f)))
-  const icons = await pictograms(packingList(trip, items).map((b) => b.cat))
+  const icons = await pictograms(packingList(trip, items).flatMap((b) => b.rows.map((r) => r.icon)))
   const canvas = document.createElement('canvas')
   const { H, inkH } = paint(canvas.getContext('2d')!, trip, bags, items, icons, 0, 0)
   canvas.width = W * S; canvas.height = H * S
