@@ -22,7 +22,7 @@
 .scene { position: absolute; inset: 0; }
 
 .cut { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); display: grid; justify-items: center; gap: 6px; padding: 10px 6px; background: var(--raise); border: 1px solid var(--ink); }
-.cut input[type='range'] { writing-mode: vertical-lr; direction: rtl; height: 140px; width: 20px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: ns-resize; }
+.cut input[type='range'] { writing-mode: vertical-lr; direction: rtl; height: 140px; width: 20px; min-width: 0; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: ns-resize; }
 .cut input[type='range']::-webkit-slider-runnable-track { width: 2px; height: 100%; background: var(--ink); }
 .cut input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-left: -6px; background: var(--raise); border: 2px solid var(--ink); }
 .cut input[type='range']::-moz-range-track { width: 2px; height: 100%; background: var(--ink); }
@@ -35,6 +35,8 @@
   color: var(--blue); transform: rotate(-6deg); opacity: 0.9;
   animation: thud 420ms var(--spring) both; pointer-events: none;
 }
+/* In 3D the camera keys push Arrange compartments down; the stamp drops below them both. */
+.sheet:has(.cams) .stamp { top: 108px; }
 @keyframes thud { 0% { transform: rotate(-6deg) scale(1.6); opacity: 0; } 55% { transform: rotate(-6deg) scale(0.94); opacity: 1; } 100% { transform: rotate(-6deg) scale(1); } }
 
 .sel { position: absolute; left: 16px; top: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; background: var(--raise); border: 1px solid var(--blue); padding: 6px 6px 6px 12px; max-width: calc(100% - 32px); animation: open 180ms var(--ease) both; }
