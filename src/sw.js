@@ -2,7 +2,7 @@
 // Cache-first for the whole app, so it opens with no network. A new build installs
 // alongside and takes over once every tab of the old one is closed, so an open tab
 // never loses a lazy chunk it hasn't loaded yet.
-const CACHE = 'bin-pack-__VERSION__'
+const CACHE = 'tsumiki-__VERSION__'
 const FILES = __FILES__
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES))))
