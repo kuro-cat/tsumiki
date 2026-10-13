@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/icon-512.png" alt="Tsumiki-chan hugging a backpack" width="160" height="160">
+</p>
+
 # Tsumiki
 
 *Packing shouldn't be NP-hard.*
