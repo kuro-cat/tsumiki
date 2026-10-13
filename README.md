@@ -1,29 +1,37 @@
 # Tsumiki
 
-*Packing shouldn't be NP-hard.* Tsumiki (積み木, Japanese for building blocks) was called Bin-pack; the repository keeps that name.
+*Packing shouldn't be NP-hard.*
 
-Packing planner. Enter your bags (interior L × W × H, empty weight, limit) and items (dimensions, weight), draw a trip's packing as an architect's plan, and see fill, weight, and margin before you leave.
+Tsumiki (積み木, Japanese for "building blocks") is a packing planner. Add your bags and the things you own, and see how a trip fits before you leave: a to-scale drawing of each bag, how full it is, and how much it weighs.
 
-- **Plan**: pick a bag, drag items from the schedule into the true-scale plan of its compartments. A rigid item's footprint appears at scale the moment the drag starts, snaps to the 1 cm grid, and settles on top of whatever it overlaps. A soft item dropped on a compartment is packed loose there; the room it takes is drawn as hatching in the gaps and summed in a per-compartment gauge, red when over volume. `R` turns and `T` tips a rigid item onto its next face, while dragging or with it selected, unless the item is marked this side up; `Delete` removes. A container (packing cube) is placed like a rigid item and takes soft items dropped onto it, up to what it holds. A section-cut slider peels layers at bag-absolute height; the 3D toggle shows the assembled bag as a rotatable line drawing with iso/top/front/side buttons. **Auto-pack** packs the remaining checklist items. **Arrange compartments** opens the 3D view: pick a compartment and drag its axis arrows (snapped to 1 cm), or type X, Y and Z; it always settles onto the floor or whatever is below it, so nothing floats. **Share**, beside the trip picker at the top, turns the trip into a picture to send: the trip's dates and each bag's weight and space up top, then everything packed (worn items included) listed by category, with the postmark once the trip is ready. On a phone it opens the share sheet; on a computer it downloads a PNG.
-- **Inventory / Bags**: the item and bag schedules, sortable by any column. In the forms, drag a number's unit (cm, g, kg, L) sideways to change it, or type; Shift moves ten steps. Size is one field, length × width × height. Packed size is a slider. Colour opens a set of swatches, plus a Custom strip of greens, blues and earths. A compartment's position folds away under Position; Arrange compartments on the plan sets it by dragging. Items are rigid (L × W × H, optionally this side up), soft (litres and a packs-to percentage), or containers (a rigid box that holds litres of soft items). Bags are one or more compartments, Main first. Presets are approximate interior sizes; edit them. Under each compartment, **Auto-pack** picks the categories it may put there (a laptop sleeve: electronics and documents); it takes anything until you choose. Dragging by hand puts anything anywhere. **Heavy items**, next to Add compartment, says where Auto-pack puts heavy things: anywhere (by size, the default), low (heaviest first, so they settle at the bottom), or low against one edge of the plan, the side that sits on your back.
-- **Trips**: one or more bags, plus dates, weather, kind of trip, and activities that produce a rule-based checklist matched against your inventory. Pick the dates in one calendar: tap the day you leave, then the day you're back (arrow keys work too). Tap an activity to switch it on. Each checklist entry links to one or more inventory items, guessed from keywords until you pin it, and counts as packed when the packed units reach its quantity; Auto-pack takes what the list asks for. The header picks which bag the plan shows; a strip above the schedule totals each bag. To wear an item instead, drop it on the strip's Worn tab or choose Wear it from its menu: it counts as packed and weighs nothing in any bag. An item's + packs one unit where Auto-pack would put it, following the bag's compartment categories and Heavy items; its menu (the arrow beside the +) also packs it into a specific compartment, a packing cube, or another bag on the trip, and a selected item can be moved to another bag. Every removal can be undone from the notice at the bottom of the screen. Put a bag on a scale and enter its actual weight under TOTAL in the title block: it replaces the estimate until you weigh again. A shared limit covers two or more of a trip's bags together (a cabin allowance, say), set under the trip's bags and shown as a bracket in the strip. To leave room for souvenirs, press Keep room free under one of the trip's bags and set litres and kg: the plan counts it against the bag's limit, any shared limit, and the bag's space, and says how much is kept free. A wordless postmark appears on the plan when the checklist is packed, every bag and shared limit is under its limit, and nothing is over volume, room kept free included, and the checklist on Trips says Ready to travel. **Duplicate** on a trip starts a repeat trip from it: the same bags, checklist and packing, room kept free included, dated a week from today for the same number of nights. Entries you ticked by hand start unticked, and bags need weighing again. Set up AI suggestions under Data and **Ask AI for extras** adds destination-specific entries, tagged AI; everything works without it.
-- **Templates**: reusable checklists, such as the sample "7-day spring" and "15-day thru-hike". Switch the Trips page to Templates to edit one: its name, the weather, kind of trip and activities a trip from it starts with, and its entries (name, category, quantity, linked items, note). **Start a trip** makes a new trip from it; on Trips, **From template…** does the same, and **Add a template…** on a trip's checklist adds its entries, keeping the ones the trip already has. **Save as template** turns a trip's list into one, and **Duplicate** copies a template. A trip keeps its own copy of the entries, so editing a template doesn't change trips made from it.
-- **Data**: JSON export/import, AI suggestions, units, remove or restore sample data. Everything is stored in the browser. Units switch between metric (cm, g, kg) and imperial (in, oz, lb) for everything shown and typed; volume stays in litres, and what's stored is metric either way, so switching never changes your numbers.
-- **Sample data**: first run starts with a sample inventory and a Lisbon trip, partly packed. Press Auto-pack on the plan to finish it and see the postmark. Once you edit a sample item, bag or trip it's yours, and removing sample data leaves it alone.
+## What it does
 
-Works at phone width too: one compartment at a time on the sheet, a tap-to-expand title strip, and drag from the row grip.
+- **Trip checklists.** Pick dates, weather and activities, and get a packing list matched to your own things.
+- **Pack on a drawing.** Drag items into a to-scale plan of your bag, or press Auto-pack. Switch to 3D to look around.
+- **Weight and space.** Check each bag against its weight limit, including a cabin allowance shared between bags, and keep room free for souvenirs.
+- **Wear it instead.** Things you'll wear count as packed but add no weight to a bag.
+- **Reuse.** Save a trip as a template, or duplicate last year's trip.
+- **Share.** Turn a packed trip into a picture to send.
+- **AI extras (optional).** Ask an AI model for things to bring for your destination, using your own API key.
 
-Works offline. After one visit online the whole app, the 3D view included, opens with no connection, and it can be installed from the browser's menu as an app. Only the optional AI suggestions need the network. A new version takes over once every open tab of the old one is closed.
+A sample trip to Lisbon is loaded the first time you open it. Press Auto-pack to finish packing it.
 
-**AI suggestions** (Data tab) use one provider at a time. **Anthropic**: paste a Claude API key; Model is optional. **OpenAI-compatible**: a key, a base URL and a model, for OpenCode Go, OpenRouter, a local Ollama or LM Studio, and the like. The key stays in this browser and is never exported. For OpenCode Go use base URL `https://opencode.ai/zen/go/v1` and a model from your Go plan. OpenCode doesn't accept calls from a web page, so run the app with `npm run dev` or `npm run preview`: on your own machine the app sends those requests through the local server instead. A copy hosted elsewhere only reaches providers that accept browser calls, such as Anthropic.
+## Your data
+
+Everything stays in your browser. There's no account, and nothing is uploaded. Export a backup from the Data tab. Tsumiki works offline once loaded and can be installed as an app from your browser's menu. Metric or imperial, on a phone or a computer.
+
+## Run it yourself
+
+You need [Node.js](https://nodejs.org).
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173
-npm test         # packing and suggestion rules
-npm run build    # static site in dist/
+npm run dev     # open http://localhost:5173
+npm run build   # static site in dist/, ready to host anywhere
 ```
 
-Packing uses an extreme-point first-fit heuristic (`src/lib/pack.ts`): six orientations unless an item is this side up, lowest resting height then as-measured wins, largest volume first, gravity settle, tightest compartment wins. Soft items are volume, not position: their packed volume is poured into the free space of their compartment from the floor up, and the resulting height is what the section and 3D views show. See `CONTEXT.md` and `docs/adr/`.
+AI extras work with Anthropic (Claude) or any OpenAI-compatible provider, such as OpenRouter, Ollama or LM Studio. Some providers, OpenCode for one, don't accept requests from a web page. Those only work when you run Tsumiki on your own computer with `npm run dev` or `npm run preview`.
 
-MIT licensed. See `LICENSE`.
+## License
+
+MIT. See [LICENSE](LICENSE).
