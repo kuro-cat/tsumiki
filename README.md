@@ -25,3 +25,5 @@ npm run build    # static site in dist/
 ```
 
 Packing uses an extreme-point first-fit heuristic (`src/lib/pack.ts`): six orientations unless an item is this side up, lowest resting height then as-measured wins, largest volume first, gravity settle, tightest compartment wins. Soft items are volume, not position: their packed volume is poured into the free space of their compartment from the floor up, and the resulting height is what the section and 3D views show. See `CONTEXT.md` and `docs/adr/`.
+
+MIT licensed. See `LICENSE`.
