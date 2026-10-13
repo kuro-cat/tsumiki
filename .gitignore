@@ -10,3 +10,8 @@ tsconfig.tsbuildinfo
 .claude/
 .codex/
 .impeccable/
+PRODUCT.md
+DESIGN.md
+docs/refactor-plan.md
+CLAUDE.md
+AGENTS.md
